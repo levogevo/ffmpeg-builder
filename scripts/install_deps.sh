@@ -13,7 +13,7 @@ determine_darwin_pkg_mgr() {
     fi
     PKG_MGR=brew
     check_pkg_exists() { 
-        "${PKG_MGR}" list "${1}"
+        "${PKG_MGR}" list --formula "${1}" >/dev/null
     }
     PKG_MGR_UPD="${PKG_MGR} update"
     PKG_MGR_INST="${PKG_MGR} install"
@@ -106,7 +106,8 @@ check_for_req_pkgs() {
     )
     # shellcheck disable=SC2034
     local brew_pkgs=(
-        "${common_pkgs[@]}" pkgconf mkvtoolnix
+        "${common_pkgs[@]}" pkgconf 
+        mkvtoolnix pipx
     )
     local common_linux_pkgs=(
         "${common_pkgs[@]}" clang valgrind
@@ -134,7 +135,7 @@ check_for_req_pkgs() {
         pipx ninja-build
     )
 
-    if test "${TARGET_WINDOWS}" -eq 1; then
+    if [[ "${TARGET_WINDOWS}" -eq 1 ]]; then
         apt_get_pkgs+=(gcc-mingw-w64 g++-mingw-w64)
     fi
 

@@ -261,9 +261,7 @@ build_hdr10plus_tool() {
     # build libhdr10plus
     cd hdr10plus || return 1
     ccache cargo cbuild --release
-    rm -rf build.user
-    cargo cinstall --prefix=build.user --release || return 1
-    ${SUDO} cp -r build.user/* "${PREFIX}/"
+    ${SUDO} bash -lc "cargo cinstall --prefix=${PREFIX} --release" || return 1
 }
 
 build_dovi_tool() {
@@ -275,9 +273,7 @@ build_dovi_tool() {
     # build libdovi
     cd dolby_vision || return 1
     ccache cargo cbuild --release
-    rm -rf build.user
-    cargo cinstall --prefix=build.user --release || return 1
-    ${SUDO} cp -r build.user/* "${PREFIX}/"
+    ${SUDO} bash -lc "cargo cinstall --prefix=${PREFIX} --release" || return 1
 }
 
 build_libsvtav1_psy() {
