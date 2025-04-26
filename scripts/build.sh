@@ -5,12 +5,14 @@ set_compile_opts() {
         C_FLAGS CXX_FLAGS CPP_FLAGS \
         CONFIGURE_FLAGS MESON_FLAGS \
         RUSTFLAGS CMAKE_FLAGS \
-        FFMPEG_EXTRA_FLAGS
+        FFMPEG_EXTRA_FLAGS \
+        PKG_CONFIG_PATH
     export CLEAN OPT_LVL LDFLAGS \
         C_FLAGS CXX_FLAGS CPP_FLAGS \
         CONFIGURE_FLAGS MESON_FLAGS \
         RUSTFLAGS CMAKE_FLAGS \
-        FFMPEG_EXTRA_FLAGS
+        FFMPEG_EXTRA_FLAGS \
+        PKG_CONFIG_PATH
     
     # set job count for all builds
     JOBS="$(nproc)"
@@ -24,12 +26,12 @@ set_compile_opts() {
     MESON_FLAGS+=("--prefix" "${PREFIX}")
     CMAKE_FLAGS+=("-DCMAKE_PREFIX_PATH=${PREFIX}")
     CMAKE_FLAGS+=("-DCMAKE_INSTALL_PREFIX=${PREFIX}")
-    export PKG_CONFIG_PATH="${PREFIX}/lib/pkgconfig:${PKG_CONFIG_PATH}"
-    export PKG_CONFIG_PATH="${PREFIX}/lib/${machine}/pkgconfig:${PKG_CONFIG_PATH}"
+    PKG_CONFIG_PATH="${PREFIX}/lib/pkgconfig:${PKG_CONFIG_PATH}"
+    PKG_CONFIG_PATH="${PREFIX}/lib/${machine}/pkgconfig:${PKG_CONFIG_PATH}"
     echo_info "PKG_CONFIG_PATH = ${PKG_CONFIG_PATH}"
 
     # add prefix include 
-    C_FLAGS+="-I${PREFIX}/include "
+    C_FLAGS+=("-I${PREFIX}/include")
 
     # enabling a clean build
     if test "$(jq .clean "${COMPILE_CFG}")" == 'true'; then
@@ -48,12 +50,15 @@ set_compile_opts() {
         LTO_SWITCH='ON'
         LTO_FLAG='-flto'
         LTO_BOOL='true'
+        C_FLAGS+=("${LTO_FLAG}")
         CONFIGURE_FLAGS+=('--enable-lto')
+        RUSTFLAGS+=("-C lto=yes" "-C inline-threshold=1000" "-C codegen-units=1")
     else
         echo_info "building without LTO"
         LTO_SWITCH='OFF'
         LTO_FLAG=''
         LTO_BOOL='false'
+        RUSTFLAGS+=("-C lto=no")
     fi
 
     # setting optimization level
@@ -61,7 +66,8 @@ set_compile_opts() {
     if test "${OPT_LVL}" == ''; then
         OPT_LVL='0'
     fi
-           
+    C_FLAGS+=("-O${OPT_LVL}")
+    RUSTFLAGS+=("-C opt-level=${OPT_LVL}")
     MESON_FLAGS+=("--optimization=${OPT_LVL}")
     echo_info "building with optimization: ${OPT_LVL}"
     
@@ -98,17 +104,17 @@ set_compile_opts() {
         arch_flags="-mcpu=${CPU}"
     fi
 
-    C_FLAGS+="-O${OPT_LVL} ${LTO_FLAG} ${arch_flags}"
-    CXX_FLAGS="${C_FLAGS}"
-    CPP_FLAGS="${C_FLAGS}"
-    RUSTFLAGS="-C target-cpu=${CPU}"
-    CMAKE_FLAGS+=("-DCMAKE_C_FLAGS=${C_FLAGS}")
-    CMAKE_FLAGS+=("-DCMAKE_CXX_FLAGS=${CXX_FLAGS}")
-    echo_info "CONFIGURE_FLAGS =" "${CONFIGURE_FLAGS[@]}"
-    echo_info "C_FLAGS = ${C_FLAGS}"
-    echo_info "RUSTFLAGS = ${RUSTFLAGS}"
-    echo_info "CMAKE_FLAGS =" "${CMAKE_FLAGS[@]}"
-    echo_info "PKG_CFG_FLAGS = ${PKG_CFG_FLAGS}"
+    C_FLAGS+=("${arch_flags}")
+    CXX_FLAGS=("${C_FLAGS[@]}")
+    CPP_FLAGS=("${C_FLAGS[@]}")
+    RUSTFLAGS+=("-C target-cpu=${CPU}")
+    CMAKE_FLAGS+=("-DCMAKE_C_FLAGS='${C_FLAGS[*]}'")
+    CMAKE_FLAGS+=("-DCMAKE_CXX_FLAGS='${CXX_FLAGS[*]}'")
+    dump_arr CONFIGURE_FLAGS
+    dump_arr C_FLAGS
+    dump_arr RUSTFLAGS
+    dump_arr CMAKE_FLAGS
+    dump_arr PKG_CFG_FLAGS
 
     # extra ffmpeg flags
     if [[ "${TARGET_WINDOWS}" == '1' ]]; then
@@ -122,8 +128,10 @@ set_compile_opts() {
             '--nm=x86_64-w64-mingw32-gcc-nm'
         )
     fi
-    echo_info "FFMPEG_EXTRA_FLAGS =" "${FFMPEG_EXTRA_FLAGS[@]}"
+    dump_arr FFMPEG_EXTRA_FLAGS
 
+    # shellcheck disable=SC2178
+    RUSTFLAGS="${RUSTFLAGS[*]}"
     echo
 }
 # set_compile_opts || return 1
@@ -203,7 +211,7 @@ do_build() {
     download_release "${build}" || return 1
     get_json_conf "${build}" || return 1
     for dep in "${deps[@]}"; do
-        do_build "${dep}"
+        do_build "${dep}" || return 1
     done
     get_json_conf "${build}" || return 1
     echo_info "building ${build}"
@@ -224,7 +232,17 @@ build() {
     test -d "${DL_DIR}" || mkdir -p "${DL_DIR}"
     test -d "${CCACHE_DIR}" || mkdir -p "${CCACHE_DIR}"
     test -d "${BUILD_DIR}" || mkdir -p "${BUILD_DIR}"
-    rm -rf "${PREFIX:?}" && mkdir -p "${PREFIX}"
+    ${SUDO} mkdir -p "${PREFIX}"
+
+    testfile="${PREFIX}/ffmpeg-build-testfile"
+    if ! touch "${testfile}" 2> /dev/null; then
+        # we cannot modify the install prefix
+        # so we need to use sudo        
+        unset SUDO
+        test "$(id -u)" -eq 0 || SUDO=sudo
+        export SUDO
+    fi
+    test -f "${testfile}" && ${SUDO} rm "${testfile}"
 
     for build in "${FFMPEG_ENABLES[@]}"; do
         do_build "${build}" || return 1
@@ -238,28 +256,32 @@ build_hdr10plus_tool() {
     test "${CLEAN}" != '' && cargo clean
     ccache cargo build --release
     test -d "${PREFIX}/bin/" || mkdir "${PREFIX}/bin/"
-    cp target/release/hdr10plus_tool "${PREFIX}/bin/" || return 1
+    ${SUDO} cp target/release/hdr10plus_tool "${PREFIX}/bin/" || return 1
 
     # build libhdr10plus
     cd hdr10plus || return 1
     ccache cargo cbuild --release
-    cargo cinstall --prefix="${PREFIX}" --release || return 1
+    rm -rf build.user
+    cargo cinstall --prefix=build.user --release || return 1
+    ${SUDO} cp -r build.user/* "${PREFIX}/"
 }
 
 build_dovi_tool() {
     test "${CLEAN}" != '' && cargo clean
     ccache cargo build --release
     test -d "${PREFIX}/bin/" || mkdir "${PREFIX}/bin/"
-    cp target/release/dovi_tool "${PREFIX}/bin/" || return 1
+    ${SUDO} cp target/release/dovi_tool "${PREFIX}/bin/" || return 1
 
     # build libdovi
     cd dolby_vision || return 1
     ccache cargo cbuild --release
-    cargo cinstall --prefix="${PREFIX}" --release || return 1
+    rm -rf build.user
+    cargo cinstall --prefix=build.user --release || return 1
+    ${SUDO} cp -r build.user/* "${PREFIX}/"
 }
 
 build_libsvtav1_psy() {
-    ${CLEAN}
+    ${SUDO} ${CLEAN}
     cmake \
         "${CMAKE_FLAGS[@]}" \
         -DSVT_AV1_LTO="${LTO_SWITCH}" \
@@ -269,21 +291,21 @@ build_libsvtav1_psy() {
         -DLIBDOVI_FOUND=1 \
         -DLIBHDR10PLUS_RS_FOUND=1 || return 1
     ccache make -j"${JOBS}" || return 1
-    make -j"${JOBS}" install || return 1
+    ${SUDO} make -j"${JOBS}" install || return 1
 }
 
 build_libopus() {
-    $CLEAN
+    ${SUDO} ${CLEAN}
     ./configure \
         "${CONFIGURE_FLAGS[@]}" || return 1
     ccache make -j"${JOBS}" || return 1
-    make -j"${JOBS}" install || return 1
+    ${SUDO} make -j"${JOBS}" install || return 1
     return 0
 }
 
 build_libdav1d() {
     test "${CLEAN}" != '' && {
-        rm -rf build.user 
+        ${SUDO} rm -rf build.user
         mkdir build.user
     }
     meson \
@@ -293,7 +315,7 @@ build_libdav1d() {
         -Dcpp_args="${CPP_FLAGS}" \
         -Db_lto="${LTO_BOOL}" || return 1
     ccache ninja -vC build.user || return 1
-    ninja -vC build.user install || return 1
+    ${SUDO} ninja -vC build.user install || return 1
 }
 
 build_ffmpeg() {
@@ -301,7 +323,7 @@ build_ffmpeg() {
         test "${enable}" == 'libsvtav1_psy' && enable='libsvtav1'
         CONFIGURE_FLAGS+=("--enable-${enable}")
     done
-    $CLEAN
+    ${SUDO} $CLEAN
     ./configure \
         "${CONFIGURE_FLAGS[@]}" \
         "${FFMPEG_EXTRA_FLAGS[@]}" \
@@ -310,8 +332,8 @@ build_ffmpeg() {
         --disable-debug --enable-nonfree \
         --enable-gpl --enable-version3 \
         --cpu="${CPU}" --arch="${ARCH}" \
-        --extra-cflags="${C_FLAGS}" \
-        --extra-cxxflags="${CXX_FLAGS}" \
+        --extra-cflags="${C_FLAGS[*]}" \
+        --extra-cxxflags="${CXX_FLAGS[*]}" \
         --extra-ldflags="${LDFLAGS}" \
         --disable-doc \
         --disable-htmlpages \
@@ -319,6 +341,6 @@ build_ffmpeg() {
         --disable-txtpages \
         --disable-autodetect || return 1
     ccache make -j"${JOBS}" || return 1
-    make -j"${JOBS}" install || return 1
+    ${SUDO} make -j"${JOBS}" install || return 1
     return 0
 }

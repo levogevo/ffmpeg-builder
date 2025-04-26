@@ -33,3 +33,13 @@ echo_if_fail() {
     rm ${out} ${err}
     return ${retval}
 }
+
+dump_arr() {
+    arr_name="$1"
+    declare -n arr
+    arr="${arr_name}"
+    arr_exp=("${arr[@]}")
+    test "${#arr_exp}" -gt 0 || return 0
+    echo_info "${arr_name}"
+    printf "\t%s\n" "${arr_exp[@]}"
+}

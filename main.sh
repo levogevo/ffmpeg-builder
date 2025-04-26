@@ -4,9 +4,8 @@ REPO_DIR="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
 IGN_DIR="${REPO_DIR}/gitignore"
 DL_DIR="${IGN_DIR}/downloads"
 BUILD_DIR="${IGN_DIR}/builds"
-PREFIX="${IGN_DIR}/${OS}_sysroot"
 CCACHE_DIR="${IGN_DIR}/ccache"
-export REPO_DIR IGN_DIR DL_DIR PREFIX BUILD_DIR CCACHE_DIR
+export REPO_DIR IGN_DIR DL_DIR BUILD_DIR CCACHE_DIR
 
 # function names, descriptions, completions
 FB_FUNC_NAMES=()
@@ -52,6 +51,12 @@ set_completions() {
 source "${HOME}/.bashrc"
 src_scripts || return 1
 determine_os || return 1
+
+unset PREFIX
+PREFIX="$(jq -r '.prefix' "${COMPILE_CFG}")"
+test "${PREFIX}" == 'null' && PREFIX="${IGN_DIR}/${OS}_sysroot"
+export PREFIX
+
 set_compile_opts || return 1
 print_cmds || return 1
 set_completions || return 1
