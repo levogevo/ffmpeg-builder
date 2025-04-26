@@ -35,10 +35,10 @@ set_compile_opts() {
 
     # enabling a clean build
     if test "$(jq .clean "${COMPILE_CFG}")" == 'true'; then
-        CLEAN='make clean ;'
+        CLEAN="${SUDO} rm -rf"
         echo_info "performing clean build"
     else
-        CLEAN=''
+        CLEAN='void'
     fi
 
     # enabling link-time optimization
@@ -165,6 +165,7 @@ download_release() {
         if [[ "${wrong_ver_dl}" =~ ${base_path} ]]; then
             continue
         fi
+        test -f "${wrong_ver_dl}" || continue
         echo_warn "removing wrong version: ${wrong_ver_dl}"
         rm -rf "${wrong_ver_dl}"
     done
@@ -173,9 +174,14 @@ download_release() {
         if [[ "${wrong_ver_build}" =~ ${base_path} ]]; then
             continue
         fi
+        test -d "${wrong_ver_build}" || continue
         echo_warn "removing wrong version: ${extracted_dir}"
         rm -rf "${wrong_ver_build}"
     done
+
+    # create new build dir for clean builds
+    test -d "${extracted_dir}" && \
+        ${CLEAN} "${extracted_dir}"
 
     if test "${ext}" != "git"; then
         wget_out="${base_dl_path}.${ext}"
@@ -194,10 +200,12 @@ download_release() {
         }
     else
         # for git downloads
-        test -d "${base_dl_path}" || {
+        test -d "${base_dl_path}" || \
             git clone "${url}" "${base_dl_path}" || return 1
+
+        # create new build directory
+        test -d "${extracted_dir}" || \
             cp -r "${base_dl_path}" "${extracted_dir}" || return 1
-        }
     fi
 }
 
@@ -253,9 +261,8 @@ build() {
 }
 
 build_hdr10plus_tool() {
-    test "${CLEAN}" != '' && cargo clean
     ccache cargo build --release
-    test -d "${PREFIX}/bin/" || mkdir "${PREFIX}/bin/"
+    test -d "${PREFIX}/bin/" || ${SUDO} mkdir "${PREFIX}/bin/"
     ${SUDO} cp target/release/hdr10plus_tool "${PREFIX}/bin/" || return 1
 
     # build libhdr10plus
@@ -265,9 +272,8 @@ build_hdr10plus_tool() {
 }
 
 build_dovi_tool() {
-    test "${CLEAN}" != '' && cargo clean
     ccache cargo build --release
-    test -d "${PREFIX}/bin/" || mkdir "${PREFIX}/bin/"
+    test -d "${PREFIX}/bin/" || ${SUDO} mkdir "${PREFIX}/bin/"
     ${SUDO} cp target/release/dovi_tool "${PREFIX}/bin/" || return 1
 
     # build libdovi
@@ -277,7 +283,6 @@ build_dovi_tool() {
 }
 
 build_libsvtav1_psy() {
-    ${SUDO} ${CLEAN}
     cmake \
         "${CMAKE_FLAGS[@]}" \
         -DSVT_AV1_LTO="${LTO_SWITCH}" \
@@ -291,7 +296,6 @@ build_libsvtav1_psy() {
 }
 
 build_libopus() {
-    ${SUDO} ${CLEAN}
     ./configure \
         "${CONFIGURE_FLAGS[@]}" || return 1
     ccache make -j"${JOBS}" || return 1
@@ -300,10 +304,6 @@ build_libopus() {
 }
 
 build_libdav1d() {
-    test "${CLEAN}" != '' && {
-        ${SUDO} rm -rf build.user
-        mkdir build.user
-    }
     meson \
         setup . build.user \
         "${MESON_FLAGS[@]}" \
@@ -319,7 +319,6 @@ build_ffmpeg() {
         test "${enable}" == 'libsvtav1_psy' && enable='libsvtav1'
         CONFIGURE_FLAGS+=("--enable-${enable}")
     done
-    ${SUDO} $CLEAN
     ./configure \
         "${CONFIGURE_FLAGS[@]}" \
         "${FFMPEG_EXTRA_FLAGS[@]}" \

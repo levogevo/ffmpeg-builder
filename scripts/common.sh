@@ -15,6 +15,7 @@ echo_info() { echo -e "${CYAN}INFO${NC}:" "$@" ; }
 echo_pass() { echo -e "${GREEN}PASS${NC}:" "$@" ; }
 echo_warn() { echo -e "${YELLOW}WARN${NC}:" "$@" ; }
 echo_exit() { echo_fail "$@" ; exit 1 ; }
+void() { echo "$@" >/dev/null ; }
 
 echo_if_fail() {
     local cmd=("$@")
