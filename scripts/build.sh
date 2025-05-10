@@ -18,8 +18,10 @@ set_compile_opts() {
     JOBS="$(nproc)"
     export JOBS
     
-    machine="$(cc -dumpmachine)"
-    test "${machine}" != '' || return 1
+    MACHINE="$(cc -dumpmachine)"
+    test "${MACHINE}" != '' || return 1
+    export MACHINE
+    MACHINE_LIB="${PREFIX}/lib/${MACHINE}"
 
     # set prefix flags
     CONFIGURE_FLAGS+=("--prefix=${PREFIX}")
@@ -27,7 +29,7 @@ set_compile_opts() {
     CMAKE_FLAGS+=("-DCMAKE_PREFIX_PATH=${PREFIX}")
     CMAKE_FLAGS+=("-DCMAKE_INSTALL_PREFIX=${PREFIX}")
     PKG_CONFIG_PATH="${PREFIX}/lib/pkgconfig:${PKG_CONFIG_PATH}"
-    PKG_CONFIG_PATH="${PREFIX}/lib/${machine}/pkgconfig:${PKG_CONFIG_PATH}"
+    PKG_CONFIG_PATH="${MACHINE_LIB}/pkgconfig:${PKG_CONFIG_PATH}"
     echo_info "PKG_CONFIG_PATH = ${PKG_CONFIG_PATH}"
 
     # add prefix include 
@@ -49,15 +51,15 @@ set_compile_opts() {
         echo_info "building with LTO"
         LTO_SWITCH='ON'
         LTO_FLAG='-flto'
-        LTO_BOOL='true'
         C_FLAGS+=("${LTO_FLAG}")
         CONFIGURE_FLAGS+=('--enable-lto')
+        MESON_FLAGS+=("-Db_lto=true")
         RUSTFLAGS+=("-C lto=yes" "-C inline-threshold=1000" "-C codegen-units=1")
     else
         echo_info "building without LTO"
         LTO_SWITCH='OFF'
         LTO_FLAG=''
-        LTO_BOOL='false'
+        MESON_FLAGS+=("-Db_lto=false")
         RUSTFLAGS+=("-C lto=no")
     fi
 
@@ -72,20 +74,29 @@ set_compile_opts() {
     echo_info "building with optimization: ${OPT_LVL}"
     
     # static/shared linking
-    unset PKG_CFG_FLAGS
-    export PKG_CFG_FLAGS
-    if test "$(jq .static "${COMPILE_CFG}")" == 'true'; then
-        LDFLAGS+='-static'
+    unset PKG_CFG_FLAGS LIB_SUFF
+    export PKG_CFG_FLAGS LIB_SUFF
+    isStatic="$(test "$(jq .static "${COMPILE_CFG}")" == 'true' ; echo $?)"
+    isShared="$(test "$(jq .shared "${COMPILE_CFG}")" == 'true' ; echo $?)"
+    if test $((isStatic + isShared)) -eq 2; then
+        echo_exit "Cannot have static and shared compile options"
+    fi
+    if test "${isStatic}" -eq 0; then
+        LDFLAGS+=('-static')
         CONFIGURE_FLAGS+=('--enable-static')
         CMAKE_FLAGS+=("-DBUILD_SHARED_LIBS=OFF")
         MESON_FLAGS+=('--default-library=static')
+        CMAKE_FLAGS+=("-DCMAKE_EXE_LINKER_FLAGS='-static'")
         PKG_CFG_FLAGS='--static'
+        LIB_SUFF='a'
     fi
-    if test "$(jq .shared "${COMPILE_CFG}")" == 'true'; then
+    if test "${isShared}" -eq 0; then
+        LDFLAGS+=("-Wl,-rpath,${MACHINE_LIB}")
         CONFIGURE_FLAGS+=('--enable-shared')
         CMAKE_FLAGS+=("-DBUILD_SHARED_LIBS=ON")
-        CMAKE_FLAGS+=("-DCMAKE_INSTALL_RPATH=${PREFIX}/lib;${PREFIX}/lib/${machine}")
+        CMAKE_FLAGS+=("-DCMAKE_INSTALL_RPATH=${PREFIX}/lib;${MACHINE_LIB}")        
         FFMPEG_EXTRA_FLAGS+=('--enable-rpath')
+        LIB_SUFF='so'
     fi
 
     # architecture/cpu compile flags
@@ -110,10 +121,12 @@ set_compile_opts() {
     RUSTFLAGS+=("-C target-cpu=${CPU}")
     CMAKE_FLAGS+=("-DCMAKE_C_FLAGS='${C_FLAGS[*]}'")
     CMAKE_FLAGS+=("-DCMAKE_CXX_FLAGS='${CXX_FLAGS[*]}'")
+    MESON_FLAGS+=("-Dc_args=${C_FLAGS[*]}" "-Dcpp_args=${CPP_FLAGS[*]}")
     dump_arr CONFIGURE_FLAGS
     dump_arr C_FLAGS
     dump_arr RUSTFLAGS
     dump_arr CMAKE_FLAGS
+    dump_arr MESON_FLAGS
     dump_arr PKG_CFG_FLAGS
 
     # extra ffmpeg flags
@@ -128,13 +141,32 @@ set_compile_opts() {
             '--nm=x86_64-w64-mingw32-gcc-nm'
         )
     fi
+    FFMPEG_EXTRA_FLAGS+=(
+        "--extra-cflags=\"${C_FLAGS[*]}\""
+        "--extra-cxxflags=\"${CXX_FLAGS[*]}\""
+        "--extra-ldflags=\"${LDFLAGS[*]}\""
+    )
     dump_arr FFMPEG_EXTRA_FLAGS
 
     # shellcheck disable=SC2178
     RUSTFLAGS="${RUSTFLAGS[*]}"
+
+    # make sure RUSTUP_HOME and CARGO_HOME are defined
+    if [[ "${RUSTUP_HOME}" == '' ]]; then
+        RUSTUP_HOME="${HOME}/.rustup"
+        test -d "${RUSTUP_HOME}" || echo_exit "RUSTUP_HOME does not exist"
+    fi
+    if [[ "${CARGO_HOME}" == '' ]]; then
+        CARGO_HOME="${HOME}/.rustup"
+        test -d "${CARGO_HOME}" || echo_exit "CARGO_HOME does not exist"
+    fi
+    export RUSTUP_HOME CARGO_HOME
+    unset SUDO_CARGO
+    if [[ "${SUDO}" != '' ]]; then
+        export SUDO_CARGO="${SUDO} --preserve-env=PATH,RUSTUP_HOME,CARGO_HOME"
+    fi
     echo
 }
-# set_compile_opts || return 1
 
 get_json_conf() {
     local build="${1}"
@@ -235,20 +267,19 @@ FB_FUNC_NAMES+=('build')
 # shellcheck disable=SC2034
 FB_FUNC_DESCS['build']='build ffmpeg with desired configuration'
 build() {
-    # set_compile_opts || return 1
-
     test -d "${DL_DIR}" || mkdir -p "${DL_DIR}"
     test -d "${CCACHE_DIR}" || mkdir -p "${CCACHE_DIR}"
     test -d "${BUILD_DIR}" || mkdir -p "${BUILD_DIR}"
-    ${SUDO} mkdir -p "${PREFIX}"
+    test -d "${PREFIX}/bin/" || mkdir -p "${PREFIX}/bin/"
 
+    unset SUDO
     testfile="${PREFIX}/ffmpeg-build-testfile"
     if ! touch "${testfile}" 2> /dev/null; then
         # we cannot modify the install prefix
-        # so we need to use sudo        
-        unset SUDO
+        # so we need to use sudo
         test "$(id -u)" -eq 0 || SUDO=sudo
         export SUDO
+        ${SUDO} mkdir -p "${PREFIX}/bin/"
     fi
     test -f "${testfile}" && ${SUDO} rm "${testfile}"
 
@@ -261,43 +292,73 @@ build() {
 }
 
 build_hdr10plus_tool() {
-    ccache cargo build --release
-    test -d "${PREFIX}/bin/" || ${SUDO} mkdir "${PREFIX}/bin/"
+    ccache cargo build --release || return 1
     ${SUDO} cp target/release/hdr10plus_tool "${PREFIX}/bin/" || return 1
 
     # build libhdr10plus
     cd hdr10plus || return 1
-    ccache cargo cbuild --release
-    ${SUDO} bash -lc "cargo cinstall --prefix=${PREFIX} --release" || return 1
+    ccache cargo cbuild --release || return 1
+    ${SUDO_CARGO} bash -lc "cargo cinstall --prefix=${PREFIX} --release" || return 1
 }
 
 build_dovi_tool() {
-    ccache cargo build --release
-    test -d "${PREFIX}/bin/" || ${SUDO} mkdir "${PREFIX}/bin/"
+    ccache cargo build --release || return 1
     ${SUDO} cp target/release/dovi_tool "${PREFIX}/bin/" || return 1
 
     # build libdovi
     cd dolby_vision || return 1
-    ccache cargo cbuild --release
-    ${SUDO} bash -lc "cargo cinstall --prefix=${PREFIX} --release" || return 1
+    ccache cargo cbuild --release || return 1
+    ${SUDO_CARGO} bash -lc "cargo cinstall --prefix=${PREFIX} --release" || return 1
+}
+
+build_libsvtav1() {
+    cmake \
+        "${CMAKE_FLAGS[@]}" \
+        -DSVT_AV1_LTO="${LTO_SWITCH}" \
+        -DENABLE_AVX512=ON \
+        -DBUILD_TESTING=OFF \
+        -DCOVERAGE=OFF || return 1
+    ccache make -j"${JOBS}" || return 1
+    ${SUDO} make -j"${JOBS}" install || return 1
 }
 
 build_libsvtav1_psy() {
     cmake \
         "${CMAKE_FLAGS[@]}" \
         -DSVT_AV1_LTO="${LTO_SWITCH}" \
-        -DENABLE_AVX512=ON \
         -DBUILD_TESTING=OFF \
+        -DENABLE_AVX512=ON \
         -DCOVERAGE=OFF \
         -DLIBDOVI_FOUND=1 \
-        -DLIBHDR10PLUS_RS_FOUND=1 || return 1
+        -DLIBHDR10PLUS_RS_FOUND=1 \
+        -DLIBHDR10PLUS_RS_LIBRARY="${MACHINE_LIB}/libhdr10plus-rs.${LIB_SUFF}" \
+        -DLIBDOVI_LIBRARY="${MACHINE_LIB}/libdovi.${LIB_SUFF}" || return 1
+    ccache make -j"${JOBS}" || return 1
+    ${SUDO} make -j"${JOBS}" install || return 1
+}
+
+build_librav1e() {
+    ccache cargo build --release || return 1
+    ${SUDO} cp target/release/rav1e "${PREFIX}/bin/" || return 1
+
+    ccache cargo cbuild --release || return 1
+    ${SUDO_CARGO} bash -lc "cargo cinstall --prefix=${PREFIX} --release" || return 1
+}
+
+build_libaom() {
+    cmake \
+        "${CMAKE_FLAGS[@]}" \
+        -B build.user \
+        -DENABLE_TESTS=OFF || return 1
+    cd build.user || return 1
     ccache make -j"${JOBS}" || return 1
     ${SUDO} make -j"${JOBS}" install || return 1
 }
 
 build_libopus() {
     ./configure \
-        "${CONFIGURE_FLAGS[@]}" || return 1
+        "${CONFIGURE_FLAGS[@]}" \
+        --disable-doc || return 1
     ccache make -j"${JOBS}" || return 1
     ${SUDO} make -j"${JOBS}" install || return 1
     return 0
@@ -306,12 +367,23 @@ build_libopus() {
 build_libdav1d() {
     meson \
         setup . build.user \
-        "${MESON_FLAGS[@]}" \
-        -Dc_args="${C_FLAGS}" \
-        -Dcpp_args="${CPP_FLAGS}" \
-        -Db_lto="${LTO_BOOL}" || return 1
+        "${MESON_FLAGS[@]}" || return 1
     ccache ninja -vC build.user || return 1
     ${SUDO} ninja -vC build.user install || return 1
+}
+
+build_libvmaf() {
+    cd libvmaf || return 1
+    python3 -m virtualenv .venv
+    (
+        source .venv/bin/activate
+        meson \
+            setup . build.user \
+            "${MESON_FLAGS[@]}" \
+            -Denable_float=true || exit 1
+        ccache ninja -vC build.user || exit 1
+        ${SUDO} ninja -vC build.user install || exit 1
+    ) || return 1
 }
 
 build_ffmpeg() {
@@ -324,13 +396,9 @@ build_ffmpeg() {
         "${FFMPEG_EXTRA_FLAGS[@]}" \
         --pkg-config='pkg-config' \
         --pkg-config-flags="${PKG_CFG_FLAGS}" \
-        --disable-debug --enable-nonfree \
-        --enable-gpl --enable-version3 \
         --cpu="${CPU}" --arch="${ARCH}" \
-        --extra-cflags="${C_FLAGS[*]}" \
-        --extra-cxxflags="${CXX_FLAGS[*]}" \
-        --extra-ldflags="${LDFLAGS}" \
-        --disable-doc \
+        --enable-gpl --enable-version3 \
+        --enable-nonfree \
         --disable-htmlpages \
         --disable-podpages \
         --disable-txtpages \

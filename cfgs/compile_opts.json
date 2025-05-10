@@ -1,7 +1,7 @@
 {
     "clean": true,
-    "lto": true,
-    "optimization": 3,
+    "lto": false,
+    "optimization": 0,
     "static": true,
     "shared": false,
     "cpu": "native",

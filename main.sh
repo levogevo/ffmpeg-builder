@@ -2,10 +2,11 @@
 
 REPO_DIR="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
 IGN_DIR="${REPO_DIR}/gitignore"
+TMP_DIR="${IGN_DIR}/tmp"
 DL_DIR="${IGN_DIR}/downloads"
 BUILD_DIR="${IGN_DIR}/builds"
 CCACHE_DIR="${IGN_DIR}/ccache"
-export REPO_DIR IGN_DIR DL_DIR BUILD_DIR CCACHE_DIR
+export REPO_DIR IGN_DIR TMP_DIR DL_DIR BUILD_DIR CCACHE_DIR
 
 # function names, descriptions, completions
 FB_FUNC_NAMES=()
