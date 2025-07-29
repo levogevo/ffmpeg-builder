@@ -1,13 +1,18 @@
 #!/usr/bin/env bash
 
 validate_selected_distro() {
-	local distro="${1:-}"
+	local selectedDistro="${1:-}"
 	local validDistros=('debian:bookworm' 'ubuntu:24.04' 'archlinux:latest' 'fedora:42')
-	if [[ ${DISTRO} == '' ]]; then
-		DISTROS=("${validDistros[@]}")
-	else
-		DISTROS=("${DISTRO}")
+	for distro in "${validDistros[@]}"; do
+		if [[ ${selectedDistro} == ${distro} ]]; then
+			DISTROS+=("${distro}")
+		fi
+	done
+	if [[ ${DISTROS[*]} == '' ]]; then
+		echo_fail "${selectedDistro} is not valid"
+		return 1
 	fi
+	echo_warn "${FUNCNAME[0]}" "${DISTROS[@]}"
 }
 
 # shellcheck disable=SC2154
@@ -16,7 +21,7 @@ FB_FUNC_NAMES+=('docker_build_images')
 # shellcheck disable=SC2034
 FB_FUNC_DESCS['docker_build_images']='build docker images with required dependencies pre-installed'
 docker_build_images() {
-	validate_selected_distro "$@"
+	validate_selected_distro "$@" || return 1
 	DOCKERFILE_DIR="${IGN_DIR}/Dockerfiles"
 	test -d "${DOCKERFILE_DIR}" && rm -rf "${DOCKERFILE_DIR}"
 	mkdir -p "${DOCKERFILE_DIR}"
@@ -35,6 +40,7 @@ docker_build_images() {
 			"${distro}" \
 			bash -c "./scripts/print_pkg_mgr.sh" | tr -d '\r' >"${distroFmtPkgMgr}"
 		# shellcheck disable=SC1090
+		cat "${distroFmtPkgMgr}"
 		source "${distroFmtPkgMgr}"
 
 		dockerfile="${DOCKERFILE_DIR}/Dockerfile_${distroFmt}"
@@ -67,7 +73,7 @@ FB_FUNC_NAMES+=('docker_run_image')
 # shellcheck disable=SC2034
 FB_FUNC_DESCS['docker_run_image']='run docker images to build ffmpeg'
 docker_run_image() {
-	docker_build_images "$@"
+	docker_build_images "$@" || return 1
 	for distro in "${DISTROS[@]}"; do
 		image_tag="ffmpeg_builder_${distro}"
 		echo_info "running ffmpeg build for ${image_tag}"
