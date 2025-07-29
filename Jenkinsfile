@@ -7,13 +7,13 @@ pipeline {
                 axes {
                     axis {
                         name 'DISTRO'
-                        values 'debian', 'ubuntu', 'archlinux', 'fedora'
+                        values 'debian:bookworm', 'ubuntu:24.04', 'archlinux:latest', 'fedora:42'
                     }
                 }
                 stages {
                     stage('Build') {
                         steps {
-                            echo "Do Build for ${DISTRO}"
+                            sh "./scripts/docker_run_image.sh ${DISTRO}"
                         }
                     }
                 }

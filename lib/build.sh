@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 set_compile_opts() {
-	test "$FB_COMPILE_OPTS_SET" == 0 && return 0
+	test "$FB_COMPILE_OPTS_SET" == 1 && return 0
 
 	unset LDFLAGS C_FLAGS CXX_FLAGS CPP_FLAGS \
 		CONFIGURE_FLAGS MESON_FLAGS \
@@ -299,22 +299,22 @@ build() {
 }
 
 build_hdr10plus_tool() {
-	ccache cargo build --release || return 1
+	cargo build --release || return 1
 	${SUDO} cp target/release/hdr10plus_tool "${PREFIX}/bin/" || return 1
 
 	# build libhdr10plus
 	cd hdr10plus || return 1
-	ccache cargo cbuild --release || return 1
+	cargo cbuild --release || return 1
 	${SUDO_CARGO} bash -lc "cargo cinstall --prefix=${PREFIX} --release" || return 1
 }
 
 build_dovi_tool() {
-	ccache cargo build --release || return 1
+	cargo build --release || return 1
 	${SUDO} cp target/release/dovi_tool "${PREFIX}/bin/" || return 1
 
 	# build libdovi
 	cd dolby_vision || return 1
-	ccache cargo cbuild --release || return 1
+	cargo cbuild --release || return 1
 	${SUDO_CARGO} bash -lc "cargo cinstall --prefix=${PREFIX} --release" || return 1
 }
 
@@ -345,10 +345,10 @@ build_libsvtav1_psy() {
 }
 
 build_librav1e() {
-	ccache cargo build --release || return 1
+	cargo build --release || return 1
 	${SUDO} cp target/release/rav1e "${PREFIX}/bin/" || return 1
 
-	ccache cargo cbuild --release || return 1
+	cargo cbuild --release || return 1
 	${SUDO_CARGO} bash -lc "cargo cinstall --prefix=${PREFIX} --release" || return 1
 }
 
