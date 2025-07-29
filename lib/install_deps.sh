@@ -1,23 +1,24 @@
 #!/usr/bin/env bash
 
+# shellcheck disable=SC2120
 determine_pkg_mgr() {
 	# sudo used externally
 	# shellcheck disable=SC2034
-	test "$(id -u)" -eq 0 && SUDO='' || SUDO=sudo
+	test "$(id -u)" -eq 0 && SUDO='' || SUDO='sudo '
 
-	# pkg-mgr update-cmd install-cmd check-cmd
+	# pkg-mgr update-cmd upgrade-cmd install-cmd check-cmd
 	# shellcheck disable=SC2016
 	local PKG_MGR_MAP='
-brew:brew update:brew install:brew list --formula ${pkg}
-apt-get:${SUDO} apt-get update: ${SUDO} apt-get install -y:dpkg -l ${pkg}
-pacman:${SUDO} pacman -Syy:${SUDO} pacman -S --noconfirm --needed:pacman -Qi ${pkg}
-dnf:${SUDO} dnf check-update:${SUDO} dnf install -y:dnf list -q --installed ${pkg}
+brew:brew update:brew upgrade:brew install:brew list --formula ${pkg}
+apt-get:${SUDO}apt-get update:${SUDO}apt-get upgrade -y:${SUDO}apt-get install -y:dpkg -l ${pkg}
+pacman:${SUDO}pacman -Syy:${SUDO}pacman -Syu --noconfirm:${SUDO}pacman -S --noconfirm --needed:pacman -Qi ${pkg}
+dnf:${SUDO}dnf check-update || true:${SUDO}dnf upgrade --refresh -y:${SUDO}dnf install -y:dnf list -q --installed ${pkg}
 '
 	local supported_pkg_mgr=()
-	unset pkg_mgr pkg_mgr_update pkg_install pkg_check
+	unset pkg_mgr pkg_mgr_update pkg_mgr_upgrade pkg_install pkg_check
 	while read -r line; do
 		test "${line}" == '' && continue
-		IFS=':' read -r pkg_mgr pkg_mgr_update pkg_install pkg_check <<<"${line}"
+		IFS=':' read -r pkg_mgr pkg_mgr_update pkg_mgr_upgrade pkg_install pkg_check <<<"${line}"
 		supported_pkg_mgr+=("${pkg_mgr}")
 		if ! has_cmd "${pkg_mgr}"; then
 			pkg_mgr=''
@@ -25,6 +26,7 @@ dnf:${SUDO} dnf check-update:${SUDO} dnf install -y:dnf list -q --installed ${pk
 		fi
 		# update/install may use SUDO
 		eval "pkg_mgr_update=\"${pkg_mgr_update}\""
+		eval "pkg_mgr_upgrade=\"${pkg_mgr_upgrade}\""
 		eval "pkg_install=\"${pkg_install}\""
 		break
 	done <<<"${PKG_MGR_MAP}"
@@ -37,8 +39,7 @@ dnf:${SUDO} dnf check-update:${SUDO} dnf install -y:dnf list -q --installed ${pk
 	return 0
 }
 
-check_for_req_pkgs() {
-	echo_info "checking for required packages"
+print_req_pkgs() {
 	local common_pkgs=(
 		autoconf automake cmake libtool
 		texinfo nasm yasm python3
@@ -77,8 +78,27 @@ check_for_req_pkgs() {
 
 	local req_pkgs_env_name="${pkg_mgr/-/_}_pkgs"
 	declare -n req_pkgs="${req_pkgs_env_name}"
+	echo "${req_pkgs[@]}"
+}
+
+FB_FUNC_NAMES+=('print_pkg_mgr')
+# FB_FUNC_DESCS used externally
+# shellcheck disable=SC2034
+FB_FUNC_DESCS['print_pkg_mgr']='print out evaluated package manager commands and required packages'
+print_pkg_mgr() {
+	determine_pkg_mgr || return 1
+	echo "export pkg_mgr=\"${pkg_mgr}\""
+	echo "export pkg_mgr_update=\"${pkg_mgr_update}\""
+	echo "export pkg_mgr_upgrade=\"${pkg_mgr_upgrade}\""
+	echo "export pkg_install=\"${pkg_install}\""
+	echo "export pkg_check=\"${pkg_check}\""
+	echo "export req_pkgs=\"$(print_req_pkgs)\""
+}
+
+check_for_req_pkgs() {
+	echo_info "checking for required packages"
 	local missing_pkgs=()
-	for pkg in "${req_pkgs[@]}"; do
+	for pkg in $(print_req_pkgs); do
 		# pkg_check has ${pkg} unexpanded
 		eval "pkg_check=\"${pkg_check}\""
 		${pkg_check} "${pkg}" >/dev/null 2>&1 || missing_pkgs+=("${pkg}")

@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 
 set_compile_opts() {
+	test "$FB_COMPILE_OPTS_SET" == 0 && return 0
+
 	unset LDFLAGS C_FLAGS CXX_FLAGS CPP_FLAGS \
 		CONFIGURE_FLAGS MESON_FLAGS \
 		RUSTFLAGS CMAKE_FLAGS \
@@ -137,6 +139,8 @@ set_compile_opts() {
 		export SUDO_CARGO="${SUDO} --preserve-env=PATH,RUSTUP_HOME,CARGO_HOME"
 	fi
 	echo
+
+	FB_COMPILE_OPTS_SET=1
 }
 
 get_build_conf() {
@@ -255,6 +259,7 @@ do_build() {
 	local build="${1:-''}"
 	download_release "${build}" || return 1
 	get_build_conf "${build}" || return 1
+	set_compile_opts || return 1
 	for dep in "${deps[@]}"; do
 		do_build "${dep}" || return 1
 	done

@@ -123,7 +123,3 @@ bash_basename() {
 
 	printf '%s\n' "${tmp:-/}"
 }
-
-fb_running_as_script() {
-	return "$FB_RUNNING_AS_SCRIPT"
-}

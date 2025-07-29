@@ -1,10 +1,22 @@
 pipeline {
-    agent any // Specifies that the pipeline can run on any available agent
-
+    agent none
     stages {
-        stage('Hello') { // Defines a stage named 'Hello'
-            steps {
-                echo 'Hello World!' // Prints "Hello World!" to the console
+        stage('Build Matrix') {
+            matrix {
+                agent { label "linux" }
+                axes {
+                    axis {
+                        name 'DISTRO'
+                        values 'debian', 'ubuntu', 'archlinux', 'fedora'
+                    }
+                }
+                stages {
+                    stage('Build') {
+                        steps {
+                            echo "Do Build for ${DISTRO}"
+                        }
+                    }
+                }
             }
         }
     }
