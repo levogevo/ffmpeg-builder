@@ -78,7 +78,8 @@ print_req_pkgs() {
 
 	local req_pkgs_env_name="${pkg_mgr/-/_}_pkgs"
 	declare -n req_pkgs="${req_pkgs_env_name}"
-	echo "${req_pkgs[@]}"
+	local sorted_req_pkgs=($(printf '%s\n' "${req_pkgs[@]}" | sort))
+	echo "${sorted_req_pkgs[@]}"
 }
 
 FB_FUNC_NAMES+=('print_pkg_mgr')
