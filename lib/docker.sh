@@ -4,7 +4,7 @@ validate_selected_image() {
 	local selectedImage="${1:-}"
 	local validImages=(
 		'debian:bookworm' 'ubuntu:24.04'
-		'archlinux:latest' 'archlinuxarm'
+		'archlinux:latest' 'archlinuxarm:latest'
 		'fedora:42'
 	)
 	for distro in "${validImages[@]}"; do
@@ -17,7 +17,6 @@ validate_selected_image() {
 		echo_info "valid images:" "${validImages[@]}"
 		return 1
 	fi
-	echo_warn "${FUNCNAME[0]}" "${DISTROS[@]}"
 }
 
 # shellcheck disable=SC2154
