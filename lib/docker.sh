@@ -3,9 +3,11 @@
 validate_selected_image() {
 	local selectedImage="${1:-}"
 	local validImages=(
-		'debian:bookworm' 'ubuntu:24.04'
-		'archlinux:latest' 'archlinuxarm:latest'
-		'fedora:42'
+		'ubuntu:22.04' 'ubuntu:24.04'
+		'fedora:41' 'fedora:42'
+		'archlinux:latest'
+		'ogarcia/archlinux:latest'
+		'debian:bookworm'
 	)
 	for distro in "${validImages[@]}"; do
 		if [[ ${selectedImage} == "${distro}" ]]; then

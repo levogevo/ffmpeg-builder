@@ -42,13 +42,13 @@ dnf:${SUDO}dnf check-update || true:${SUDO}dnf upgrade --refresh -y:${SUDO}dnf i
 print_req_pkgs() {
 	local common_pkgs=(
 		autoconf automake cmake libtool
-		texinfo nasm yasm python3
+		texinfo nasm yasm python3 wget
 		meson doxygen jq ccache gawk
 	)
 	# shellcheck disable=SC2034
 	local brew_pkgs=(
 		"${common_pkgs[@]}" pkgconf
-		mkvtoolnix pipx wget
+		mkvtoolnix pipx
 	)
 	local common_linux_pkgs=(
 		"${common_pkgs[@]}" clang valgrind
@@ -62,13 +62,13 @@ print_req_pkgs() {
 		libvorbis-dev libxcb1-dev pipx
 		libxcb-shm0-dev libxcb-xfixes0-dev
 		zlib1g-dev libssl-dev ninja-build
-		gobjc++ mawk libnuma-dev wget
+		gobjc++ mawk libnuma-dev
 		mediainfo mkvtoolnix libgtest-dev
 	)
 	# shellcheck disable=SC2034
 	local pacman_pkgs=(
 		"${common_linux_pkgs[@]}" base-devel
-		python-pipx ninja wget
+		python-pipx ninja
 	)
 	# shellcheck disable=SC2034
 	local dnf_pkgs=(

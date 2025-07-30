@@ -7,7 +7,8 @@ pipeline {
                 axes {
                     axis {
                         name 'DISTRO'
-                        values 'debian:bookworm', 'ubuntu:24.04', 'archlinuxarm:latest', 'fedora:42'
+                        values 'debian:bookworm', 'ubuntu:24.04', 'ubuntu:22.04',
+                             'ogarcia/archlinux:latest', 'fedora:42'
                     }
                 }
                 stages {
