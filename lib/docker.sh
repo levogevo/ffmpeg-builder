@@ -1,19 +1,20 @@
 #!/usr/bin/env bash
 
-validate_selected_distro() {
-	local selectedDistro="${1:-}"
-	local validDistros=(
+validate_selected_image() {
+	local selectedImage="${1:-}"
+	local validImages=(
 		'debian:bookworm' 'ubuntu:24.04'
 		'archlinux:latest' 'archlinuxarm'
 		'fedora:42'
 	)
-	for distro in "${validDistros[@]}"; do
-		if [[ ${selectedDistro} == "${distro}" ]]; then
+	for distro in "${validImages[@]}"; do
+		if [[ ${selectedImage} == "${distro}" ]]; then
 			DISTROS+=("${distro}")
 		fi
 	done
 	if [[ ${DISTROS[*]} == '' ]]; then
-		echo_fail "${selectedDistro} is not valid"
+		echo_fail "${selectedImage} is not valid"
+		echo_info "valid images:" "${validImages[@]}"
 		return 1
 	fi
 	echo_warn "${FUNCNAME[0]}" "${DISTROS[@]}"
@@ -25,7 +26,7 @@ FB_FUNC_NAMES+=('docker_build_image')
 # shellcheck disable=SC2034
 FB_FUNC_DESCS['docker_build_image']='build docker image with required dependencies pre-installed'
 docker_build_image() {
-	validate_selected_distro "$@" || return 1
+	validate_selected_image "$@" || return 1
 	DOCKERFILE_DIR="${IGN_DIR}/Dockerfiles"
 	test -d "${DOCKERFILE_DIR}" && rm -rf "${DOCKERFILE_DIR}"
 	mkdir -p "${DOCKERFILE_DIR}"
@@ -78,7 +79,7 @@ FB_FUNC_NAMES+=('docker_run_image')
 # shellcheck disable=SC2034
 FB_FUNC_DESCS['docker_run_image']='run docker image to build ffmpeg'
 docker_run_image() {
-	docker_build_images "$@" || return 1
+	docker_build_image "$@" || return 1
 	for distro in "${DISTROS[@]}"; do
 		image_tag="ffmpeg_builder_${distro}"
 		echo_info "running ffmpeg build for ${image_tag}"
