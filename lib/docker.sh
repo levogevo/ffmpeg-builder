@@ -1,12 +1,18 @@
 #!/usr/bin/env bash
 
+check_docker() {
+	if missing_cmd docker; then
+		echo_info "install docker"
+		curl https://get.docker.com -sSf | bash
+	fi
+}
+
 validate_selected_image() {
 	local selectedImage="${1:-}"
 	local validImages=(
 		'ubuntu:22.04' 'ubuntu:24.04'
 		'fedora:41' 'fedora:42'
 		'archlinux:latest'
-		'ogarcia/archlinux:latest'
 		'debian:bookworm'
 	)
 	for distro in "${validImages[@]}"; do
@@ -28,9 +34,11 @@ FB_FUNC_NAMES+=('docker_build_image')
 FB_FUNC_DESCS['docker_build_image']='build docker image with required dependencies pre-installed'
 docker_build_image() {
 	validate_selected_image "$@" || return 1
+	check_docker || return 1
 	DOCKERFILE_DIR="${IGN_DIR}/Dockerfiles"
 	test -d "${DOCKERFILE_DIR}" && rm -rf "${DOCKERFILE_DIR}"
-	mkdir -p "${DOCKERFILE_DIR}"
+	mkdir -p "${DOCKERFILE_DIR}" || return 1
+	local platform="${PLATFORM:-linux/amd64}"
 	for distro in "${DISTROS[@]}"; do
 		image_tag="ffmpeg_builder_${distro}"
 		echo_info "sourcing package manager for ${image_tag}"
@@ -41,6 +49,7 @@ docker_build_image() {
 		distroFmtPkgMgr="${DOCKERFILE_DIR}/${distroFmt}-pkg_mgr"
 		# get package manager info
 		docker run --rm \
+			--platform "${platform}" \
 			-v "${REPO_DIR}":/workdir \
 			-w /workdir \
 			"${distro}" \
@@ -67,6 +76,7 @@ docker_build_image() {
 
 		echo_info "building ${image_tag}"
 		docker build \
+			--platform "${platform}" \
 			-t "${image_tag}" \
 			-f "${dockerfile}" \
 			. || return 1
@@ -81,13 +91,31 @@ FB_FUNC_NAMES+=('docker_run_image')
 FB_FUNC_DESCS['docker_run_image']='run docker image to build ffmpeg'
 docker_run_image() {
 	docker_build_image "$@" || return 1
+	check_docker || return 1
+	local platform="${PLATFORM:-linux/amd64}"
 	for distro in "${DISTROS[@]}"; do
 		image_tag="ffmpeg_builder_${distro}"
 		echo_info "running ffmpeg build for ${image_tag}"
 		docker run --rm \
+			--platform ${platform} \
 			-v "${REPO_DIR}":/workdir \
 			-w /workdir \
 			"${image_tag}" \
 			./scripts/build.sh || return 1
 	done
+}
+
+# shellcheck disable=SC2154
+FB_FUNC_NAMES+=('docker_run_amd64_image_on_arm64')
+# FB_FUNC_DESCS used externally
+# shellcheck disable=SC2034
+FB_FUNC_DESCS['docker_run_amd64_image_on_arm64']='run docker image to build ffmpeg for amd64 on arm64'
+docker_run_amd64_image_on_arm64() {
+	if missing_cmd qemu-x86_64-static; then
+		determine_pkg_mgr || return 1
+		${pkg_install} qemu-user-static || return 1
+	fi
+	check_docker || return 1
+	docker run --privileged --rm tonistiigi/binfmt --install all || return 1
+	docker_run_image "$@"
 }
