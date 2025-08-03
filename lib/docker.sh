@@ -132,6 +132,7 @@ FB_FUNC_NAMES+=('docker_run_image')
 FB_FUNC_DESCS['docker_run_image']='run docker image to build ffmpeg'
 FB_FUNC_COMPLETION['docker_run_image']="${VALID_DOCKER_IMAGES[*]}"
 docker_run_image() {
+	validate_selected_image "$@" || return 1
 	check_docker || return 1
 	local platform="${PLATFORM:-linux/amd64}"
 	for distro in "${DISTROS[@]}"; do
