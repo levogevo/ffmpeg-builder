@@ -52,24 +52,24 @@ docker_build_image() {
 		image_tag="$(set_distro_image_tag "${distro}")"
 		echo_info "sourcing package manager for ${image_tag}"
 
-		# distro without problematic characters
-		distroFmt="${distro//:/-}"
+		# docker expects colon instead of dash
+		dockerDistro="${distro//-/:}"
 		# specific file for evaluated package manager info
-		distroFmtPkgMgr="${DOCKER_DIR}/${distroFmt}-pkg_mgr"
+		distroPkgMgr="${DOCKER_DIR}/${distro}-pkg_mgr"
 		# get package manager info
 		docker run --rm \
 			--platform "${platform}" \
 			-v "${REPO_DIR}":/workdir \
 			-w /workdir \
-			"${distro}" \
-			bash -c "./scripts/print_pkg_mgr.sh" | tr -d '\r' >"${distroFmtPkgMgr}"
+			"${dockerDistro}" \
+			bash -c "./scripts/print_pkg_mgr.sh" | tr -d '\r' >"${distroPkgMgr}"
 		# shellcheck disable=SC1090
-		cat "${distroFmtPkgMgr}"
-		source "${distroFmtPkgMgr}"
+		cat "${distroPkgMgr}"
+		source "${distroPkgMgr}"
 
-		dockerfile="${DOCKER_DIR}/Dockerfile_${distroFmt}"
+		dockerfile="${DOCKER_DIR}/Dockerfile_${distro}"
 		{
-			echo "FROM ${distro}"
+			echo "FROM ${dockerDistro}"
 			echo 'SHELL ["/bin/bash", "-c"]'
 			echo 'RUN ln -sf /bin/bash /bin/sh'
 			echo 'ENV DEBIAN_FRONTEND=noninteractive'
