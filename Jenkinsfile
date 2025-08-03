@@ -16,7 +16,7 @@ pipeline {
                         steps {
                             sh "./scripts/docker_build_image.sh ${DISTRO}"
                             sh "./scripts/docker_save_image.sh ${DISTRO}"
-                            stash includes: "gitignore/docker/${DISTRO}.tar.zst", name: "${DISTRO}-stash"
+                            stash includes: "gitignore/docker/*${DISTRO}.tar.zst", name: "${DISTRO}-stash"
                         }
                     }
                 }

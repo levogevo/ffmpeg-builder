@@ -70,12 +70,13 @@ docker_build_image() {
 		{
 			echo "FROM ${distro}"
 			echo 'SHELL ["/bin/bash", "-c"]'
+			echo 'RUN ln -sf /bin/bash /bin/sh'
+			echo 'ENV DEBIAN_FRONTEND=noninteractive'
 			echo "RUN ${pkg_mgr_update} && ${pkg_mgr_upgrade}"
 			echo "RUN ${pkg_install} ${req_pkgs}"
 			echo 'RUN pipx install virtualenv'
 			echo 'RUN pipx ensurepath'
 			echo 'RUN curl https://sh.rustup.rs -sSf | bash -s -- -y'
-			echo 'RUN ln -sf /bin/bash /bin/sh'
 			echo 'ENV PATH="~/.cargo/bin:$PATH"'
 			echo 'RUN rustup default stable && rustup update stable'
 			echo 'RUN cargo install cargo-c'
