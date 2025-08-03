@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 
 VALID_DOCKER_IMAGES=(
-	'ubuntu:22.04' 'ubuntu:24.04'
-	'fedora:41' 'fedora:42'
-	'archlinux:latest'
-	'debian:bookworm'
+	'ubuntu-22.04' 'ubuntu-24.04'
+	'fedora-41' 'fedora-42'
+	'archlinux-latest'
+	'debian-bookworm'
 )
 
 check_docker() {
@@ -14,15 +14,16 @@ check_docker() {
 	fi
 }
 
-safe_docker_image_name() {
+# change dash to colon for docker and add namespace
+set_distro_image_tag() {
 	local image_tag="${1}"
-	# echo "${image_tag//:/-}"
-	echo "${image_tag}"
+	echo "ffmpeg_builder_${image_tag//-/:}"
 }
 
+# change colon to dash and add extension type
 docker_image_archive_name() {
 	local image_tag="${1}"
-	echo "$(safe_docker_image_name "${image_tag}").tar.zst"
+	echo "${image_tag//:/-}.tar.zst"
 }
 
 validate_selected_image() {
@@ -48,7 +49,7 @@ docker_build_image() {
 	test -d "${DOCKER_DIR}" || mkdir -p "${DOCKER_DIR}"
 	local platform="${PLATFORM:-linux/amd64}"
 	for distro in "${DISTROS[@]}"; do
-		image_tag="ffmpeg_builder_${distro}"
+		image_tag="$(set_distro_image_tag "${distro}")"
 		echo_info "sourcing package manager for ${image_tag}"
 
 		# distro without problematic characters
@@ -101,7 +102,7 @@ docker_save_image() {
 	check_docker || return 1
 	local platform="${PLATFORM:-linux/amd64}"
 	for distro in "${DISTROS[@]}"; do
-		image_tag="ffmpeg_builder_${distro}"
+		image_tag="$(set_distro_image_tag "${distro}")"
 		echo_info "saving docker image for ${image_tag}"
 		docker save --platform "${platform}" "${image_tag}" |
 			zstd -T0 >"${DOCKER_DIR}/$(docker_image_archive_name "${image_tag}")" ||
@@ -117,12 +118,13 @@ docker_load_image() {
 	check_docker || return 1
 	local platform="${PLATFORM:-linux/amd64}"
 	for distro in "${DISTROS[@]}"; do
-		image_tag="ffmpeg_builder_${distro}"
+		image_tag="$(set_distro_image_tag "${distro}")"
 		echo_info "loading docker image for ${image_tag}"
 		local archive="${DOCKER_DIR}/$(docker_image_archive_name "${image_tag}")"
 		test -f "$archive" || return 1
 		zstdcat -T0 "$archive" |
 			docker load || return 1
+		docker system prune -f
 	done
 }
 
@@ -133,10 +135,10 @@ docker_run_image() {
 	check_docker || return 1
 	local platform="${PLATFORM:-linux/amd64}"
 	for distro in "${DISTROS[@]}"; do
-		image_tag="ffmpeg_builder_${distro}"
+		image_tag="$(set_distro_image_tag "${distro}")"
 		echo_info "running ffmpeg build for ${image_tag}"
 		docker run --rm \
-			--platform ${platform} \
+			--platform "${platform}" \
 			-v "${REPO_DIR}":/workdir \
 			-w /workdir \
 			"${image_tag}" \
