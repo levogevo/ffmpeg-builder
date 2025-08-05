@@ -47,7 +47,6 @@ docker_build_image() {
 	validate_selected_image "$@" || return 1
 	check_docker || return 1
 	test -d "${DOCKER_DIR}" || mkdir -p "${DOCKER_DIR}"
-	local platform="${PLATFORM:-linux/amd64}"
 	for distro in "${DISTROS[@]}"; do
 		image_tag="$(set_distro_image_tag "${distro}")"
 		echo_info "sourcing package manager for ${image_tag}"
@@ -58,7 +57,6 @@ docker_build_image() {
 		distroPkgMgr="${DOCKER_DIR}/${distro}-pkg_mgr"
 		# get package manager info
 		docker run --rm \
-			--platform "${platform}" \
 			-v "${REPO_DIR}":/workdir \
 			-w /workdir \
 			"${dockerDistro}" \
@@ -86,7 +84,6 @@ docker_build_image() {
 
 		echo_info "building ${image_tag}"
 		docker build \
-			--platform "${platform}" \
 			-t "${image_tag}" \
 			-f "${dockerfile}" \
 			. || return 1
@@ -100,11 +97,10 @@ FB_FUNC_COMPLETION['docker_save_image']="${VALID_DOCKER_IMAGES[*]}"
 docker_save_image() {
 	validate_selected_image "$@" || return 1
 	check_docker || return 1
-	local platform="${PLATFORM:-linux/amd64}"
 	for distro in "${DISTROS[@]}"; do
 		image_tag="$(set_distro_image_tag "${distro}")"
 		echo_info "saving docker image for ${image_tag}"
-		docker save --platform "${platform}" "${image_tag}" |
+		docker save "${image_tag}" |
 			zstd -T0 >"${DOCKER_DIR}/$(docker_image_archive_name "${image_tag}")" ||
 			return 1
 	done
@@ -116,7 +112,6 @@ FB_FUNC_COMPLETION['docker_load_image']="${VALID_DOCKER_IMAGES[*]}"
 docker_load_image() {
 	validate_selected_image "$@" || return 1
 	check_docker || return 1
-	local platform="${PLATFORM:-linux/amd64}"
 	for distro in "${DISTROS[@]}"; do
 		image_tag="$(set_distro_image_tag "${distro}")"
 		echo_info "loading docker image for ${image_tag}"
@@ -134,28 +129,14 @@ FB_FUNC_COMPLETION['docker_run_image']="${VALID_DOCKER_IMAGES[*]}"
 docker_run_image() {
 	validate_selected_image "$@" || return 1
 	check_docker || return 1
-	local platform="${PLATFORM:-linux/amd64}"
 	for distro in "${DISTROS[@]}"; do
 		image_tag="$(set_distro_image_tag "${distro}")"
 		echo_info "running ffmpeg build for ${image_tag}"
 		docker run --rm \
-			--platform "${platform}" \
 			-v "${REPO_DIR}":/workdir \
 			-w /workdir \
+			-e DEBUG="${DEBUG}" \
 			"${image_tag}" \
 			./scripts/build.sh || return 1
 	done
-}
-
-FB_FUNC_NAMES+=('docker_run_amd64_image_on_arm64')
-FB_FUNC_DESCS['docker_run_amd64_image_on_arm64']='run docker image to build ffmpeg for amd64 on arm64'
-FB_FUNC_COMPLETION['docker_run_amd64_image_on_arm64']="${VALID_DOCKER_IMAGES[*]}"
-docker_run_amd64_image_on_arm64() {
-	if missing_cmd qemu-x86_64-static; then
-		determine_pkg_mgr || return 1
-		${pkg_install} qemu-user-static || return 1
-	fi
-	check_docker || return 1
-	docker run --privileged --rm tonistiigi/binfmt --install all || return 1
-	docker_run_image "$@"
 }

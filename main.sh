@@ -41,7 +41,7 @@ export FB_RUNNING_AS_SCRIPT=1
 . main.sh
 scr_name="$(bash_basename $0)"
 cmd="${scr_name//.sh}"
-set -x
+if [[ $DEBUG == 1 ]]; then set -x ; fi
 $cmd $@' >"${ENTRY_SCRIPT}"
 		chmod +x "${ENTRY_SCRIPT}"
 	fi
@@ -76,9 +76,8 @@ test -f "${HOME}/.bashrc" && source "${HOME}/.bashrc"
 src_scripts || return 1
 determine_pkg_mgr || return 1
 
-# pkg_mgr initialized in determine_pkg_mgr
 # shellcheck disable=SC2154
-test "${PREFIX}" == '' && PREFIX="${IGN_DIR}/${pkg_mgr}_sysroot"
+test "${PREFIX}" == '' && PREFIX="${IGN_DIR}/$(print_os)_sysroot"
 
 if [[ $FB_RUNNING_AS_SCRIPT -eq 0 ]]; then
 	print_cmds || return 1
