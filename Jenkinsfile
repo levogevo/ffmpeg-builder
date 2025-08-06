@@ -20,8 +20,16 @@ pipeline {
                     stage('Build/Run') {
                         agent { label "linux && ${ARCH}" }
                         steps {
-                            sh "./scripts/docker_build_image.sh ${DISTRO}"
-                            sh "./scripts/docker_run_image.sh ${DISTRO}"
+                            withCredentials([string(
+                                    credentialsId: 'DOCKER_REGISTRY',
+                                    variable: 'DOCKER_REGISTRY'),
+                                    usernamePassword(credentialsId: 'DOCKER_REGISTRY_CRED',
+                                    passwordVariable: 'DOCKER_REGISTRY_PASS',
+                                    usernameVariable: 'DOCKER_REGISTRY_USER'
+                                    )]) {
+                                sh "./scripts/docker_build_image.sh ${DISTRO}"
+                                sh "./scripts/docker_run_image.sh ${DISTRO}"
+                            }
                         }
                     }
                 }

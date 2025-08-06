@@ -88,6 +88,17 @@ docker_build_image() {
 			-t "${image_tag}" \
 			-f "${dockerfile}" \
 			. || return 1
+
+		# if a docker registry is defined, push to it
+		if [[ "${DOCKER_REGISTRY}" != '' ]]; then
+			docker tag "${image_tag}" "${DOCKER_REGISTRY}/${image_tag}"
+			docker login \
+				-u "${DOCKER_REGISTRY_USER}" \
+				-p "${DOCKER_REGISTRY_PASS}" \
+				"${DOCKER_REGISTRY}"
+			docker push "${DOCKER_REGISTRY}/${image_tag}"
+		fi
+		
 		docker system prune -f
 	done
 }
@@ -130,6 +141,17 @@ FB_FUNC_COMPLETION['docker_run_image']="${VALID_DOCKER_IMAGES[*]}"
 docker_run_image() {
 	validate_selected_image "$@" || return 1
 	check_docker || return 1
+	
+	# if a docker registry is defined, pull from it
+	if [[ "${DOCKER_REGISTRY}" != '' ]]; then
+		docker login \
+			-u "${DOCKER_REGISTRY_USER}" \
+			-p "${DOCKER_REGISTRY_PASS}" \
+			"${DOCKER_REGISTRY}"
+		docker pull "${DOCKER_REGISTRY}/${image_tag}"
+		docker tag "${DOCKER_REGISTRY}/${image_tag}" "${image_tag}"
+	fi
+
 	for distro in "${DISTROS[@]}"; do
 		image_tag="$(set_distro_image_tag "${distro}")"
 		echo_info "running ffmpeg build for ${image_tag}"
