@@ -12,7 +12,7 @@ determine_pkg_mgr() {
 brew:brew update:brew upgrade:brew install:brew list --formula ${pkg}
 apt-get:${SUDO}apt-get update:${SUDO}apt-get upgrade -y:${SUDO}apt-get install -y:dpkg -l ${pkg}
 pacman:${SUDO}pacman -Syy:${SUDO}pacman -Syu --noconfirm:${SUDO}pacman -S --noconfirm --needed:pacman -Qi ${pkg}
-dnf:${SUDO}dnf check-update || true:${SUDO}dnf upgrade --refresh -y:${SUDO}dnf install -y:dnf list -q --installed ${pkg}
+dnf:{ ${SUDO}dnf check-update || true }:${SUDO}dnf upgrade --refresh -y:${SUDO}dnf install -y:dnf list -q --installed ${pkg}
 '
 	local supported_pkg_mgr=()
 	unset pkg_mgr pkg_mgr_update pkg_mgr_upgrade pkg_install pkg_check
@@ -73,7 +73,7 @@ print_req_pkgs() {
 	# shellcheck disable=SC2034
 	local dnf_pkgs=(
 		"${common_linux_pkgs[@]}" openssl-devel
-		pipx ninja-build wget2
+		pipx ninja-build fontconfig-devel wget2
 	)
 
 	local req_pkgs_env_name="${pkg_mgr/-/_}_pkgs"
@@ -93,7 +93,7 @@ print_pkg_mgr() {
 	echo "export pkg_mgr_upgrade=\"${pkg_mgr_upgrade}\""
 	echo "export pkg_install=\"${pkg_install}\""
 	echo "export pkg_check=\"${pkg_check}\""
-	echo "export req_pkgs=\"$(print_req_pkgs)\""
+	echo "export req_pkgs=($(print_req_pkgs))"
 }
 
 print_os() {	

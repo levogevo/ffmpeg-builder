@@ -3,8 +3,8 @@
 VALID_DOCKER_IMAGES=(
 	'ubuntu-22.04' 'ubuntu-24.04'
 	'fedora-41' 'fedora-42'
+	'debian-12'
 	'archlinux-latest'
-	'debian-bookworm'
 )
 
 check_docker() {
@@ -72,7 +72,7 @@ docker_build_image() {
 			echo 'RUN ln -sf /bin/bash /bin/sh'
 			echo 'ENV DEBIAN_FRONTEND=noninteractive'
 			echo "RUN ${pkg_mgr_update} && ${pkg_mgr_upgrade}"
-			echo "RUN ${pkg_install} ${req_pkgs}"
+			printf "RUN ${pkg_install} %s\n" "${req_pkgs[@]}"
 			echo 'RUN pipx install virtualenv'
 			echo 'RUN pipx ensurepath'
 			echo 'RUN curl https://sh.rustup.rs -sSf | bash -s -- -y'
@@ -82,6 +82,7 @@ docker_build_image() {
 
 		} >"${dockerfile}"
 
+		exit 0
 		echo_info "building ${image_tag}"
 		docker build \
 			-t "${image_tag}" \
