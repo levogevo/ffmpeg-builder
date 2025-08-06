@@ -26,6 +26,19 @@ docker_image_archive_name() {
 	echo "${image_tag//:/-}.tar.zst"
 }
 
+echo_platform() {
+	local platKernel platCpu
+	platKernel="$(uname)"
+	platKernel="${platKernel,,}"
+	if [[ "${HOSTTYPE}" == 'x86_64' ]]; then
+		platCpu='amd64'
+	else
+		platCpu='arm64'
+	fi
+
+	echo "${platKernel}/${platCpu}"
+}
+
 validate_selected_image() {
 	local selectedImage="${1:-}"
 	for distro in "${VALID_DOCKER_IMAGES[@]}"; do
@@ -57,6 +70,7 @@ docker_build_image() {
 		distroPkgMgr="${DOCKER_DIR}/${distro}-pkg_mgr"
 		# get package manager info
 		docker run --rm \
+			--platform "$(echo_platform)" \
 			-v "${REPO_DIR}":/workdir \
 			-w /workdir \
 			"${dockerDistro}" \
@@ -85,6 +99,7 @@ docker_build_image() {
 
 		echo_info "building ${image_tag}"
 		docker build \
+			--platform "$(echo_platform)" \
 			-t "${image_tag}" \
 			-f "${dockerfile}" \
 			. || return 1
@@ -96,7 +111,9 @@ docker_build_image() {
 				-u "${DOCKER_REGISTRY_USER}" \
 				-p "${DOCKER_REGISTRY_PASS}" \
 				"${DOCKER_REGISTRY}"
-			docker push "${DOCKER_REGISTRY}/${image_tag}"
+			docker push \
+				--platform "$(echo_platform)" \
+				"${DOCKER_REGISTRY}/${image_tag}"
 		fi
 		
 		docker system prune -f
@@ -141,21 +158,26 @@ FB_FUNC_COMPLETION['docker_run_image']="${VALID_DOCKER_IMAGES[*]}"
 docker_run_image() {
 	validate_selected_image "$@" || return 1
 	check_docker || return 1
-	
-	# if a docker registry is defined, pull from it
-	if [[ "${DOCKER_REGISTRY}" != '' ]]; then
-		docker login \
-			-u "${DOCKER_REGISTRY_USER}" \
-			-p "${DOCKER_REGISTRY_PASS}" \
-			"${DOCKER_REGISTRY}"
-		docker pull "${DOCKER_REGISTRY}/${image_tag}"
-		docker tag "${DOCKER_REGISTRY}/${image_tag}" "${image_tag}"
-	fi
 
 	for distro in "${DISTROS[@]}"; do
 		image_tag="$(set_distro_image_tag "${distro}")"
+	
+		# if a docker registry is defined, pull from it
+		if [[ "${DOCKER_REGISTRY}" != '' ]]; then
+			docker login \
+				-u "${DOCKER_REGISTRY_USER}" \
+				-p "${DOCKER_REGISTRY_PASS}" \
+				"${DOCKER_REGISTRY}"
+
+			docker pull \
+				--platform "$(echo_platform)" \
+				"${DOCKER_REGISTRY}/${image_tag}"
+			docker tag "${DOCKER_REGISTRY}/${image_tag}" "${image_tag}"
+		fi
+
 		echo_info "running ffmpeg build for ${image_tag}"
 		docker run --rm \
+			--platform "$(echo_platform)" \
 			-v "${REPO_DIR}":/workdir \
 			-w /workdir \
 			-e DEBUG="${DEBUG}" \
