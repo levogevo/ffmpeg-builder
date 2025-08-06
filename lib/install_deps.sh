@@ -62,7 +62,7 @@ print_req_pkgs() {
 		libvorbis-dev libxcb1-dev pipx
 		libxcb-shm0-dev libxcb-xfixes0-dev
 		zlib1g-dev libssl-dev ninja-build
-		gobjc++ mawk libnuma-dev
+		gobjc++ mawk libnuma-dev libcpuinfo-dev
 		mediainfo mkvtoolnix libgtest-dev
 	)
 	# shellcheck disable=SC2034
@@ -74,6 +74,7 @@ print_req_pkgs() {
 	local dnf_pkgs=(
 		"${common_linux_pkgs[@]}" openssl-devel
 		pipx ninja-build fontconfig-devel wget2
+		cpuinfo-devel
 	)
 
 	local req_pkgs_env_name="${pkg_mgr/-/_}_pkgs"
