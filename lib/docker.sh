@@ -82,7 +82,6 @@ docker_build_image() {
 
 		} >"${dockerfile}"
 
-		exit 0
 		echo_info "building ${image_tag}"
 		docker build \
 			-t "${image_tag}" \
