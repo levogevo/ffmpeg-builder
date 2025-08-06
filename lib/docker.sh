@@ -71,7 +71,8 @@ docker_build_image() {
 			echo 'SHELL ["/bin/bash", "-c"]'
 			echo 'RUN ln -sf /bin/bash /bin/sh'
 			echo 'ENV DEBIAN_FRONTEND=noninteractive'
-			echo "RUN ${pkg_mgr_update} && ${pkg_mgr_upgrade}"
+			echo "RUN ${pkg_mgr_update}"
+			echo "RUN ${pkg_mgr_upgrade}"
 			printf "RUN ${pkg_install} %s\n" "${req_pkgs[@]}"
 			echo 'RUN pipx install virtualenv'
 			echo 'RUN pipx ensurepath'
