@@ -17,7 +17,21 @@ pipeline {
                     }
                 }
                 stages {
-                    stage('Build/Run') {
+                    stage('Build Multiarch Image') {
+                        agent { label "linux && amd64" }
+                        steps {
+                            withCredentials([string(
+                                    credentialsId: 'DOCKER_REGISTRY',
+                                    variable: 'DOCKER_REGISTRY'),
+                                    usernamePassword(credentialsId: 'DOCKER_REGISTRY_CRED',
+                                    passwordVariable: 'DOCKER_REGISTRY_PASS',
+                                    usernameVariable: 'DOCKER_REGISTRY_USER'
+                                    )]) {
+                                sh "./scripts/docker_build_multiarch_image.sh ${DISTRO}"
+                            }
+                        }
+                    }
+                    stage('Run Multiarch Image') {
                         agent { label "linux && ${ARCH}" }
                         steps {
                             withCredentials([string(
@@ -27,7 +41,6 @@ pipeline {
                                     passwordVariable: 'DOCKER_REGISTRY_PASS',
                                     usernameVariable: 'DOCKER_REGISTRY_USER'
                                     )]) {
-                                sh "./scripts/docker_build_image.sh ${DISTRO}"
                                 sh "./scripts/docker_run_image.sh ${DISTRO}"
                             }
                         }

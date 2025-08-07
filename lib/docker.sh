@@ -30,7 +30,7 @@ echo_platform() {
 	local platKernel platCpu
 	platKernel="$(uname)"
 	platKernel="${platKernel,,}"
-	if [[ "${HOSTTYPE}" == 'x86_64' ]]; then
+	if [[ ${HOSTTYPE} == 'x86_64' ]]; then
 		platCpu='amd64'
 	else
 		platCpu='arm64'
@@ -60,6 +60,8 @@ docker_build_image() {
 	validate_selected_image "$@" || return 1
 	check_docker || return 1
 	test -d "${DOCKER_DIR}" || mkdir -p "${DOCKER_DIR}"
+	PLATFORM="${PLATFORM:-$(echo_platform)}"
+
 	for distro in "${DISTROS[@]}"; do
 		image_tag="$(set_distro_image_tag "${distro}")"
 		echo_info "sourcing package manager for ${image_tag}"
@@ -97,25 +99,27 @@ docker_build_image() {
 
 		} >"${dockerfile}"
 
-		echo_info "building ${image_tag}"
-		docker build \
-			--platform "$(echo_platform)" \
+		docker buildx build \
+			--platform "${PLATFORM}" \
 			-t "${image_tag}" \
 			-f "${dockerfile}" \
 			. || return 1
 
 		# if a docker registry is defined, push to it
-		if [[ "${DOCKER_REGISTRY}" != '' ]]; then
-			docker tag "${image_tag}" "${DOCKER_REGISTRY}/${image_tag}"
+		if [[ ${DOCKER_REGISTRY} != '' ]]; then
 			docker login \
 				-u "${DOCKER_REGISTRY_USER}" \
 				-p "${DOCKER_REGISTRY_PASS}" \
 				"${DOCKER_REGISTRY}"
-			docker push \
-				--platform "$(echo_platform)" \
-				"${DOCKER_REGISTRY}/${image_tag}"
+
+			docker buildx build \
+				--push \
+				--platform "${PLATFORM}" \
+				-t "${DOCKER_REGISTRY}/${image_tag}" \
+				-f "${dockerfile}" \
+				. || return 1
 		fi
-		
+
 		docker system prune -f
 	done
 }
@@ -161,27 +165,40 @@ docker_run_image() {
 
 	for distro in "${DISTROS[@]}"; do
 		image_tag="$(set_distro_image_tag "${distro}")"
-	
+
 		# if a docker registry is defined, pull from it
-		if [[ "${DOCKER_REGISTRY}" != '' ]]; then
+		if [[ ${DOCKER_REGISTRY} != '' ]]; then
 			docker login \
 				-u "${DOCKER_REGISTRY_USER}" \
 				-p "${DOCKER_REGISTRY_PASS}" \
 				"${DOCKER_REGISTRY}"
 
 			docker pull \
-				--platform "$(echo_platform)" \
 				"${DOCKER_REGISTRY}/${image_tag}"
 			docker tag "${DOCKER_REGISTRY}/${image_tag}" "${image_tag}"
 		fi
 
 		echo_info "running ffmpeg build for ${image_tag}"
 		docker run --rm \
-			--platform "$(echo_platform)" \
 			-v "${REPO_DIR}":/workdir \
 			-w /workdir \
 			-e DEBUG="${DEBUG}" \
 			"${image_tag}" \
 			./scripts/build.sh || return 1
 	done
+}
+
+FB_FUNC_NAMES+=('docker_build_multiarch_image')
+FB_FUNC_DESCS['docker_build_multiarch_image']='build multiarch docker image'
+FB_FUNC_COMPLETION['docker_build_multiarch_image']="${VALID_DOCKER_IMAGES[*]}"
+docker_build_multiarch_image() {
+	validate_selected_image "$@" || return 1
+	check_docker || return 1
+	PLATFORM='linux/amd64,linux/arm64'
+	docker buildx create \
+		--use \
+		--platform="${PLATFORM}" \
+		--name my-multiplatform-builder \
+		--driver=docker-container
+	docker_build_image "$@"
 }
