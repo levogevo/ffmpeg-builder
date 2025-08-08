@@ -43,7 +43,7 @@ print_req_pkgs() {
 	local common_pkgs=(
 		autoconf automake cmake libtool
 		texinfo nasm yasm python3 wget
-		meson doxygen jq ccache gawk
+		meson doxygen jq ccache gawk git
 	)
 	# shellcheck disable=SC2034
 	local brew_pkgs=(

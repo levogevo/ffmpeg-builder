@@ -27,7 +27,6 @@ echo_if_fail() {
 
 	# set trace to the cmdEvalTrace and open file descriptor
 	local cmdEvalTrace="${TMP_DIR}/.cmdEvalTrace-${RANDOM}"
-	touch "${cmdEvalTrace}" || ${SUDO} rm -rf "${TMP_DIR}"
 	test -d "${TMP_DIR}" || mkdir -p "${TMP_DIR}"
 	exec 5>"${cmdEvalTrace}"
 	export BASH_XTRACEFD=5

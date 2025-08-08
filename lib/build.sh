@@ -132,7 +132,7 @@ set_compile_opts() {
 		--extra-cxxflags="${CXX_FLAGS[*]}"
 		--extra-ldflags="${LDFLAGS[*]}"
 	)
-	# dump_arr FFMPEG_EXTRA_FLAGS
+	dump_arr FFMPEG_EXTRA_FLAGS
 
 	# shellcheck disable=SC2178
 	RUSTFLAGS="${RUSTFLAGS[*]}"
@@ -152,6 +152,7 @@ set_compile_opts() {
 	fi
 
 	FB_COMPILE_OPTS_SET=1
+	echo
 }
 
 get_build_conf() {
