@@ -11,7 +11,6 @@ DOCKER_RUN_FLAGS=(
 	--rm
 	-v "${REPO_DIR}:${DOCKER_WORKDIR}"
 	-w "${DOCKER_WORKDIR}"
-	-u "$(id -u):$(id -g)"
 	-e "DEBUG=${DEBUG}"
 )
 
@@ -91,9 +90,7 @@ docker_build_image() {
 		# TODO REMOVE
 		if is_root_owned "${IGN_DIR}"; then
 			docker run \
-				--rm \
-				-v "${REPO_DIR}:${DOCKER_WORKDIR}" \
-				-w "${DOCKER_WORKDIR}" \
+				"${DOCKER_RUN_FLAGS[@]}" \
 				"${dockerDistro}" \
 				rm -rf "${DOCKER_WORKDIR}"/gitignore
 		fi
@@ -199,6 +196,7 @@ docker_run_image() {
 		echo_info "running ffmpeg build for ${image_tag}"
 		docker run \
 			"${DOCKER_RUN_FLAGS[@]}" \
+			-u "$(id -u):$(id -g)" \
 			"${image_tag}" \
 			./scripts/build.sh || return 1
 	done
