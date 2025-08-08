@@ -66,6 +66,21 @@ echo_if_fail() {
 	return ${retval}
 }
 
+is_root_owned() {
+	local path=$1
+	local uid
+
+	if stat --version >/dev/null 2>&1; then
+		# GNU coreutils (Linux)
+		uid=$(stat -c '%u' "$path")
+	else
+		# BSD/macOS
+		uid=$(stat -f '%u' "$path")
+	fi
+
+	test "$uid" -eq 0
+}
+
 dump_arr() {
 	arr_name="$1"
 	declare -n arr

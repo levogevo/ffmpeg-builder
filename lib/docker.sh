@@ -87,6 +87,17 @@ docker_build_image() {
 		# specific file for evaluated package manager info
 		distroPkgMgr="${DOCKER_DIR}/${distro}-pkg_mgr"
 		# get package manager info
+
+		# TODO REMOVE
+		if is_root_owned "${IGN_DIR}"; then
+			docker run \
+				--rm \
+				-v "${REPO_DIR}:${DOCKER_WORKDIR}" \
+				-w "${DOCKER_WORKDIR}" \
+				"${dockerDistro}" \
+				rm -rf "${DOCKER_WORKDIR}"/gitignore
+		fi
+
 		docker run \
 			"${DOCKER_RUN_FLAGS[@]}" \
 			"${dockerDistro}" \
