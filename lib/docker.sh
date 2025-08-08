@@ -124,7 +124,9 @@ docker_build_image() {
 			echo 'ENV PATH="~/.cargo/bin:$PATH"'
 			echo 'RUN rustup default stable && rustup update stable'
 			echo 'RUN cargo install cargo-c'
-			echo 'RUN chmod 777 -R ./.*'
+			# since any user may run this image,
+			# open up root tools to everyone
+			echo 'RUN chmod 777 -R /root/'
 			echo 'ENV PATH="/root/.cargo/bin:$PATH"'
 			echo 'ENV PATH="/root/.local/bin:$PATH"'
 			echo 'ENV RUSTUP_HOME="/root/.rustup"'
