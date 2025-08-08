@@ -6,6 +6,14 @@ VALID_DOCKER_IMAGES=(
 	'debian-12'
 	'archlinux-latest'
 )
+DOCKER_WORKDIR='/workdir'
+DOCKER_RUN_FLAGS=(
+	--rm
+	-v "${REPO_DIR}:${DOCKER_WORKDIR}"
+	-w "${DOCKER_WORKDIR}"
+	-u "$(id -u):$(id -g)"
+	-e "DEBUG=${DEBUG}"
+)
 
 check_docker() {
 	if missing_cmd docker; then
@@ -39,6 +47,7 @@ echo_platform() {
 	echo "${platKernel}/${platCpu}"
 }
 
+# sets DISTROS
 validate_selected_image() {
 	local selectedImage="${1:-}"
 	for distro in "${VALID_DOCKER_IMAGES[@]}"; do
@@ -78,10 +87,8 @@ docker_build_image() {
 		# specific file for evaluated package manager info
 		distroPkgMgr="${DOCKER_DIR}/${distro}-pkg_mgr"
 		# get package manager info
-		docker run --rm \
-			--platform "$(echo_platform)" \
-			-v "${REPO_DIR}":/workdir \
-			-w /workdir \
+		docker run \
+			"${DOCKER_RUN_FLAGS[@]}" \
 			"${dockerDistro}" \
 			bash -c "./scripts/print_pkg_mgr.sh" | tr -d '\r' >"${distroPkgMgr}"
 		# shellcheck disable=SC1090
@@ -103,6 +110,7 @@ docker_build_image() {
 			echo 'ENV PATH="~/.cargo/bin:$PATH"'
 			echo 'RUN rustup default stable && rustup update stable'
 			echo 'RUN cargo install cargo-c'
+			echo "WORKDIR ${DOCKER_WORKDIR}"
 
 		} >"${dockerfile}"
 
@@ -178,10 +186,8 @@ docker_run_image() {
 		fi
 
 		echo_info "running ffmpeg build for ${image_tag}"
-		docker run --rm \
-			-v "${REPO_DIR}":/workdir \
-			-w /workdir \
-			-e DEBUG="${DEBUG}" \
+		docker run \
+			"${DOCKER_RUN_FLAGS[@]}" \
 			"${image_tag}" \
 			./scripts/build.sh || return 1
 	done
@@ -194,10 +200,24 @@ docker_build_multiarch_image() {
 	validate_selected_image "$@" || return 1
 	check_docker || return 1
 	PLATFORM='linux/amd64,linux/arm64'
-	docker buildx create \
-		--use \
-		--platform="${PLATFORM}" \
-		--name my-multiplatform-builder \
-		--driver=docker-container
+
+	# check if we need to create multiplatform builder
+	local buildxPlats="$(docker buildx inspect | grep Platforms)"
+	IFS=','
+	local createBuilder=0
+	for plat in $PLATFORM; do
+		grep -q "${plat}" <<<"${buildxPlats}" || createBuilder=1
+	done
+	unset IFS
+
+	if [[ ${createBuilder} == 1 ]]; then
+		echo_info "creating multiplatform (${PLATFORM}) docker builder"
+		docker buildx create \
+			--use \
+			--platform="${PLATFORM}" \
+			--name my-multiplatform-builder \
+			--driver=docker-container
+	fi
+
 	docker_build_image "$@"
 }

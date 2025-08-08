@@ -6,7 +6,8 @@ set_compile_opts() {
 	unset LDFLAGS C_FLAGS CXX_FLAGS CPP_FLAGS \
 		CONFIGURE_FLAGS MESON_FLAGS \
 		RUSTFLAGS CMAKE_FLAGS \
-		FFMPEG_EXTRA_FLAGS
+		FFMPEG_EXTRA_FLAGS \
+		CARGO_FLAGS CARGO_CINSTALL_FLAGS
 	export LDFLAGS C_FLAGS CXX_FLAGS CPP_FLAGS \
 		CONFIGURE_FLAGS MESON_FLAGS \
 		RUSTFLAGS CMAKE_FLAGS \
@@ -14,22 +15,29 @@ set_compile_opts() {
 
 	# set job count for all builds
 	JOBS="$(nproc)"
-
-	mapfile -t pkgconfigDirs < <(find "${PREFIX}" -type d -name pkgconfig)
-	for d in "${pkgconfigDirs[@]}"; do
-		if [[ ${d} =~ '64' ]]; then
-			MACHINE_LIB="${d}"
-		fi
-	done
-	test "${MACHINE_LIB}" == '' && return 1
-	pkgconfigString="${pkgconfigDirs[*]}"
-	PKG_CONFIG_PATH="${pkgconfigString// /:}"
+	# set library/pkgconfig directory
+	LIBDIR="${PREFIX}/lib"
 
 	# set prefix flags
-	CONFIGURE_FLAGS+=("--prefix=${PREFIX}")
-	MESON_FLAGS+=("--prefix" "${PREFIX}")
-	CMAKE_FLAGS+=("-DCMAKE_PREFIX_PATH=${PREFIX}")
-	CMAKE_FLAGS+=("-DCMAKE_INSTALL_PREFIX=${PREFIX}")
+	CONFIGURE_FLAGS+=(
+		"--prefix=${PREFIX}"
+		"--libdir=${LIBDIR}"
+	)
+	MESON_FLAGS+=(
+		"--prefix" "${PREFIX}"
+		"--libdir" "lib"
+		"--bindir" "bin"
+	)
+	CMAKE_FLAGS+=(
+		"-DCMAKE_PREFIX_PATH=${PREFIX}"
+		"-DCMAKE_INSTALL_PREFIX=${PREFIX}"
+		"-DCMAKE_INSTALL_LIBDIR=lib"
+	)
+	CARGO_CINSTALL_FLAGS=(
+		"--prefix" "${PREFIX}"
+		"--libdir" "${LIBDIR}"
+	)
+	PKG_CONFIG_PATH="${LIBDIR}/pkgconfig"
 	export PKG_CONFIG_PATH
 	export PKG_CONFIG_DEBUG_SPEW=1
 
@@ -48,13 +56,17 @@ set_compile_opts() {
 		CONFIGURE_FLAGS+=('--enable-lto')
 		MESON_FLAGS+=("-Db_lto=true")
 		RUSTFLAGS+=("-C lto=yes" "-C inline-threshold=1000" "-C codegen-units=1")
+		CARGO_BUILD_TYPE=release
+		CARGO_FLAGS+=("--${CARGO_BUILD_TYPE}")
 	else
 		echo_info "building without LTO"
 		LTO_SWITCH='OFF'
 		LTO_FLAG=''
 		MESON_FLAGS+=("-Db_lto=false")
 		RUSTFLAGS+=("-C lto=no")
+		CARGO_BUILD_TYPE=debug
 	fi
+	CARGO_CINSTALL_FLAGS+=("--${CARGO_BUILD_TYPE}")
 
 	# setting optimization level
 	if [[ ${OPT_LVL} == '' ]]; then
@@ -77,10 +89,10 @@ set_compile_opts() {
 		PKG_CFG_FLAGS='--static'
 		LIB_SUFF='a'
 	else
-		LDFLAGS+=("-Wl,-rpath,${MACHINE_LIB}")
+		LDFLAGS+=("-Wl,-rpath,${LIBDIR}")
 		CONFIGURE_FLAGS+=('--enable-shared')
 		CMAKE_FLAGS+=("-DBUILD_SHARED_LIBS=ON")
-		CMAKE_FLAGS+=("-DCMAKE_INSTALL_RPATH=${PREFIX}/lib;${MACHINE_LIB}")
+		CMAKE_FLAGS+=("-DCMAKE_INSTALL_RPATH=${LIBDIR}")
 		FFMPEG_EXTRA_FLAGS+=('--enable-rpath')
 		LIB_SUFF='so'
 	fi
@@ -111,6 +123,7 @@ set_compile_opts() {
 	dump_arr CMAKE_FLAGS
 	dump_arr MESON_FLAGS
 	dump_arr PKG_CFG_FLAGS
+	dump_arr CARGO_CINSTALL_FLAGS
 
 	# extra ffmpeg flags
 	FFMPEG_EXTRA_FLAGS+=(
@@ -130,12 +143,12 @@ set_compile_opts() {
 	test -d "${CARGO_HOME}" || echo_exit "CARGO_HOME does not exist"
 	export RUSTUP_HOME CARGO_HOME
 
-	# cargo does not have an easy way to install into system directories
 	unset SUDO_CARGO
-	if [[ ${SUDO} != '' ]]; then
-		export SUDO_CARGO="${SUDO} --preserve-env=PATH,RUSTUP_HOME,CARGO_HOME"
+	if [[ ${SUDO_MODIFY} == '' ]]; then
+		SUDO_CARGO=''
+	else
+		SUDO_CARGO="${SUDO} --preserve-env=PATH,RUSTUP_HOME,CARGO_HOME"
 	fi
-	echo
 
 	FB_COMPILE_OPTS_SET=1
 }
@@ -289,13 +302,16 @@ build() {
 	test -d "${BUILD_DIR}" || mkdir -p "${BUILD_DIR}"
 	test -d "${PREFIX}/bin/" || mkdir -p "${PREFIX}/bin/"
 
+	# check if we need to install with sudo
+	unset SUDO_MODIFY
 	testfile="${PREFIX}/ffmpeg-build-testfile"
-	if ! touch "${testfile}" 2>/dev/null; then
-		# we cannot modify the install prefix
-		# so we need to use sudo
-		${SUDO} mkdir -p "${PREFIX}/bin/"
+	if touch "${testfile}" 2>/dev/null; then
+		SUDO_MODIFY=''
+	else
+		SUDO_MODIFY="${SUDO}"
+		${SUDO_MODIFY} mkdir -p "${PREFIX}/bin/"
 	fi
-	test -f "${testfile}" && ${SUDO} rm "${testfile}"
+	test -f "${testfile}" && ${SUDO_MODIFY} rm "${testfile}"
 
 	for build in "${FFMPEG_ENABLES[@]}"; do
 		do_build "${build}" || return 1
@@ -305,26 +321,41 @@ build() {
 	return 0
 }
 
+### RUST ###
 build_hdr10plus_tool() {
-	cargo build --release || return 1
-	${SUDO} cp target/release/hdr10plus_tool "${PREFIX}/bin/" || return 1
+	cargo build "${CARGO_FLAGS[@]}" || return 1
+	${SUDO_MODIFY} cp \
+		"target/${CARGO_BUILD_TYPE}/hdr10plus_tool" \
+		"${PREFIX}/bin/" || return 1
 
 	# build libhdr10plus
 	cd hdr10plus || return 1
-	cargo cbuild --release || return 1
-	${SUDO_CARGO} bash -lc "cargo cinstall --prefix=${PREFIX} --release" || return 1
+	cargo cbuild "${CARGO_FLAGS[@]}" || return 1
+	${SUDO_CARGO} bash -lc "cargo cinstall ${CARGO_CINSTALL_FLAGS[*]}" || return 1
 }
-
 build_dovi_tool() {
-	cargo build --release || return 1
-	${SUDO} cp target/release/dovi_tool "${PREFIX}/bin/" || return 1
+	cargo build "${CARGO_FLAGS[@]}" || return 1
+	${SUDO_MODIFY} cp \
+		"target/${CARGO_BUILD_TYPE}/dovi_tool" \
+		"${PREFIX}/bin/" || return 1
 
 	# build libdovi
 	cd dolby_vision || return 1
-	cargo cbuild --release || return 1
-	${SUDO_CARGO} bash -lc "cargo cinstall --prefix=${PREFIX} --release" || return 1
+	cargo cbuild "${CARGO_FLAGS[@]}" || return 1
+	${SUDO_CARGO} bash -lc "cargo cinstall ${CARGO_CINSTALL_FLAGS[*]}" || return 1
+}
+build_librav1e() {
+	cargo build "${CARGO_FLAGS[@]}" || return 1
+	${SUDO_MODIFY} cp \
+		"target/${CARGO_BUILD_TYPE}/rav1e" \
+		"${PREFIX}/bin/" || return 1
+
+	# build librav1e
+	cargo cbuild "${CARGO_FLAGS[@]}" || return 1
+	${SUDO_CARGO} bash -lc "cargo cinstall ${CARGO_CINSTALL_FLAGS[*]}" || return 1
 }
 
+### CMAKE ###
 build_libsvtav1() {
 	cmake \
 		"${CMAKE_FLAGS[@]}" \
@@ -333,9 +364,8 @@ build_libsvtav1() {
 		-DBUILD_TESTING=OFF \
 		-DCOVERAGE=OFF || return 1
 	ccache make -j"${JOBS}" || return 1
-	${SUDO} make -j"${JOBS}" install || return 1
+	${SUDO_MODIFY} make -j"${JOBS}" install || return 1
 }
-
 build_libsvtav1_psy() {
 	local hdr10pluslib="$(find "${PREFIX}" -type f -name "libhdr10plus-rs.${LIB_SUFF}")"
 	local dovilib="$(find "${PREFIX}" -type f -name "libdovi.${LIB_SUFF}")"
@@ -351,17 +381,8 @@ build_libsvtav1_psy() {
 		-DLIBDOVI_LIBRARY="${dovilib}" \
 		. || return 1
 	ccache make -j"${JOBS}" || return 1
-	${SUDO} make -j"${JOBS}" install || return 1
+	${SUDO_MODIFY} make -j"${JOBS}" install || return 1
 }
-
-build_librav1e() {
-	cargo build --release || return 1
-	${SUDO} cp target/release/rav1e "${PREFIX}/bin/" || return 1
-
-	cargo cbuild --release || return 1
-	${SUDO_CARGO} bash -lc "cargo cinstall --prefix=${PREFIX} --release" || return 1
-}
-
 build_libaom() {
 	cmake \
 		"${CMAKE_FLAGS[@]}" \
@@ -369,26 +390,17 @@ build_libaom() {
 		-DENABLE_TESTS=OFF || return 1
 	cd build.user || return 1
 	ccache make -j"${JOBS}" || return 1
-	${SUDO} make -j"${JOBS}" install || return 1
+	${SUDO_MODIFY} make -j"${JOBS}" install || return 1
 }
 
-build_libopus() {
-	./configure \
-		"${CONFIGURE_FLAGS[@]}" \
-		--disable-doc || return 1
-	ccache make -j"${JOBS}" || return 1
-	${SUDO} make -j"${JOBS}" install || return 1
-	return 0
-}
-
+### MESON ###
 build_libdav1d() {
 	meson \
 		setup . build.user \
 		"${MESON_FLAGS[@]}" || return 1
 	ccache ninja -vC build.user || return 1
-	${SUDO} ninja -vC build.user install || return 1
+	${SUDO_MODIFY} ninja -vC build.user install || return 1
 }
-
 build_libvmaf() {
 	cd libvmaf || return 1
 	python3 -m virtualenv .venv
@@ -399,10 +411,19 @@ build_libvmaf() {
 			"${MESON_FLAGS[@]}" \
 			-Denable_float=true || exit 1
 		ccache ninja -vC build.user || exit 1
-		${SUDO} ninja -vC build.user install || exit 1
+		${SUDO_MODIFY} ninja -vC build.user install || exit 1
 	) || return 1
 }
 
+### AUTOTOOLS ###
+build_libopus() {
+	./configure \
+		"${CONFIGURE_FLAGS[@]}" \
+		--disable-doc || return 1
+	ccache make -j"${JOBS}" || return 1
+	${SUDO_MODIFY} make -j"${JOBS}" install || return 1
+	return 0
+}
 build_ffmpeg() {
 	for enable in "${FFMPEG_ENABLES[@]}"; do
 		test "${enable}" == 'libsvtav1_psy' && enable='libsvtav1'
@@ -421,6 +442,6 @@ build_ffmpeg() {
 		--disable-txtpages \
 		--disable-autodetect || return 1
 	ccache make -j"${JOBS}" || return 1
-	${SUDO} make -j"${JOBS}" install || return 1
+	${SUDO_MODIFY} make -j"${JOBS}" install || return 1
 	return 0
 }
