@@ -11,7 +11,7 @@ set_compile_opts() {
 	export LDFLAGS C_FLAGS CXX_FLAGS CPP_FLAGS \
 		CONFIGURE_FLAGS MESON_FLAGS \
 		RUSTFLAGS CMAKE_FLAGS \
-		FFMPEG_EXTRA_FLAGS
+		FFMPEG_EXTRA_FLAGS PATH
 
 	# set job count for all builds
 	JOBS="$(nproc)"
@@ -335,7 +335,7 @@ build_hdr10plus_tool() {
 	# build libhdr10plus
 	cd hdr10plus || return 1
 	cargo cbuild "${CARGO_FLAGS[@]}" || return 1
-	${SUDO_CARGO} bash -lc "cargo cinstall ${CARGO_CINSTALL_FLAGS[*]}" || return 1
+	${SUDO_CARGO} bash -lc "PATH=${PATH} cargo cinstall ${CARGO_CINSTALL_FLAGS[*]}" || return 1
 }
 build_dovi_tool() {
 	cargo build "${CARGO_FLAGS[@]}" || return 1
@@ -346,7 +346,7 @@ build_dovi_tool() {
 	# build libdovi
 	cd dolby_vision || return 1
 	cargo cbuild "${CARGO_FLAGS[@]}" || return 1
-	${SUDO_CARGO} bash -lc "cargo cinstall ${CARGO_CINSTALL_FLAGS[*]}" || return 1
+	${SUDO_CARGO} bash -lc "PATH=${PATH} cargo cinstall ${CARGO_CINSTALL_FLAGS[*]}" || return 1
 }
 build_librav1e() {
 	cargo build "${CARGO_FLAGS[@]}" || return 1
@@ -356,7 +356,7 @@ build_librav1e() {
 
 	# build librav1e
 	cargo cbuild "${CARGO_FLAGS[@]}" || return 1
-	${SUDO_CARGO} bash -lc "cargo cinstall ${CARGO_CINSTALL_FLAGS[*]}" || return 1
+	${SUDO_CARGO} bash -lc "PATH=${PATH} cargo cinstall ${CARGO_CINSTALL_FLAGS[*]}" || return 1
 
 	# HACK PATCH
 	# remove '-lgcc_s' from pkgconfig for static builds
