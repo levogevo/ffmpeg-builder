@@ -207,6 +207,21 @@ docker_run_image() {
 		fi
 
 		echo_info "running ffmpeg build for ${image_tag}"
+
+		# TODO REMOVE
+		if is_root_owned "${IGN_DIR}"; then
+			docker run \
+				"${DOCKER_RUN_FLAGS[@]}" \
+				"${image_tag}" \
+				rm -rf "${DOCKER_WORKDIR}"/gitignore
+		fi
+		if ! echo_if_fail ls; then
+			docker run \
+				"${DOCKER_RUN_FLAGS[@]}" \
+				"${image_tag}" \
+				rm -rf "${DOCKER_WORKDIR}"/gitignore
+		fi
+
 		docker run \
 			"${DOCKER_RUN_FLAGS[@]}" \
 			-u "$(id -u):$(id -g)" \
