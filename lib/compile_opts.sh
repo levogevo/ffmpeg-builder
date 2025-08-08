@@ -22,5 +22,7 @@ FFMPEG_ENABLES=(
 	libopus
 	libdav1d
 	libsvtav1_psy
-	# libaom
+	libaom
+	librav1e
+	libvmaf
 )

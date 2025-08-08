@@ -84,8 +84,12 @@ set_compile_opts() {
 		LDFLAGS+=('-static')
 		CONFIGURE_FLAGS+=('--enable-static')
 		CMAKE_FLAGS+=("-DBUILD_SHARED_LIBS=OFF")
-		MESON_FLAGS+=('--default-library=static')
+		MESON_FLAGS+=(
+			'--prefer-static'
+			'--default-library=static'
+		)
 		CMAKE_FLAGS+=("-DCMAKE_EXE_LINKER_FLAGS=-static")
+		RUSTFLAGS+=("-C target-feature=+crt-static")
 		PKG_CFG_FLAGS='--static'
 		LIB_SUFF='a'
 	else
@@ -120,10 +124,10 @@ set_compile_opts() {
 	dump_arr CONFIGURE_FLAGS
 	dump_arr C_FLAGS
 	dump_arr RUSTFLAGS
+	dump_arr CARGO_CINSTALL_FLAGS
 	dump_arr CMAKE_FLAGS
 	dump_arr MESON_FLAGS
 	dump_arr PKG_CFG_FLAGS
-	dump_arr CARGO_CINSTALL_FLAGS
 
 	# extra ffmpeg flags
 	FFMPEG_EXTRA_FLAGS+=(
@@ -353,6 +357,25 @@ build_librav1e() {
 	# build librav1e
 	cargo cbuild "${CARGO_FLAGS[@]}" || return 1
 	${SUDO_CARGO} bash -lc "cargo cinstall ${CARGO_CINSTALL_FLAGS[*]}" || return 1
+
+	# HACK PATCH
+	# remove '-lgcc_s' from pkgconfig for static builds
+	if [[ ${STATIC} == 'true' ]]; then
+		local pkgconfig="${PKG_CONFIG_PATH}/rav1e.pc"
+		test -f "${pkgconfig}" || return 1
+		local del='-lgcc_s'
+		local foundLine=0
+		while read -r line; do
+			if line_contains "${line}" "${del}"; then
+				foundLine=1
+				break
+			fi
+		done <"${pkgconfig}"
+		if [[ ${foundLine} == 1 ]]; then
+			local newline="${line//${del} /}"
+			sed -i "s/${line}/${newline}/g" "${pkgconfig}"
+		fi
+	fi
 }
 
 ### CMAKE ###
@@ -413,6 +436,25 @@ build_libvmaf() {
 		ccache ninja -vC build.user || exit 1
 		${SUDO_MODIFY} ninja -vC build.user install || exit 1
 	) || return 1
+
+	# HACK PATCH
+	# add '-lstdc++' to pkgconfig for static builds
+	if [[ ${STATIC} == 'true' ]]; then
+		local pkgconfig="${PKG_CONFIG_PATH}/libvmaf.pc"
+		test -f "${pkgconfig}" || return 1
+		local search='Libs: '
+		local foundLine=0
+		while read -r line; do
+			if line_contains "${line}" "${search}"; then
+				foundLine=1
+				break
+			fi
+		done <"${pkgconfig}"
+		local newline="${line} -lstdc++"
+		if [[ ${foundLine} == 1 ]]; then
+			sed -i "s/${line}/${newline}/g" "${pkgconfig}"
+		fi
+	fi
 }
 
 ### AUTOTOOLS ###

@@ -139,3 +139,13 @@ bash_basename() {
 
 	printf '%s\n' "${tmp:-/}"
 }
+
+line_contains() {
+	local line="$1"
+	local substr="$2"
+	if [[ $line == *"${substr}"* ]]; then
+		return 0
+	else
+		return 1
+	fi
+}
