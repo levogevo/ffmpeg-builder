@@ -53,6 +53,13 @@ validate_selected_image() {
 	fi
 }
 
+docker_login() {
+	echo_if_fail docker login \
+		-u "${DOCKER_REGISTRY_USER}" \
+		-p "${DOCKER_REGISTRY_PASS}" \
+		"${DOCKER_REGISTRY}"
+}
+
 FB_FUNC_NAMES+=('docker_build_image')
 FB_FUNC_DESCS['docker_build_image']='build docker image with required dependencies pre-installed'
 FB_FUNC_COMPLETION['docker_build_image']="${VALID_DOCKER_IMAGES[*]}"
@@ -107,11 +114,7 @@ docker_build_image() {
 
 		# if a docker registry is defined, push to it
 		if [[ ${DOCKER_REGISTRY} != '' ]]; then
-			docker login \
-				-u "${DOCKER_REGISTRY_USER}" \
-				-p "${DOCKER_REGISTRY_PASS}" \
-				"${DOCKER_REGISTRY}"
-
+			docker_login || return 1
 			docker buildx build \
 				--push \
 				--platform "${PLATFORM}" \
@@ -168,11 +171,7 @@ docker_run_image() {
 
 		# if a docker registry is defined, pull from it
 		if [[ ${DOCKER_REGISTRY} != '' ]]; then
-			docker login \
-				-u "${DOCKER_REGISTRY_USER}" \
-				-p "${DOCKER_REGISTRY_PASS}" \
-				"${DOCKER_REGISTRY}"
-
+			docker_login || return 1
 			docker pull \
 				"${DOCKER_REGISTRY}/${image_tag}"
 			docker tag "${DOCKER_REGISTRY}/${image_tag}" "${image_tag}"

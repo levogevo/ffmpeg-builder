@@ -15,30 +15,26 @@ set_compile_opts() {
 	# set job count for all builds
 	JOBS="$(nproc)"
 
-	MACHINE="$(cc -dumpmachine)"
-	test "${MACHINE}" == '' && return 1
-	MACHINE_LIB="${PREFIX}/lib/${MACHINE}"
+	mapfile -t pkgconfigDirs < <(find "${PREFIX}" -type d -name pkgconfig)
+	for d in "${pkgconfigDirs[@]}"; do
+		if [[ ${d} =~ '64' ]]; then
+			MACHINE_LIB="${d}"
+		fi
+	done
+	test "${MACHINE_LIB}" == '' && return 1
+	pkgconfigString="${pkgconfigDirs[*]}"
+	PKG_CONFIG_PATH="${pkgconfigString// /:}"
 
 	# set prefix flags
 	CONFIGURE_FLAGS+=("--prefix=${PREFIX}")
 	MESON_FLAGS+=("--prefix" "${PREFIX}")
 	CMAKE_FLAGS+=("-DCMAKE_PREFIX_PATH=${PREFIX}")
 	CMAKE_FLAGS+=("-DCMAKE_INSTALL_PREFIX=${PREFIX}")
-	PKG_CONFIG_PATH="${PREFIX}/lib/pkgconfig"
-	PKG_CONFIG_PATH+=":${MACHINE_LIB}/pkgconfig"
 	export PKG_CONFIG_PATH
 	export PKG_CONFIG_DEBUG_SPEW=1
 
 	# add prefix include
 	C_FLAGS+=("-I${PREFIX}/include")
-
-	# enabling a clean build
-	if [[ ${CLEAN} == 'true' ]]; then
-		CLEAN="${SUDO} rm -rf"
-		echo_info "performing clean build"
-	else
-		CLEAN='void'
-	fi
 
 	# enabling link-time optimization
 	# shellcheck disable=SC2034
@@ -77,7 +73,7 @@ set_compile_opts() {
 		CONFIGURE_FLAGS+=('--enable-static')
 		CMAKE_FLAGS+=("-DBUILD_SHARED_LIBS=OFF")
 		MESON_FLAGS+=('--default-library=static')
-		CMAKE_FLAGS+=("-DCMAKE_EXE_LINKER_FLAGS='-static'")
+		CMAKE_FLAGS+=("-DCMAKE_EXE_LINKER_FLAGS=-static")
 		PKG_CFG_FLAGS='--static'
 		LIB_SUFF='a'
 	else
@@ -105,9 +101,10 @@ set_compile_opts() {
 	CXX_FLAGS=("${C_FLAGS[@]}")
 	CPP_FLAGS=("${C_FLAGS[@]}")
 	RUSTFLAGS+=("-C target-cpu=${CPU}")
-	CMAKE_FLAGS+=("-DCMAKE_C_FLAGS='${C_FLAGS[*]}'")
-	CMAKE_FLAGS+=("-DCMAKE_CXX_FLAGS='${CXX_FLAGS[*]}'")
+	CMAKE_FLAGS+=("-DCMAKE_C_FLAGS=${C_FLAGS[*]}")
+	CMAKE_FLAGS+=("-DCMAKE_CXX_FLAGS=${CXX_FLAGS[*]}")
 	MESON_FLAGS+=("-Dc_args=${C_FLAGS[*]}" "-Dcpp_args=${CPP_FLAGS[*]}")
+	echo_info "CLEAN: $CLEAN"
 	dump_arr CONFIGURE_FLAGS
 	dump_arr C_FLAGS
 	dump_arr RUSTFLAGS
@@ -220,9 +217,16 @@ download_release() {
 		rm -rf "${wrong_ver_build}"
 	done
 
+	# enabling a clean build
+	if [[ ${CLEAN} == 'true' ]]; then
+		DO_CLEAN="rm -rf"
+	else
+		DO_CLEAN='void'
+	fi
+
 	# create new build dir for clean builds
 	test -d "${extracted_dir}" &&
-		${CLEAN} "${extracted_dir}"
+		{ ${DO_CLEAN} "${extracted_dir}" || return 1; }
 
 	if test "${ext}" != "git"; then
 		wget_out="${base_dl_path}.${ext}"
@@ -237,7 +241,10 @@ download_release() {
 		test -d "${extracted_dir}" ||
 			{
 				mkdir "${extracted_dir}"
-				tar -xf "${wget_out}" --strip-components=1 -C "${extracted_dir}"
+				tar -xf "${wget_out}" \
+					--strip-components=1 \
+					--no-same-permissions \
+					-C "${extracted_dir}"
 			}
 	else
 		# for git downloads
@@ -330,6 +337,8 @@ build_libsvtav1() {
 }
 
 build_libsvtav1_psy() {
+	local hdr10pluslib="$(find "${PREFIX}" -type f -name "libhdr10plus-rs.${LIB_SUFF}")"
+	local dovilib="$(find "${PREFIX}" -type f -name "libdovi.${LIB_SUFF}")"
 	cmake \
 		"${CMAKE_FLAGS[@]}" \
 		-DSVT_AV1_LTO="${LTO_SWITCH}" \
@@ -338,8 +347,9 @@ build_libsvtav1_psy() {
 		-DCOVERAGE=OFF \
 		-DLIBDOVI_FOUND=1 \
 		-DLIBHDR10PLUS_RS_FOUND=1 \
-		-DLIBHDR10PLUS_RS_LIBRARY="${MACHINE_LIB}/libhdr10plus-rs.${LIB_SUFF}" \
-		-DLIBDOVI_LIBRARY="${MACHINE_LIB}/libdovi.${LIB_SUFF}" || return 1
+		-DLIBHDR10PLUS_RS_LIBRARY="${hdr10pluslib}" \
+		-DLIBDOVI_LIBRARY="${dovilib}" \
+		. || return 1
 	ccache make -j"${JOBS}" || return 1
 	${SUDO} make -j"${JOBS}" install || return 1
 }
