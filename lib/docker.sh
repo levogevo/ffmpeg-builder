@@ -94,6 +94,12 @@ docker_build_image() {
 				"${dockerDistro}" \
 				rm -rf "${DOCKER_WORKDIR}"/gitignore
 		fi
+		if ! echo_if_fail ls; then
+			docker run \
+				"${DOCKER_RUN_FLAGS[@]}" \
+				"${dockerDistro}" \
+				rm -rf "${DOCKER_WORKDIR}"/gitignore
+		fi
 
 		docker run \
 			"${DOCKER_RUN_FLAGS[@]}" \
