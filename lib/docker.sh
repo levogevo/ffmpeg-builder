@@ -221,6 +221,13 @@ docker_run_image() {
 				"${image_tag}" \
 				rm -rf "${DOCKER_WORKDIR}"/gitignore
 		fi
+		testfile="${PREFIX}/ffmpeg-build-testfile"
+		if ! touch "${testfile}" 2>/dev/null; then
+			docker run \
+				"${DOCKER_RUN_FLAGS[@]}" \
+				"${image_tag}" \
+				rm -rf "${DOCKER_WORKDIR}"/gitignore
+		fi
 
 		docker run \
 			"${DOCKER_RUN_FLAGS[@]}" \

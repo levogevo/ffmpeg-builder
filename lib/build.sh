@@ -84,10 +84,7 @@ set_compile_opts() {
 		LDFLAGS+=('-static')
 		CONFIGURE_FLAGS+=('--enable-static')
 		CMAKE_FLAGS+=("-DBUILD_SHARED_LIBS=OFF")
-		MESON_FLAGS+=(
-			'--prefer-static'
-			'--default-library=static'
-		)
+		MESON_FLAGS+=('--default-library=static')
 		CMAKE_FLAGS+=("-DCMAKE_EXE_LINKER_FLAGS=-static")
 		RUSTFLAGS+=("-C target-feature=+crt-static")
 		PKG_CFG_FLAGS='--static'
