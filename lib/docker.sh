@@ -198,16 +198,6 @@ docker_run_image() {
 	for distro in "${DISTROS[@]}"; do
 		image_tag="$(set_distro_image_tag "${distro}")"
 
-		# if a docker registry is defined, pull from it
-		if [[ ${DOCKER_REGISTRY} != '' ]]; then
-			docker_login || return 1
-			docker pull \
-				"${DOCKER_REGISTRY}/${image_tag}"
-			docker tag "${DOCKER_REGISTRY}/${image_tag}" "${image_tag}"
-		fi
-
-		echo_info "running ffmpeg build for ${image_tag}"
-
 		# TODO REMOVE
 		if is_root_owned "${IGN_DIR}"; then
 			docker run \
@@ -228,6 +218,16 @@ docker_run_image() {
 				"${image_tag}" \
 				rm -rf "${DOCKER_WORKDIR}"/gitignore
 		fi
+
+		# if a docker registry is defined, pull from it
+		if [[ ${DOCKER_REGISTRY} != '' ]]; then
+			docker_login || return 1
+			docker pull \
+				"${DOCKER_REGISTRY}/${image_tag}"
+			docker tag "${DOCKER_REGISTRY}/${image_tag}" "${image_tag}"
+		fi
+
+		echo_info "running ffmpeg build for ${image_tag}"
 
 		docker run \
 			"${DOCKER_RUN_FLAGS[@]}" \

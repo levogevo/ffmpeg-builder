@@ -148,3 +148,13 @@ line_contains() {
 		return 1
 	fi
 }
+
+line_starts_with() {
+	local line="$1"
+	local substr="$2"
+	if [[ $line == "${substr}"* ]]; then
+		return 0
+	else
+		return 1
+	fi
+}

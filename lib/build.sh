@@ -281,6 +281,10 @@ do_build() {
 	local build="${1:-''}"
 	download_release "${build}" || return 1
 	get_build_conf "${build}" || return 1
+
+	# add build configuration to FFMPEG_BUILDER_INFO
+	FFMPEG_BUILDER_INFO+=("${build}=${ver}")
+
 	set_compile_opts || return 1
 	for dep in "${deps[@]}"; do
 		do_build "${dep}" || return 1
@@ -315,6 +319,9 @@ build() {
 	fi
 	test -f "${testfile}" && ${SUDO_MODIFY} rm "${testfile}"
 
+	# embed this project's enables/versions
+	# into ffmpeg with this variable
+	FFMPEG_BUILDER_INFO=("ffmpeg-builder=$(cd "${REPO_DIR}" && git rev-parse HEAD)")
 	for build in "${FFMPEG_ENABLES[@]}"; do
 		do_build "${build}" || return 1
 	done
@@ -464,11 +471,47 @@ build_libopus() {
 	${SUDO_MODIFY} make -j"${JOBS}" install || return 1
 	return 0
 }
+add_project_versioning_to_ffmpeg() {
+	local optFile
+	optFile="$(command ls ./**/ffmpeg_opt.c)"
+	if [[ ! $? -eq 0 || ${optFile} == '' || ! -f ${optFile} ]]; then
+		echo_fail "could not find ffmpeg_opt.c to add project versioning"
+	fi
+
+	local lineNum=0
+	local searchFor='Universal media converter\n'
+	local foundUsageStart=0
+	while read -r line; do
+		lineNum=$((lineNum + 1))
+		if line_contains "${line}" "${searchFor}"; then
+			foundUsageStart=1
+			continue
+		fi
+		if [[ ${foundUsageStart} -eq 1 ]]; then
+			if line_starts_with "${line}" '}'; then
+				break
+			fi
+		fi
+	done <"${optFile}"
+
+	echo_info "found ${line} on ${lineNum}"
+	for info in "${FFMPEG_BUILDER_INFO[@]}"; do
+		local newline="\    av_log(NULL, AV_LOG_INFO, \"${info}\\\n\");"
+		sed -i "${lineNum}i ${newline}" "${optFile}" || return 1
+		lineNum=$((lineNum + 1))
+	done
+	local newline="\    av_log(NULL, AV_LOG_INFO, \"\\\n\");"
+	sed -i "${lineNum}i ${newline}" "${optFile}" || return 1
+
+	return 0
+}
 build_ffmpeg() {
 	for enable in "${FFMPEG_ENABLES[@]}"; do
 		test "${enable}" == 'libsvtav1_psy' && enable='libsvtav1'
 		CONFIGURE_FLAGS+=("--enable-${enable}")
 	done
+	add_project_versioning_to_ffmpeg || return 1
+
 	./configure \
 		"${CONFIGURE_FLAGS[@]}" \
 		"${FFMPEG_EXTRA_FLAGS[@]}" \
