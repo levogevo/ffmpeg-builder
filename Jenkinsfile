@@ -8,7 +8,7 @@ pipeline {
                     axis {
                         name 'DISTRO'
                         values 'ubuntu-22.04', 'ubuntu-24.04', 
-                            'debian-12', 'fedora-42'
+                            'debian-12', 'fedora-42',
                             'ogarcia/archlinux-latest'
                     }
                     axis {
