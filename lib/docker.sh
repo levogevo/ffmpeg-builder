@@ -4,7 +4,7 @@ VALID_DOCKER_IMAGES=(
 	'ubuntu-22.04' 'ubuntu-24.04'
 	'fedora-41' 'fedora-42'
 	'debian-12'
-	'archlinux-latest'
+	'ogarcia/archlinux-latest'
 )
 DOCKER_WORKDIR='/workdir'
 DOCKER_RUN_FLAGS=(

@@ -9,7 +9,7 @@ pipeline {
                         name 'DISTRO'
                         values 'ubuntu-22.04', 'ubuntu-24.04', 
                             'debian-12', 'fedora-42'
-                            // 'archlinux-latest'
+                            'ogarcia/archlinux-latest'
                     }
                     axis {
                         name 'ARCH'

@@ -162,15 +162,15 @@ get_build_conf() {
 	# shellcheck disable=SC2016
 	local BUILDS_CONF='
 ffmpeg          7cd1edeaa410d977a9f1ff8436f480cb45b80178 git https://github.com/FFmpeg/FFmpeg/
-hdr10plus_tool  1.7.0   tar.gz    https://github.com/quietvoid/hdr10plus_tool/archive/refs/tags/${ver}.${ext}
-dovi_tool       2.2.0   tar.gz    https://github.com/quietvoid/dovi_tool/archive/refs/tags/${ver}.${ext}
+hdr10plus_tool  1.7.1   tar.gz    https://github.com/quietvoid/hdr10plus_tool/archive/refs/tags/${ver}.${ext}
+dovi_tool       2.3.0   tar.gz    https://github.com/quietvoid/dovi_tool/archive/refs/tags/${ver}.${ext}
 libsvtav1       3.0.2   tar.gz    https://gitlab.com/AOMediaCodec/SVT-AV1/-/archive/v${ver}/SVT-AV1-v${ver}.${ext}
 libsvtav1_psy   3.0.2   tar.gz    https://github.com/psy-ex/svt-av1-psy/archive/refs/tags/v${ver}.${ext} dovi_tool,hdr10plus_tool
-librav1e        0.7.1   tar.gz    https://github.com/xiph/rav1e/archive/refs/tags/v${ver}.${ext}
+librav1e        0.8.1   tar.gz    https://github.com/xiph/rav1e/archive/refs/tags/v${ver}.${ext}
 libaom          3.12.1  tar.gz    https://storage.googleapis.com/aom-releases/libaom-${ver}.${ext}
 libvmaf         3.0.0   tar.gz    https://github.com/Netflix/vmaf/archive/refs/tags/v${ver}.${ext}
 libopus         1.5.2   tar.gz    https://github.com/xiph/opus/releases/download/v${ver}/opus-${ver}.${ext}
-libdav1d        1.5.0   tar.xz    http://downloads.videolan.org/videolan/dav1d/${ver}/dav1d-${ver}.${ext}
+libdav1d        1.5.1   tar.xz    http://downloads.videolan.org/videolan/dav1d/${ver}/dav1d-${ver}.${ext}
 '
 	local supported_builds=()
 	unset ver ext url deps extracted_dir
@@ -333,7 +333,7 @@ build_hdr10plus_tool() {
 	# build libhdr10plus
 	cd hdr10plus || return 1
 	cargo cbuild "${CARGO_FLAGS[@]}" || return 1
-	${SUDO_CARGO} bash -lc "PATH=${PATH} cargo cinstall ${CARGO_CINSTALL_FLAGS[*]}" || return 1
+	${SUDO_CARGO} bash -lc "PATH=\"${PATH}\" cargo cinstall ${CARGO_CINSTALL_FLAGS[*]}" || return 1
 }
 build_dovi_tool() {
 	cargo build "${CARGO_FLAGS[@]}" || return 1
@@ -344,7 +344,7 @@ build_dovi_tool() {
 	# build libdovi
 	cd dolby_vision || return 1
 	cargo cbuild "${CARGO_FLAGS[@]}" || return 1
-	${SUDO_CARGO} bash -lc "PATH=${PATH} cargo cinstall ${CARGO_CINSTALL_FLAGS[*]}" || return 1
+	${SUDO_CARGO} bash -lc "PATH=\"${PATH}\" cargo cinstall ${CARGO_CINSTALL_FLAGS[*]}" || return 1
 }
 build_librav1e() {
 	cargo build "${CARGO_FLAGS[@]}" || return 1
@@ -354,7 +354,7 @@ build_librav1e() {
 
 	# build librav1e
 	cargo cbuild "${CARGO_FLAGS[@]}" || return 1
-	${SUDO_CARGO} bash -lc "PATH=${PATH} cargo cinstall ${CARGO_CINSTALL_FLAGS[*]}" || return 1
+	${SUDO_CARGO} bash -lc "PATH=\"${PATH}\" cargo cinstall ${CARGO_CINSTALL_FLAGS[*]}" || return 1
 
 	# HACK PATCH
 	# remove '-lgcc_s' from pkgconfig for static builds
