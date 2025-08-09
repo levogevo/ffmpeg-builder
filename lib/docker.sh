@@ -84,7 +84,7 @@ docker_build_image() {
 		# docker expects colon instead of dash
 		dockerDistro="${distro//-/:}"
 		# specific file for evaluated package manager info
-		distroPkgMgr="${DOCKER_DIR}/$(bash_basename "${distro}-pkg_mgr")"
+		distroPkgMgr="${DOCKER_DIR}/$(bash_basename "${distro}")-pkg_mgr)"
 		# get package manager info
 
 		# TODO REMOVE
@@ -109,7 +109,7 @@ docker_build_image() {
 		cat "${distroPkgMgr}"
 		source "${distroPkgMgr}"
 
-		dockerfile="${DOCKER_DIR}/Dockerfile_${distro}"
+		dockerfile="${DOCKER_DIR}/Dockerfile_$(bash_basename "${distro}")"
 		{
 			echo "FROM ${dockerDistro}"
 			echo 'SHELL ["/bin/bash", "-c"]'
