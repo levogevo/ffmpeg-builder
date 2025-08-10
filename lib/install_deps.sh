@@ -43,7 +43,9 @@ print_req_pkgs() {
 	local common_pkgs=(
 		autoconf automake cmake libtool
 		texinfo nasm yasm python3 wget
-		meson doxygen jq ccache gawk git
+		meson doxygen jq ccache gawk
+		git gnuplot bison rsync ragel
+		zip unzip gperf itstool
 	)
 	# shellcheck disable=SC2034
 	local brew_pkgs=(
@@ -62,7 +64,7 @@ print_req_pkgs() {
 		libvorbis-dev libxcb1-dev pipx
 		libxcb-shm0-dev libxcb-xfixes0-dev
 		zlib1g-dev libssl-dev ninja-build
-		gobjc++ mawk libnuma-dev
+		gobjc++ mawk libnuma-dev libc6-dev
 		mediainfo mkvtoolnix libgtest-dev
 	)
 	# shellcheck disable=SC2034
@@ -74,12 +76,13 @@ print_req_pkgs() {
 	local dnf_pkgs=(
 		"${common_linux_pkgs[@]}" openssl-devel
 		pipx ninja-build fontconfig-devel wget2
-		cpuinfo-devel glibc-static libstdc++-static
+		cpuinfo-devel glibc-static glibc-devel
+		libstdc++-static libstdc++-devel
 	)
 
 	local req_pkgs_env_name="${pkg_mgr/-/_}_pkgs"
 	declare -n req_pkgs="${req_pkgs_env_name}"
-	local sorted_req_pkgs=($(printf '%s\n' "${req_pkgs[@]}" | sort))
+	local sorted_req_pkgs=($(printf '%s\n' "${req_pkgs[@]}" | sort -u))
 	echo "${sorted_req_pkgs[@]}"
 }
 

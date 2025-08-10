@@ -3,7 +3,7 @@
 # variables used externally
 # shellcheck disable=SC2034
 
-# complete clean before building
+# clean build directories before building
 CLEAN=true
 # enable link time optimization
 LTO=false
@@ -11,7 +11,7 @@ LTO=false
 OPT_LVL=0
 # static or shared build
 STATIC=true
-# CPU type (x86_v{1,2,3}...)
+# CPU type (amd64/v{1,2,3}...)
 CPU=native
 # architecture type
 ARCH=native

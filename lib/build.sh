@@ -101,16 +101,19 @@ set_compile_opts() {
 	# architecture/cpu compile flags
 	# arm prefers -mcpu over -march
 	# https://community.arm.com/arm-community-blogs/b/tools-software-ides-blog/posts/compiler-flags-across-architectures-march-mtune-and-mcpu
-	arch_flags=""
-	test_arch="$(uname -m)"
-	if [[ ${test_arch} == "x86_64" ]]; then
-		arch_flags="-march=${CPU}"
-	elif [[ ${test_arch} == "aarch64" ||
-		${test_arch} == "arm64" ]]; then
-		arch_flags="-mcpu=${CPU}"
+	# and can fail static builds with -fpic
+	# warning: too many GOT entries for -fpic, please recompile with -fPIC
+	local arch_flags=()
+	if [[ ${HOSTTYPE} == "x86_64" ]]; then
+		arch_flags+=("-march=${CPU}")
+	elif [[ ${HOSTTYPE} == "aarch64" ]]; then
+		arch_flags+=(
+			"-mcpu=${CPU}"
+			"-fPIC"
+		)
 	fi
 
-	C_FLAGS+=("${arch_flags}")
+	C_FLAGS+=("${arch_flags[@]}")
 	CXX_FLAGS=("${C_FLAGS[@]}")
 	CPP_FLAGS=("${C_FLAGS[@]}")
 	RUSTFLAGS+=("-C target-cpu=${CPU}")
@@ -158,6 +161,17 @@ set_compile_opts() {
 get_build_conf() {
 	local getBuild="${1}"
 
+	local libcVer='X.X'
+	if test "${getBuild}" == 'libc' && has_cmd ldd; then
+		local srcTest="${TMP_DIR}/libc-ver"
+		echo '#include <gnu/libc-version.h>
+#include <stdio.h>
+#include <unistd.h>
+int main() { puts(gnu_get_libc_version()); return 0; }' >"${srcTest}.c"
+		gcc "${srcTest}.c" -o "${srcTest}"
+		libcVer="$("${srcTest}")"
+	fi
+
 	# name version file-extension url dep1,dep2
 	# shellcheck disable=SC2016
 	local BUILDS_CONF='
@@ -172,6 +186,9 @@ libvmaf         3.0.0   tar.gz    https://github.com/Netflix/vmaf/archive/refs/t
 libopus         1.5.2   tar.gz    https://github.com/xiph/opus/releases/download/v${ver}/opus-${ver}.${ext}
 libdav1d        1.5.1   tar.xz    http://downloads.videolan.org/videolan/dav1d/${ver}/dav1d-${ver}.${ext}
 '
+	BUILDS_CONF+="libc ${libcVer} tar.xz"
+	BUILDS_CONF+=' https://ftpmirror.gnu.org/glibc/glibc-${ver}.${ext}'
+
 	local supported_builds=()
 	unset ver ext url deps extracted_dir
 	while read -r line; do
@@ -423,8 +440,14 @@ build_libaom() {
 
 ### MESON ###
 build_libdav1d() {
+	local enableAsm='true'
+	# arm64 will fail the build at 0 optimization
+	if [[ "${HOSTTYPE}:${OPT_LVL}" == "aarch64:0" ]]; then
+		enableAsm="false"
+	fi
 	meson \
 		setup . build.user \
+		-Denable_asm=${enableAsm} \
 		"${MESON_FLAGS[@]}" || return 1
 	ccache ninja -vC build.user || return 1
 	${SUDO_MODIFY} ninja -vC build.user install || return 1
@@ -471,6 +494,46 @@ build_libopus() {
 	${SUDO_MODIFY} make -j"${JOBS}" install || return 1
 	return 0
 }
+# special function mainly for arm64 builds
+# since most distros do not compile libc
+# with -fPIC for some reason
+build_libc() (
+	# only for arm64
+	test "${HOSTTYPE}" != "aarch64" && exit 0
+	# only for static builds
+	test "${STATIC}" == 'false' && exit 0
+	# only for glibc
+	has_cmd ldd || exit 0
+	# only build once
+	test -f "${LIBDIR}/libc.a" && exit 0
+
+	rm -rf build
+	mkdir build
+	cd build || exit 1
+
+	# manually set flags since these are
+	# not intended to be user-controlled
+	unset CFLAGS CXXFLAGS
+	export CFLAGS='-fPIC -O3 -U_FORTIFY_SOURCE'
+	export CXXFLAGS="${CFLAGS}"
+	libc_prefix="${PWD}/local-install"
+	libc_libdir="${libc_prefix}/lib"
+	./../configure \
+		--prefix="${libc_prefix}" \
+		--libdir="${libc_libdir}" \
+		--disable-werror || exit 1
+	make -j"${JOBS}" all || exit 1
+
+	# install only the -fPIC static libraries
+	for picLib in ./**_pic.a; do
+		echo_warn "${picLib}"
+	done
+	# exit 1
+	# cd "${libc_libdir}" || exit 1
+	# cp ./*.a "${LIBDIR}" || exit 1
+
+	exit 0
+)
 add_project_versioning_to_ffmpeg() {
 	local optFile
 	optFile="$(command ls ./**/ffmpeg_opt.c)"

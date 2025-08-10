@@ -120,17 +120,19 @@ docker_build_image() {
 			printf "RUN ${pkg_install} %s\n" "${req_pkgs[@]}"
 			echo 'RUN pipx install virtualenv'
 			echo 'RUN pipx ensurepath'
-			echo 'RUN curl https://sh.rustup.rs -sSf | bash -s -- -y'
-			echo 'ENV PATH="~/.cargo/bin:$PATH"'
-			echo 'RUN rustup default stable && rustup update stable'
-			echo 'RUN cargo install cargo-c'
+			echo 'ENV CARGO_HOME="/root/.cargo"'
+			echo 'ENV RUSTUP_HOME="/root/.rustup"'
+			echo 'ENV PATH="/root/.cargo/bin:$PATH"'
+			local cargoInst=''
+			cargoInst+='curl https://sh.rustup.rs -sSf | bash -s -- -y'
+			cargoInst+='&& rustup update stable'
+			cargoInst+='&& cargo install cargo-c'
+			cargoInst+='&& rm -rf "${CARGO_HOME}"/registry "${CARGO_HOME}"/git'
+			echo "RUN ${cargoInst}"
 			# since any user may run this image,
 			# open up root tools to everyone
-			echo 'RUN chmod 777 -R /root/'
-			echo 'ENV PATH="/root/.cargo/bin:$PATH"'
 			echo 'ENV PATH="/root/.local/bin:$PATH"'
-			echo 'ENV RUSTUP_HOME="/root/.rustup"'
-			echo 'ENV CARGO_HOME="/root/.rustup"'
+			echo 'RUN chmod 777 -R /root/'
 			echo "WORKDIR ${DOCKER_WORKDIR}"
 
 		} >"${dockerfile}"
