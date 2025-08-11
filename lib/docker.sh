@@ -92,13 +92,13 @@ docker_build_image() {
 			docker run \
 				"${DOCKER_RUN_FLAGS[@]}" \
 				"${dockerDistro}" \
-				rm -rf "${DOCKER_WORKDIR}"/gitignore
+				chown -R "$(id -u):$(id -g)" "${DOCKER_WORKDIR}"/gitignore
 		fi
 		if ! echo_if_fail ls; then
 			docker run \
 				"${DOCKER_RUN_FLAGS[@]}" \
 				"${dockerDistro}" \
-				rm -rf "${DOCKER_WORKDIR}"/gitignore
+				chown -R "$(id -u):$(id -g)" "${DOCKER_WORKDIR}"/gitignore
 		fi
 
 		docker run \
@@ -115,9 +115,19 @@ docker_build_image() {
 			echo 'SHELL ["/bin/bash", "-c"]'
 			echo 'RUN ln -sf /bin/bash /bin/sh'
 			echo 'ENV DEBIAN_FRONTEND=noninteractive'
-			echo "RUN ${pkg_mgr_update}"
-			echo "RUN ${pkg_mgr_upgrade}"
-			printf "RUN ${pkg_install} %s\n" "${req_pkgs[@]}"
+			# arch is rolling release, so highly likely
+			# an updated is required between pkg changes
+			if line_contains "${dockerDistro}" 'archlinux'; then
+				local archRuns=''
+				archRuns+="${pkg_mgr_update}"
+				archRuns+=" && ${pkg_mgr_upgrade}"
+				archRuns+=" && ${pkg_install} ${req_pkgs[*]}"
+				echo "RUN ${archRuns}"
+			else
+				echo "RUN ${pkg_mgr_update}"
+				echo "RUN ${pkg_mgr_upgrade}"
+				printf "RUN ${pkg_install} %s\n" "${req_pkgs[@]}"
+			fi
 			echo 'RUN pipx install virtualenv'
 			echo 'RUN pipx ensurepath'
 			echo 'ENV CARGO_HOME="/root/.cargo"'
@@ -205,20 +215,20 @@ docker_run_image() {
 			docker run \
 				"${DOCKER_RUN_FLAGS[@]}" \
 				"${image_tag}" \
-				rm -rf "${DOCKER_WORKDIR}"/gitignore
+				chown -R "$(id -u):$(id -g)" "${DOCKER_WORKDIR}"/gitignore
 		fi
 		if ! echo_if_fail ls; then
 			docker run \
 				"${DOCKER_RUN_FLAGS[@]}" \
 				"${image_tag}" \
-				rm -rf "${DOCKER_WORKDIR}"/gitignore
+				chown -R "$(id -u):$(id -g)" "${DOCKER_WORKDIR}"/gitignore
 		fi
 		testfile="${PREFIX}/ffmpeg-build-testfile"
 		if ! touch "${testfile}" 2>/dev/null; then
 			docker run \
 				"${DOCKER_RUN_FLAGS[@]}" \
 				"${image_tag}" \
-				rm -rf "${DOCKER_WORKDIR}"/gitignore
+				chown -R "$(id -u):$(id -g)" "${DOCKER_WORKDIR}"/gitignore
 		fi
 
 		# if a docker registry is defined, pull from it
