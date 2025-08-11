@@ -135,9 +135,9 @@ docker_build_image() {
 			echo 'ENV PATH="/root/.cargo/bin:$PATH"'
 			local cargoInst=''
 			cargoInst+='curl https://sh.rustup.rs -sSf | bash -s -- -y'
-			cargoInst+='&& rustup update stable'
-			cargoInst+='&& cargo install cargo-c'
-			cargoInst+='&& rm -rf "${CARGO_HOME}"/registry "${CARGO_HOME}"/git'
+			cargoInst+=' && rustup update stable'
+			cargoInst+=' && cargo install cargo-c'
+			cargoInst+=' && rm -rf "${CARGO_HOME}"/registry "${CARGO_HOME}"/git'
 			echo "RUN ${cargoInst}"
 			# since any user may run this image,
 			# open up root tools to everyone
