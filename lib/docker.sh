@@ -4,7 +4,7 @@ VALID_DOCKER_IMAGES=(
 	'ubuntu-22.04' 'ubuntu-24.04'
 	'fedora-41' 'fedora-42'
 	'debian-12'
-	'ogarcia/archlinux-latest'
+	'archlinux-latest'
 )
 DOCKER_WORKDIR='/workdir'
 DOCKER_RUN_FLAGS=(
@@ -78,13 +78,15 @@ docker_build_image() {
 	PLATFORM="${PLATFORM:-$(echo_platform)}"
 
 	for distro in "${DISTROS[@]}"; do
-		image_tag="$(set_distro_image_tag "${distro}")"
-		echo_info "sourcing package manager for ${image_tag}"
+		echo_info "sourcing package manager for ${distro}"
 
+		# custom multi-arch image for archlinux
+		test "${distro}" == 'archlinux-latest' && \
+			distro='ogarcia/archlinux-latest'
 		# docker expects colon instead of dash
 		dockerDistro="${distro//-/:}"
 		# specific file for evaluated package manager info
-		distroPkgMgr="${DOCKER_DIR}/$(bash_basename "${distro}")-pkg_mgr)"
+		distroPkgMgr="${DOCKER_DIR}/$(bash_basename "${distro}")-pkg_mgr"
 		# get package manager info
 
 		# TODO REMOVE
@@ -147,6 +149,7 @@ docker_build_image() {
 
 		} >"${dockerfile}"
 
+		image_tag="$(set_distro_image_tag "${distro}")"
 		docker buildx build \
 			--platform "${PLATFORM}" \
 			-t "${image_tag}" \
@@ -208,28 +211,34 @@ docker_run_image() {
 	check_docker || return 1
 
 	for distro in "${DISTROS[@]}"; do
-		image_tag="$(set_distro_image_tag "${distro}")"
+		# custom multi-arch image for arch
+		test "${distro}" == 'archlinux-latest' && \
+			distro='ogarcia/archlinux-latest'
+		# docker expects colon instead of dash
+		dockerDistro="${distro//-/:}"
 
 		# TODO REMOVE
 		if is_root_owned "${IGN_DIR}"; then
 			docker run \
 				"${DOCKER_RUN_FLAGS[@]}" \
-				"${image_tag}" \
+				"${dockerDistro}" \
 				chown -R "$(id -u):$(id -g)" "${DOCKER_WORKDIR}"/gitignore
 		fi
 		if ! echo_if_fail ls; then
 			docker run \
 				"${DOCKER_RUN_FLAGS[@]}" \
-				"${image_tag}" \
+				"${dockerDistro}" \
 				chown -R "$(id -u):$(id -g)" "${DOCKER_WORKDIR}"/gitignore
 		fi
 		testfile="${PREFIX}/ffmpeg-build-testfile"
 		if ! touch "${testfile}" 2>/dev/null; then
 			docker run \
 				"${DOCKER_RUN_FLAGS[@]}" \
-				"${image_tag}" \
+				"${dockerDistro}" \
 				chown -R "$(id -u):$(id -g)" "${DOCKER_WORKDIR}"/gitignore
 		fi
+
+		image_tag="$(set_distro_image_tag "${distro}")"
 
 		# if a docker registry is defined, pull from it
 		if [[ ${DOCKER_REGISTRY} != '' ]]; then
