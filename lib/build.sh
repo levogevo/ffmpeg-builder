@@ -179,12 +179,13 @@ ffmpeg          7cd1edeaa410d977a9f1ff8436f480cb45b80178 git https://github.com/
 hdr10plus_tool  1.7.1   tar.gz    https://github.com/quietvoid/hdr10plus_tool/archive/refs/tags/${ver}.${ext}
 dovi_tool       2.3.0   tar.gz    https://github.com/quietvoid/dovi_tool/archive/refs/tags/${ver}.${ext}
 libsvtav1       3.0.2   tar.gz    https://gitlab.com/AOMediaCodec/SVT-AV1/-/archive/v${ver}/SVT-AV1-v${ver}.${ext}
-libsvtav1_psy   3.0.2   tar.gz    https://github.com/psy-ex/svt-av1-psy/archive/refs/tags/v${ver}.${ext} dovi_tool,hdr10plus_tool
+libsvtav1_psy   3.0.2   tar.gz    https://github.com/psy-ex/svt-av1-psy/archive/refs/tags/v${ver}.${ext} dovi_tool,hdr10plus_tool,cpuinfo
 librav1e        0.8.1   tar.gz    https://github.com/xiph/rav1e/archive/refs/tags/v${ver}.${ext}
 libaom          3.12.1  tar.gz    https://storage.googleapis.com/aom-releases/libaom-${ver}.${ext}
 libvmaf         3.0.0   tar.gz    https://github.com/Netflix/vmaf/archive/refs/tags/v${ver}.${ext}
 libopus         1.5.2   tar.gz    https://github.com/xiph/opus/releases/download/v${ver}/opus-${ver}.${ext}
 libdav1d        1.5.1   tar.xz    http://downloads.videolan.org/videolan/dav1d/${ver}/dav1d-${ver}.${ext}
+cpuinfo         latest  git       https://github.com/pytorch/cpuinfo/
 '
 	BUILDS_CONF+="libc ${libcVer} tar.xz"
 	BUILDS_CONF+=' https://ftpmirror.gnu.org/glibc/glibc-${ver}.${ext}'
@@ -401,6 +402,16 @@ build_librav1e() {
 }
 
 ### CMAKE ###
+build_cpuinfo() {
+	cmake \
+		"${CMAKE_FLAGS[@]}" \
+		-DCPUINFO_BUILD_UNIT_TESTS=OFF \
+		-DCPUINFO_BUILD_MOCK_TESTS=OFF \
+		-DCPUINFO_BUILD_BENCHMARKS=OFF \
+		-DUSE_SYSTEM_LIBS=ON || return 1
+	ccache make -j"${JOBS}" || return 1
+	${SUDO_MODIFY} make -j"${JOBS}" install || return 1
+}
 build_libsvtav1() {
 	cmake \
 		"${CMAKE_FLAGS[@]}" \
