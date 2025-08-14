@@ -79,12 +79,12 @@ docker_build_image() {
 
 	for distro in "${DISTROS[@]}"; do
 		echo_info "sourcing package manager for ${distro}"
-
+		local dockerDistro="${distro}"
 		# custom multi-arch image for archlinux
 		test "${distro}" == 'archlinux-latest' && \
-			distro='ogarcia/archlinux-latest'
+			dockerDistro='ogarcia/archlinux-latest'
 		# docker expects colon instead of dash
-		dockerDistro="${distro//-/:}"
+		dockerDistro="${dockerDistro//-/:}"
 		# specific file for evaluated package manager info
 		distroPkgMgr="${DOCKER_DIR}/$(bash_basename "${distro}")-pkg_mgr"
 		# get package manager info
@@ -211,10 +211,6 @@ docker_run_image() {
 	check_docker || return 1
 
 	for distro in "${DISTROS[@]}"; do
-		# custom multi-arch image for arch
-		test "${distro}" == 'archlinux-latest' && \
-			distro='ogarcia/archlinux-latest'
-		# docker expects colon instead of dash
 		dockerDistro="${distro//-/:}"
 
 		# TODO REMOVE
