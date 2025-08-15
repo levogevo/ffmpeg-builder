@@ -7,9 +7,11 @@ pipeline {
                 axes {
                     axis {
                         name 'DISTRO'
-                        values 'ubuntu-22.04', 'ubuntu-24.04', 
-                            'debian-12', 'fedora-42',
-                            'archlinux-latest'
+                        values 'ubuntu-24.04',
+                                'fedora-42',
+                                'fedora-41',
+                                'debian-13',
+                                'archlinux-latest'
                     }
                     axis {
                         name 'ARCH'

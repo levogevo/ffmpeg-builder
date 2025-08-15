@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 
 VALID_DOCKER_IMAGES=(
-	'ubuntu-22.04' 'ubuntu-24.04'
-	'fedora-41' 'fedora-42'
-	'debian-12'
+	'ubuntu-24.04'
+	'fedora-42'
+	'fedora-41'
+	'debian-13'
 	'archlinux-latest'
 )
 DOCKER_WORKDIR='/workdir'
@@ -240,7 +241,7 @@ docker_run_image() {
 		if [[ ${DOCKER_REGISTRY} != '' ]]; then
 			docker_login || return 1
 			docker pull \
-				"${DOCKER_REGISTRY}/${image_tag}"
+				"${DOCKER_REGISTRY}/${image_tag}" || return 1
 			docker tag "${DOCKER_REGISTRY}/${image_tag}" "${image_tag}"
 		fi
 
