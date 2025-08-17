@@ -32,8 +32,6 @@ pipeline {
                 }
             }
         }
-    }
-    stages {
         stage('Run Docker Image') {
             matrix {
                 axes {
