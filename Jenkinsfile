@@ -44,7 +44,7 @@ pipeline {
                                 'archlinux-latest'
                     }
                     axis {
-                        name 'ARCH'
+                        name 'LABEL_ARCH'
                         values 'arm64', 'amd64'
                     }
                     axis {
@@ -60,7 +60,7 @@ pipeline {
                 }
                 stages {
                     stage('Run Multiarch Image') {
-                        agent { label "linux && ${ARCH}" }
+                        agent { label "linux && ${LABEL_ARCH}" }
                         steps {
                             withCredentials([string(
                                     credentialsId: 'DOCKER_REGISTRY',

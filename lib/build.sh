@@ -329,6 +329,7 @@ build() {
 
 	set_compile_opts || return 1
 	# check if we need to install with sudo
+	test -d "${PREFIX}" || mkdir -p "${PREFIX}"
 	unset SUDO_MODIFY
 	testfile="${PREFIX}/ffmpeg-build-testfile"
 	if touch "${testfile}" 2>/dev/null; then
@@ -338,7 +339,6 @@ build() {
 		${SUDO_MODIFY} mkdir -p "${PREFIX}/bin/" || return 1
 	fi
 	test -f "${testfile}" && ${SUDO_MODIFY} rm "${testfile}"
-	test -d "${PREFIX}" && ${SUDO_MODIFY} rm -rf "${PREFIX}"
 	test -d "${PREFIX}/bin/" || { ${SUDO_MODIFY} mkdir -p "${PREFIX}/bin/" || return 1; }
 
 	# embed this project's enables/versions
