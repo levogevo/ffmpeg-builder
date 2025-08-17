@@ -15,6 +15,8 @@ set_compile_opts() {
 
 	# set job count for all builds
 	JOBS="$(nproc)"
+	# local vs system prefix
+	test "${PREFIX}" == 'local' && PREFIX="${IGN_DIR}/$(print_os)_sysroot"
 	# set library/pkgconfig directory
 	LIBDIR="${PREFIX}/lib"
 
@@ -90,7 +92,7 @@ set_compile_opts() {
 		PKG_CFG_FLAGS='--static'
 		LIB_SUFF='a'
 	else
-		LDFLAGS+=("-Wl,-rpath,${LIBDIR}")
+		LDFLAGS+=("-Wl,-rpath,${LIBDIR}" "-Wl,-rpath-link,${LIBDIR}")
 		CONFIGURE_FLAGS+=('--enable-shared')
 		CMAKE_FLAGS+=("-DBUILD_SHARED_LIBS=ON")
 		CMAKE_FLAGS+=("-DCMAKE_INSTALL_RPATH=${LIBDIR}")
@@ -321,11 +323,11 @@ FB_FUNC_NAMES+=('build')
 # shellcheck disable=SC2034
 FB_FUNC_DESCS['build']='build ffmpeg with desired configuration'
 build() {
-	test -d "${DL_DIR}" || mkdir -p "${DL_DIR}"
-	test -d "${CCACHE_DIR}" || mkdir -p "${CCACHE_DIR}"
-	test -d "${BUILD_DIR}" || mkdir -p "${BUILD_DIR}"
-	test -d "${PREFIX}/bin/" || mkdir -p "${PREFIX}/bin/"
+	test -d "${DL_DIR}" || { mkdir -p "${DL_DIR}" || return 1; }
+	test -d "${CCACHE_DIR}" || { mkdir -p "${CCACHE_DIR}" || return 1; }
+	test -d "${BUILD_DIR}" || { mkdir -p "${BUILD_DIR}" || return 1; }
 
+	set_compile_opts || return 1
 	# check if we need to install with sudo
 	unset SUDO_MODIFY
 	testfile="${PREFIX}/ffmpeg-build-testfile"
@@ -333,14 +335,16 @@ build() {
 		SUDO_MODIFY=''
 	else
 		SUDO_MODIFY="${SUDO}"
-		${SUDO_MODIFY} mkdir -p "${PREFIX}/bin/"
+		${SUDO_MODIFY} mkdir -p "${PREFIX}/bin/" || return 1
 	fi
 	test -f "${testfile}" && ${SUDO_MODIFY} rm "${testfile}"
+	test -d "${PREFIX}" && ${SUDO_MODIFY} rm -rf "${PREFIX}"
+	test -d "${PREFIX}/bin/" || { ${SUDO_MODIFY} mkdir -p "${PREFIX}/bin/" || return 1; }
 
 	# embed this project's enables/versions
 	# into ffmpeg with this variable
 	FFMPEG_BUILDER_INFO=("ffmpeg-builder=$(cd "${REPO_DIR}" && git rev-parse HEAD)")
-	for build in "${FFMPEG_ENABLES[@]}"; do
+	for build in ${FFMPEG_ENABLES}; do
 		do_build "${build}" || return 1
 	done
 	do_build "ffmpeg" || return 1
@@ -423,8 +427,8 @@ build_libsvtav1() {
 	${SUDO_MODIFY} make -j"${JOBS}" install || return 1
 }
 build_libsvtav1_psy() {
-	local hdr10pluslib="$(find "${PREFIX}" -type f -name "libhdr10plus-rs.${LIB_SUFF}")"
-	local dovilib="$(find "${PREFIX}" -type f -name "libdovi.${LIB_SUFF}")"
+	local hdr10pluslib="$(find -L "${PREFIX}" -type f -name "libhdr10plus-rs.${LIB_SUFF}")"
+	local dovilib="$(find -L "${PREFIX}" -type f -name "libdovi.${LIB_SUFF}")"
 	cmake \
 		"${CMAKE_FLAGS[@]}" \
 		-DSVT_AV1_LTO="${LTO_SWITCH}" \
@@ -447,6 +451,16 @@ build_libaom() {
 	cd build.user || return 1
 	ccache make -j"${JOBS}" || return 1
 	${SUDO_MODIFY} make -j"${JOBS}" install || return 1
+}
+build_libopus() {
+	# ./configure \
+	# 	"${CONFIGURE_FLAGS[@]}" \
+	# 	--disable-doc || return 1
+	cmake \
+		"${CMAKE_FLAGS[@]}" || return 1
+	ccache make -j"${JOBS}" || return 1
+	${SUDO_MODIFY} make -j"${JOBS}" install || return 1
+	return 0
 }
 
 ### MESON ###
@@ -497,14 +511,6 @@ build_libvmaf() {
 }
 
 ### AUTOTOOLS ###
-build_libopus() {
-	./configure \
-		"${CONFIGURE_FLAGS[@]}" \
-		--disable-doc || return 1
-	ccache make -j"${JOBS}" || return 1
-	${SUDO_MODIFY} make -j"${JOBS}" install || return 1
-	return 0
-}
 # special function mainly for arm64 builds
 # since most distros do not compile libc
 # with -fPIC for some reason
@@ -580,7 +586,7 @@ add_project_versioning_to_ffmpeg() {
 	return 0
 }
 build_ffmpeg() {
-	for enable in "${FFMPEG_ENABLES[@]}"; do
+	for enable in ${FFMPEG_ENABLES}; do
 		test "${enable}" == 'libsvtav1_psy' && enable='libsvtav1'
 		CONFIGURE_FLAGS+=("--enable-${enable}")
 	done

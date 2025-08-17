@@ -38,7 +38,7 @@ src_scripts() {
 		echo '#!/usr/bin/env bash
 cd "$(dirname "$(readlink -f $0)")/.."
 export FB_RUNNING_AS_SCRIPT=1
-. main.sh
+. main.sh || return 1
 scr_name="$(bash_basename $0)"
 cmd="${scr_name//.sh/}"
 if [[ $DEBUG == 1 ]]; then set -x; fi
@@ -75,9 +75,7 @@ set_completions() {
 test -f "${HOME}/.bashrc" && source "${HOME}/.bashrc"
 src_scripts || return 1
 determine_pkg_mgr || return 1
-
-# shellcheck disable=SC2154
-test "${PREFIX}" == '' && PREFIX="${IGN_DIR}/$(print_os)_sysroot"
+check_compile_opts_override || return 
 
 if [[ $FB_RUNNING_AS_SCRIPT -eq 0 ]]; then
 	print_cmds || return 1

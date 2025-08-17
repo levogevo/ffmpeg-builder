@@ -8,18 +8,29 @@ VALID_DOCKER_IMAGES=(
 	'archlinux-latest'
 )
 DOCKER_WORKDIR='/workdir'
-DOCKER_RUN_FLAGS=(
-	--rm
-	-v "${REPO_DIR}:${DOCKER_WORKDIR}"
-	-w "${DOCKER_WORKDIR}"
-	-e "DEBUG=${DEBUG}"
-)
+
+set_docker_run_flags() {
+	DOCKER_RUN_FLAGS=(
+		--rm
+		-v "${REPO_DIR}:${REPO_DIR}"
+		-w "${REPO_DIR}"
+		-e "DEBUG=${DEBUG}"
+	)
+	for opt in "${FB_COMP_OPTS[@]}"; do
+		declare -n defOptVal="DEFAULT_${opt}"
+		declare -n optVal="${opt}"
+		if [[ -n ${optVal} && ${optVal} != "${defOptVal}" ]]; then
+			DOCKER_RUN_FLAGS+=("-e" "${opt}=${optVal}")
+		fi
+	done
+}
 
 check_docker() {
 	if missing_cmd docker; then
 		echo_info "install docker"
 		curl https://get.docker.com -sSf | bash
 	fi
+	set_docker_run_flags || return 1
 }
 
 # change dash to colon for docker and add namespace
@@ -82,34 +93,20 @@ docker_build_image() {
 		echo_info "sourcing package manager for ${distro}"
 		local dockerDistro="${distro}"
 		# custom multi-arch image for archlinux
-		test "${distro}" == 'archlinux-latest' && \
+		test "${distro}" == 'archlinux-latest' &&
 			dockerDistro='ogarcia/archlinux-latest'
 		# docker expects colon instead of dash
 		dockerDistro="${dockerDistro//-/:}"
 		# specific file for evaluated package manager info
 		distroPkgMgr="${DOCKER_DIR}/$(bash_basename "${distro}")-pkg_mgr"
 		# get package manager info
-
-		# TODO REMOVE
-		if is_root_owned "${IGN_DIR}"; then
-			docker run \
-				"${DOCKER_RUN_FLAGS[@]}" \
-				"${dockerDistro}" \
-				chown -R "$(id -u):$(id -g)" "${DOCKER_WORKDIR}"/gitignore
-		fi
-		if ! echo_if_fail ls; then
-			docker run \
-				"${DOCKER_RUN_FLAGS[@]}" \
-				"${dockerDistro}" \
-				chown -R "$(id -u):$(id -g)" "${DOCKER_WORKDIR}"/gitignore
-		fi
-
 		docker run \
 			"${DOCKER_RUN_FLAGS[@]}" \
 			"${dockerDistro}" \
 			bash -c "./scripts/print_pkg_mgr.sh" | tr -d '\r' >"${distroPkgMgr}"
 		# shellcheck disable=SC1090
 		cat "${distroPkgMgr}"
+		# shellcheck disable=SC1090
 		source "${distroPkgMgr}"
 
 		dockerfile="${DOCKER_DIR}/Dockerfile_$(bash_basename "${distro}")"
@@ -213,28 +210,6 @@ docker_run_image() {
 
 	for distro in "${DISTROS[@]}"; do
 		dockerDistro="${distro//-/:}"
-
-		# TODO REMOVE
-		if is_root_owned "${IGN_DIR}"; then
-			docker run \
-				"${DOCKER_RUN_FLAGS[@]}" \
-				"${dockerDistro}" \
-				chown -R "$(id -u):$(id -g)" "${DOCKER_WORKDIR}"/gitignore
-		fi
-		if ! echo_if_fail ls; then
-			docker run \
-				"${DOCKER_RUN_FLAGS[@]}" \
-				"${dockerDistro}" \
-				chown -R "$(id -u):$(id -g)" "${DOCKER_WORKDIR}"/gitignore
-		fi
-		testfile="${PREFIX}/ffmpeg-build-testfile"
-		if ! touch "${testfile}" 2>/dev/null; then
-			docker run \
-				"${DOCKER_RUN_FLAGS[@]}" \
-				"${dockerDistro}" \
-				chown -R "$(id -u):$(id -g)" "${DOCKER_WORKDIR}"/gitignore
-		fi
-
 		image_tag="$(set_distro_image_tag "${distro}")"
 
 		# if a docker registry is defined, pull from it
@@ -245,8 +220,7 @@ docker_run_image() {
 			docker tag "${DOCKER_REGISTRY}/${image_tag}" "${image_tag}"
 		fi
 
-		echo_info "running ffmpeg build for ${image_tag}"
-
+		echo_info "running ffmpeg build with ${image_tag}"
 		docker run \
 			"${DOCKER_RUN_FLAGS[@]}" \
 			-u "$(id -u):$(id -g)" \
