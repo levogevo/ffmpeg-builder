@@ -109,13 +109,10 @@ set_compile_opts() {
 	if [[ ${HOSTTYPE} == "x86_64" ]]; then
 		arch_flags+=("-march=${CPU}")
 	elif [[ ${HOSTTYPE} == "aarch64" ]]; then
-		arch_flags+=(
-			"-mcpu=${CPU}"
-			"-fPIC"
-		)
+		arch_flags+=("-mcpu=${CPU}")
 	fi
 
-	C_FLAGS+=("${arch_flags[@]}")
+	C_FLAGS+=("${arch_flags[@]}" "-fPIC")
 	CXX_FLAGS=("${C_FLAGS[@]}")
 	CPP_FLAGS=("${C_FLAGS[@]}")
 	RUSTFLAGS+=("-C target-cpu=${CPU}")
