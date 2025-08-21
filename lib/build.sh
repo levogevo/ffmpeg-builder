@@ -85,19 +85,30 @@ set_compile_opts() {
 	if [[ ${STATIC} == true ]]; then
 		LDFLAGS+=('-static')
 		CONFIGURE_FLAGS+=('--enable-static')
-		CMAKE_FLAGS+=("-DBUILD_SHARED_LIBS=OFF")
 		MESON_FLAGS+=('--default-library=static')
-		CMAKE_FLAGS+=("-DCMAKE_EXE_LINKER_FLAGS=-static")
+		CMAKE_FLAGS+=("-DBUILD_SHARED_LIBS=OFF")
 		RUSTFLAGS+=("-C target-feature=+crt-static")
 		PKG_CFG_FLAGS='--static'
 		LIB_SUFF='a'
+		# darwin does not support static linkage
+		if ! is_darwin; then
+			CMAKE_FLAGS+=("-DCMAKE_EXE_LINKER_FLAGS=-static")
+			FFMPEG_EXTRA_FLAGS+=(--extra-ldflags="${LDFLAGS[*]}")
+		fi
 	else
 		LDFLAGS+=("-Wl,-rpath,${LIBDIR}" "-Wl,-rpath-link,${LIBDIR}")
 		CONFIGURE_FLAGS+=('--enable-shared')
-		CMAKE_FLAGS+=("-DBUILD_SHARED_LIBS=ON")
-		CMAKE_FLAGS+=("-DCMAKE_INSTALL_RPATH=${LIBDIR}")
+		CMAKE_FLAGS+=(
+			"-DBUILD_SHARED_LIBS=ON"
+			"-DCMAKE_INSTALL_RPATH=${LIBDIR}"
+		)
 		FFMPEG_EXTRA_FLAGS+=('--enable-rpath')
-		LIB_SUFF='so'
+		# darwin has different suffix for dynamic libraries
+		if is_darwin; then
+			LIB_SUFF='dylib'
+		else
+			LIB_SUFF='so'
+		fi
 	fi
 
 	# architecture/cpu compile flags
@@ -132,7 +143,6 @@ set_compile_opts() {
 	FFMPEG_EXTRA_FLAGS+=(
 		--extra-cflags="${C_FLAGS[*]}"
 		--extra-cxxflags="${CXX_FLAGS[*]}"
-		--extra-ldflags="${LDFLAGS[*]}"
 	)
 	dump_arr FFMPEG_EXTRA_FLAGS
 
@@ -345,6 +355,16 @@ build() {
 		do_build "${build}" || return 1
 	done
 	do_build "ffmpeg" || return 1
+
+	# suggestion for path
+	hash -r
+	local ffmpeg="$(command -v ffmpeg 2>/dev/null)"
+	if [[ ${ffmpeg} != "${PREFIX}/bin/ffmpeg" ]]; then
+		echo
+		echo_warn "ffmpeg in path (${ffmpeg}) is not the built one (${PREFIX}/bin/ffmpeg)"
+		echo_info "consider adding ${PREFIX}/bin to \$PATH"
+		echo "echo 'export PATH=\"${PREFIX}/bin/ffmpeg:\$PATH\" >> ~/.bashrc"
+	fi
 
 	return 0
 }
@@ -573,12 +593,12 @@ add_project_versioning_to_ffmpeg() {
 
 	echo_info "found ${line} on ${lineNum}"
 	for info in "${FFMPEG_BUILDER_INFO[@]}"; do
-		local newline="\    av_log(NULL, AV_LOG_INFO, \"${info}\\\n\");"
-		sed -i "${lineNum}i ${newline}" "${optFile}" || return 1
+		local newline="    av_log(NULL, AV_LOG_INFO, \"${info}\n\");"
+		insert_line "${newline}" "${lineNum}" "${optFile}" || return 1
 		lineNum=$((lineNum + 1))
 	done
-	local newline="\    av_log(NULL, AV_LOG_INFO, \"\\\n\");"
-	sed -i "${lineNum}i ${newline}" "${optFile}" || return 1
+	newline="    av_log(NULL, AV_LOG_INFO, \"\n\");"
+	insert_line "${newline}" "${lineNum}" "${optFile}" || return 1
 
 	return 0
 }
@@ -604,4 +624,18 @@ build_ffmpeg() {
 	ccache make -j"${JOBS}" || return 1
 	${SUDO_MODIFY} make -j"${JOBS}" install || return 1
 	return 0
+}
+# check that ffmpeg was built correctly
+sanity_check_ffmpeg() {
+	local ffmpeg="${PREFIX}/bin/ffmpeg"
+	if has_cmd ldd; then
+		while read -r line; do
+			echo "${line}"
+			if [[ ${STATIC} == 'true' ]]; then
+				echo static
+			else
+				echo hi
+			fi
+		done
+	fi
 }

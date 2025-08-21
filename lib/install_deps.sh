@@ -108,6 +108,10 @@ print_os() {
 			OS+="-${VERSION_ID}"
 		fi
 		echo "${OS}"
+	else
+		local os
+		os="$(uname -o)"
+		echo "${os,,}"
 	fi
 }
 

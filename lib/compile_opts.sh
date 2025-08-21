@@ -41,10 +41,9 @@ check_compile_opts_override() {
 		declare -n optVal="${opt}"
 		# use given value if not overridden
 		if [[ -n ${optVal} && ${optVal} != "${defOptVal}" ]]; then
-			echo_warn "setting given value for ${opt}=${optVal[*]}"
+			echo_info "setting given value for ${opt}=${optVal}"
 			declare -g "${opt}=${optVal}"
 		else
-			echo_info "setting default value for ${opt}=${defOptVal[*]}"
 			declare -g "${opt}=${defOptVal}"
 		fi
 	done
