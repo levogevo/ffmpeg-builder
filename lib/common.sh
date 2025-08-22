@@ -162,16 +162,3 @@ line_starts_with() {
 is_darwin() {
 	line_contains "$(print_os)" darwin
 }
-
-insert_line() {
-	local line="$1"
-	local lineNum="$2"
-	local file="$3"
-	ed -s "${file}" <<EOF
-${lineNum}i
-${line}
-.
-w
-q
-EOF
-}

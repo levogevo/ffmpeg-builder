@@ -570,35 +570,40 @@ build_libc() (
 )
 add_project_versioning_to_ffmpeg() {
 	local optFile
-	optFile="$(command ls ./**/ffmpeg_opt.c)"
+	local fname='ffmpeg_opt.c'
+	optFile="$(command ls ./**/"${fname}")"
 	if [[ ! $? -eq 0 || ${optFile} == '' || ! -f ${optFile} ]]; then
-		echo_fail "could not find ffmpeg_opt.c to add project versioning"
+		echo_fail "could not find ${fname} to add project versioning"
 	fi
 
-	local lineNum=0
 	local searchFor='Universal media converter\n'
 	local foundUsageStart=0
+	local newOptFile="${TMP_DIR}/${fname}"
+	test -f "${newOptFile}" && rm "${newOptFile}"
 	while read -r line; do
-		lineNum=$((lineNum + 1))
-		if line_contains "${line}" "${searchFor}"; then
-			foundUsageStart=1
-			continue
-		fi
+		# if we found the line previously, add the versioning
 		if [[ ${foundUsageStart} -eq 1 ]]; then
 			if line_starts_with "${line}" '}'; then
-				break
+				echo_info "found ${line} on ${lineNum}"
+				for info in "${FFMPEG_BUILDER_INFO[@]}"; do
+					local newline="av_log(NULL, AV_LOG_INFO, \"${info}\n\");"
+					echo "${newline}" >>"${newOptFile}"
+					lineNum=$((lineNum + 1))
+				done
+				newline="av_log(NULL, AV_LOG_INFO, \"\n\");"
+				echo "${newline}" >>"${newOptFile}"
+				foundUsageStart=0
 			fi
 		fi
+		# find the line we are searching for
+		if line_contains "${line}" "${searchFor}"; then
+			foundUsageStart=1
+		fi
+		# start building the new file
+		echo "${line}" >>"${newOptFile}"
 	done <"${optFile}"
 
-	echo_info "found ${line} on ${lineNum}"
-	for info in "${FFMPEG_BUILDER_INFO[@]}"; do
-		local newline="    av_log(NULL, AV_LOG_INFO, \"${info}\n\");"
-		insert_line "${newline}" "${lineNum}" "${optFile}" || return 1
-		lineNum=$((lineNum + 1))
-	done
-	newline="    av_log(NULL, AV_LOG_INFO, \"\n\");"
-	insert_line "${newline}" "${lineNum}" "${optFile}" || return 1
+	cp "${newOptFile}" "${optFile}" || return 1
 
 	return 0
 }
