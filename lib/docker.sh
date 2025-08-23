@@ -19,7 +19,7 @@ set_docker_run_flags() {
 	for opt in "${FB_COMP_OPTS[@]}"; do
 		declare -n defOptVal="DEFAULT_${opt}"
 		declare -n optVal="${opt}"
-		if [[ -n ${optVal} && ${optVal} != "${defOptVal}" ]]; then
+		if [[ -v optVal && ${optVal} != "${defOptVal}" ]]; then
 			DOCKER_RUN_FLAGS+=("-e" "${opt}=${optVal}")
 		fi
 	done

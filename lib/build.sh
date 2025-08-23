@@ -184,7 +184,7 @@ int main() { puts(gnu_get_libc_version()); return 0; }' >"${srcTest}.c"
 	# name version file-extension url dep1,dep2
 	# shellcheck disable=SC2016
 	local BUILDS_CONF='
-ffmpeg          7cd1edeaa410d977a9f1ff8436f480cb45b80178 git https://github.com/FFmpeg/FFmpeg/
+ffmpeg          8.0     tar.gz    https://github.com/FFmpeg/FFmpeg/archive/refs/tags/n${ver}.${ext}
 hdr10plus_tool  1.7.1   tar.gz    https://github.com/quietvoid/hdr10plus_tool/archive/refs/tags/${ver}.${ext}
 dovi_tool       2.3.0   tar.gz    https://github.com/quietvoid/dovi_tool/archive/refs/tags/${ver}.${ext}
 libsvtav1       3.0.2   tar.gz    https://gitlab.com/AOMediaCodec/SVT-AV1/-/archive/v${ver}/SVT-AV1-v${ver}.${ext}
@@ -355,6 +355,8 @@ build() {
 		do_build "${build}" || return 1
 	done
 	do_build "ffmpeg" || return 1
+	# run ffmpeg to show completion
+	"${PREFIX}/bin/ffmpeg"
 
 	# suggestion for path
 	hash -r
