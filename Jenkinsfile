@@ -59,7 +59,13 @@ pipeline {
                     }
                 }
                 stages {
-                    stage('Run Multiarch Image') {
+                    stage('Build on darwin') {
+                        agent { label "darwin" }
+                        steps {
+                            sh "STATIC=${STATIC} ${OPT_AND_LTO} ./scripts/build.sh"
+                        }
+                    }
+                    stage('Build using docker') {
                         agent { label "linux && ${LABEL_ARCH}" }
                         steps {
                             withCredentials([string(
