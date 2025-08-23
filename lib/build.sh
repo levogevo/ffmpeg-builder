@@ -79,6 +79,14 @@ set_compile_opts() {
 	MESON_FLAGS+=("--optimization=${OPT}")
 	echo_info "building with optimization: ${OPT}"
 
+	STATIC_LIB_SUFF='a'
+	# darwin has different suffix for dynamic libraries
+	if is_darwin; then
+		SHARED_LIB_SUFF='dylib'
+	else
+		SHARED_LIB_SUFF='so'
+	fi
+
 	# static/shared linking
 	unset PKG_CFG_FLAGS LIB_SUFF
 	export PKG_CFG_FLAGS LIB_SUFF
@@ -89,12 +97,14 @@ set_compile_opts() {
 		CMAKE_FLAGS+=("-DBUILD_SHARED_LIBS=OFF")
 		RUSTFLAGS+=("-C target-feature=+crt-static")
 		PKG_CFG_FLAGS='--static'
-		LIB_SUFF='a'
 		# darwin does not support static linkage
 		if ! is_darwin; then
 			CMAKE_FLAGS+=("-DCMAKE_EXE_LINKER_FLAGS=-static")
 			FFMPEG_EXTRA_FLAGS+=(--extra-ldflags="${LDFLAGS[*]}")
 		fi
+		# remove shared libraries for static builds
+		USE_LIB_SUFF="${STATIC_LIB_SUFF}"
+		DEL_LIB_SUFF="${SHARED_LIB_SUFF}"
 	else
 		LDFLAGS+=("-Wl,-rpath,${LIBDIR}" "-Wl,-rpath-link,${LIBDIR}")
 		CONFIGURE_FLAGS+=('--enable-shared')
@@ -103,12 +113,9 @@ set_compile_opts() {
 			"-DCMAKE_INSTALL_RPATH=${LIBDIR}"
 		)
 		FFMPEG_EXTRA_FLAGS+=('--enable-rpath')
-		# darwin has different suffix for dynamic libraries
-		if is_darwin; then
-			LIB_SUFF='dylib'
-		else
-			LIB_SUFF='so'
-		fi
+		# remove static libraries for shared builds
+		USE_LIB_SUFF="${SHARED_LIB_SUFF}"
+		DEL_LIB_SUFF="${STATIC_LIB_SUFF}"		
 	fi
 
 	# architecture/cpu compile flags
@@ -365,9 +372,26 @@ build() {
 		echo
 		echo_warn "ffmpeg in path (${ffmpeg}) is not the built one (${PREFIX}/bin/ffmpeg)"
 		echo_info "consider adding ${PREFIX}/bin to \$PATH"
-		echo "echo 'export PATH=\"${PREFIX}/bin/ffmpeg:\$PATH\" >> ~/.bashrc"
+		echo "echo 'export PATH=\"${PREFIX}/bin:\$PATH\"' >> ~/.bashrc"
 	fi
 
+	return 0
+}
+
+# make sure the sysroot has the appropriate library type
+# darwin will always link dynamically if a dylib is present
+# so they must be remove for static builds
+sanitize_sysroot_libs() {
+	local lib="$1"
+	local libPath="${LIBDIR}/${lib}"
+	local useLib="${libPath}.${USE_LIB_SUFF}"
+	local delLib="${libPath}.${DEL_LIB_SUFF}"
+
+	if [[ ! -f "${useLib}" ]]; then
+		echo_fail "could not find ${useLib}, something is wrong"
+		return 1
+	fi
+	${SUDO_MODIFY} rm "${delLib}"*
 	return 0
 }
 
@@ -382,6 +406,7 @@ build_hdr10plus_tool() {
 	cd hdr10plus || return 1
 	cargo cbuild "${CARGO_FLAGS[@]}" || return 1
 	${SUDO_CARGO} bash -lc "PATH=\"${PATH}\" cargo cinstall ${CARGO_CINSTALL_FLAGS[*]}" || return 1
+	sanitize_sysroot_libs 'libhdr10plus-rs' || return 1
 }
 build_dovi_tool() {
 	cargo build "${CARGO_FLAGS[@]}" || return 1
@@ -393,6 +418,7 @@ build_dovi_tool() {
 	cd dolby_vision || return 1
 	cargo cbuild "${CARGO_FLAGS[@]}" || return 1
 	${SUDO_CARGO} bash -lc "PATH=\"${PATH}\" cargo cinstall ${CARGO_CINSTALL_FLAGS[*]}" || return 1
+	sanitize_sysroot_libs 'libdovi' || return 1
 }
 build_librav1e() {
 	cargo build "${CARGO_FLAGS[@]}" || return 1
@@ -403,24 +429,26 @@ build_librav1e() {
 	# build librav1e
 	cargo cbuild "${CARGO_FLAGS[@]}" || return 1
 	${SUDO_CARGO} bash -lc "PATH=\"${PATH}\" cargo cinstall ${CARGO_CINSTALL_FLAGS[*]}" || return 1
+	sanitize_sysroot_libs 'librav1e' || return 1
 
 	# HACK PATCH
 	# remove '-lgcc_s' from pkgconfig for static builds
 	if [[ ${STATIC} == 'true' ]]; then
-		local pkgconfig="${PKG_CONFIG_PATH}/rav1e.pc"
-		test -f "${pkgconfig}" || return 1
+		local fname='rav1e.pc'
+		local cfg="${PKG_CONFIG_PATH}/${fname}"
+		local newCfg="${TMP_DIR}/${fname}"
+		test -f "${cfg}" || return 1
 		local del='-lgcc_s'
-		local foundLine=0
+		
+		test -f "${newCfg}" && rm "${newCfg}"
 		while read -r line; do
 			if line_contains "${line}" "${del}"; then
-				foundLine=1
-				break
+				line="${line//${del} /}"
 			fi
-		done <"${pkgconfig}"
-		if [[ ${foundLine} == 1 ]]; then
-			local newline="${line//${del} /}"
-			sed -i "s/${line}/${newline}/g" "${pkgconfig}"
-		fi
+			echo "${line}" >> "${newCfg}"
+		done <"${cfg}"
+		# overwrite the pkgconfig
+		${SUDO_MODIFY} cp "${newCfg}" "${cfg}"
 	fi
 }
 
@@ -434,6 +462,7 @@ build_cpuinfo() {
 		-DUSE_SYSTEM_LIBS=ON || return 1
 	ccache make -j"${JOBS}" || return 1
 	${SUDO_MODIFY} make -j"${JOBS}" install || return 1
+	sanitize_sysroot_libs 'libcpuinfo' || return 1
 }
 build_libsvtav1() {
 	cmake \
@@ -444,10 +473,11 @@ build_libsvtav1() {
 		-DCOVERAGE=OFF || return 1
 	ccache make -j"${JOBS}" || return 1
 	${SUDO_MODIFY} make -j"${JOBS}" install || return 1
+	sanitize_sysroot_libs 'libSvtAv1Enc' || return 1
 }
 build_libsvtav1_psy() {
-	local hdr10pluslib="$(find -L "${PREFIX}" -type f -name "libhdr10plus-rs.${LIB_SUFF}")"
-	local dovilib="$(find -L "${PREFIX}" -type f -name "libdovi.${LIB_SUFF}")"
+	local hdr10pluslib="$(find -L "${PREFIX}" -type f -name "libhdr10plus-rs.${USE_LIB_SUFF}")"
+	local dovilib="$(find -L "${PREFIX}" -type f -name "libdovi.${USE_LIB_SUFF}")"
 	cmake \
 		"${CMAKE_FLAGS[@]}" \
 		-DSVT_AV1_LTO="${LTO_SWITCH}" \
@@ -461,6 +491,7 @@ build_libsvtav1_psy() {
 		. || return 1
 	ccache make -j"${JOBS}" || return 1
 	${SUDO_MODIFY} make -j"${JOBS}" install || return 1
+	sanitize_sysroot_libs 'libSvtAv1Enc' || return 1
 }
 build_libaom() {
 	cmake \
@@ -470,16 +501,14 @@ build_libaom() {
 	cd build.user || return 1
 	ccache make -j"${JOBS}" || return 1
 	${SUDO_MODIFY} make -j"${JOBS}" install || return 1
+	sanitize_sysroot_libs 'libaom' || return 1
 }
 build_libopus() {
-	# ./configure \
-	# 	"${CONFIGURE_FLAGS[@]}" \
-	# 	--disable-doc || return 1
 	cmake \
 		"${CMAKE_FLAGS[@]}" || return 1
 	ccache make -j"${JOBS}" || return 1
 	${SUDO_MODIFY} make -j"${JOBS}" install || return 1
-	return 0
+	sanitize_sysroot_libs 'libopus' || return 1
 }
 
 ### MESON ###
@@ -495,6 +524,7 @@ build_libdav1d() {
 		"${MESON_FLAGS[@]}" || return 1
 	ccache ninja -vC build.user || return 1
 	${SUDO_MODIFY} ninja -vC build.user install || return 1
+	sanitize_sysroot_libs 'libdav1d' || return 1
 }
 build_libvmaf() {
 	cd libvmaf || return 1
@@ -508,24 +538,26 @@ build_libvmaf() {
 		ccache ninja -vC build.user || exit 1
 		${SUDO_MODIFY} ninja -vC build.user install || exit 1
 	) || return 1
+	sanitize_sysroot_libs 'libvmaf' || return 1
 
 	# HACK PATCH
 	# add '-lstdc++' to pkgconfig for static builds
 	if [[ ${STATIC} == 'true' ]]; then
-		local pkgconfig="${PKG_CONFIG_PATH}/libvmaf.pc"
-		test -f "${pkgconfig}" || return 1
+		local fname='libvmaf.pc'
+		local cfg="${PKG_CONFIG_PATH}/${fname}"
+		local newCfg="${TMP_DIR}/${fname}"
+		test -f "${cfg}" || return 1
 		local search='Libs: '
-		local foundLine=0
+
+		test -f "${newCfg}" && rm "${newCfg}"
 		while read -r line; do
 			if line_contains "${line}" "${search}"; then
-				foundLine=1
-				break
+				line+=" -lstdc++"
 			fi
-		done <"${pkgconfig}"
-		local newline="${line} -lstdc++"
-		if [[ ${foundLine} == 1 ]]; then
-			sed -i "s/${line}/${newline}/g" "${pkgconfig}"
-		fi
+			echo "${line}" >> "${newCfg}"
+		done <"${cfg}"
+		# overwrite the pkgconfig
+		${SUDO_MODIFY} cp "${newCfg}" "${cfg}"
 	fi
 }
 
@@ -630,7 +662,6 @@ build_ffmpeg() {
 		--disable-autodetect || return 1
 	ccache make -j"${JOBS}" || return 1
 	${SUDO_MODIFY} make -j"${JOBS}" install || return 1
-	return 0
 }
 # check that ffmpeg was built correctly
 sanity_check_ffmpeg() {
