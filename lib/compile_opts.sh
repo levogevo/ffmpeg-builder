@@ -10,7 +10,7 @@ DEFAULT_CLEAN=true
 # enable link time optimization
 DEFAULT_LTO=true
 # optimization level (0-3)
-DEFAULT_OPT_LVL=3
+DEFAULT_OPT=3
 # static or shared build
 DEFAULT_STATIC=true
 # CPU type (amd64/v{1,2,3}...)
@@ -20,7 +20,7 @@ DEFAULT_ARCH=native
 # prefix to install to, default is local install
 DEFAULT_PREFIX='local'
 # configure what ffmpeg enables
-DEFAULT_FFMPEG_ENABLES="\
+DEFAULT_ENABLE="\
 libsvtav1_psy \
 libopus \
 libdav1d \
@@ -31,7 +31,7 @@ libvmaf \
 
 # user-overridable compile option variable names
 FB_COMP_OPTS=(
-	CLEAN LTO OPT_LVL STATIC CPU ARCH PREFIX FFMPEG_ENABLES
+	CLEAN LTO OPT STATIC CPU ARCH PREFIX ENABLE
 )
 
 # sets FB_COMP_OPTS to allow for user-overriding

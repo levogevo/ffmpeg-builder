@@ -71,13 +71,13 @@ set_compile_opts() {
 	CARGO_CINSTALL_FLAGS+=("--${CARGO_BUILD_TYPE}")
 
 	# setting optimization level
-	if [[ ${OPT_LVL} == '' ]]; then
-		OPT_LVL='0'
+	if [[ ${OPT} == '' ]]; then
+		OPT='0'
 	fi
-	C_FLAGS+=("-O${OPT_LVL}")
-	RUSTFLAGS+=("-C opt-level=${OPT_LVL}")
-	MESON_FLAGS+=("--optimization=${OPT_LVL}")
-	echo_info "building with optimization: ${OPT_LVL}"
+	C_FLAGS+=("-O${OPT}")
+	RUSTFLAGS+=("-C opt-level=${OPT}")
+	MESON_FLAGS+=("--optimization=${OPT}")
+	echo_info "building with optimization: ${OPT}"
 
 	# static/shared linking
 	unset PKG_CFG_FLAGS LIB_SUFF
@@ -351,7 +351,7 @@ build() {
 	# embed this project's enables/versions
 	# into ffmpeg with this variable
 	FFMPEG_BUILDER_INFO=("ffmpeg-builder=$(cd "${REPO_DIR}" && git rev-parse HEAD)")
-	for build in ${FFMPEG_ENABLES}; do
+	for build in ${ENABLE}; do
 		do_build "${build}" || return 1
 	done
 	do_build "ffmpeg" || return 1
@@ -484,7 +484,7 @@ build_libopus() {
 build_libdav1d() {
 	local enableAsm='true'
 	# arm64 will fail the build at 0 optimization
-	if [[ "${HOSTTYPE}:${OPT_LVL}" == "aarch64:0" ]]; then
+	if [[ "${HOSTTYPE}:${OPT}" == "aarch64:0" ]]; then
 		enableAsm="false"
 	fi
 	meson \
@@ -608,7 +608,7 @@ add_project_versioning_to_ffmpeg() {
 	return 0
 }
 build_ffmpeg() {
-	for enable in ${FFMPEG_ENABLES}; do
+	for enable in ${ENABLE}; do
 		test "${enable}" == 'libsvtav1_psy' && enable='libsvtav1'
 		CONFIGURE_FLAGS+=("--enable-${enable}")
 	done

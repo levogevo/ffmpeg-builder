@@ -53,9 +53,9 @@ pipeline {
                     }
                     axis {
                         name 'OPT_AND_LTO'
-                        values 'OPT_LVL=0 LTO=false',
-                                'OPT_LVL=2 LTO=false',
-                                'OPT_LVL=3 LTO=true' 
+                        values 'OPT=0 LTO=false',
+                                'OPT=2 LTO=false',
+                                'OPT=3 LTO=true' 
                     }
                 }
                 stages {
