@@ -185,7 +185,7 @@ ffmpeg           8.0      tar.gz    https://github.com/FFmpeg/FFmpeg/archive/ref
 hdr10plus_tool   1.7.1    tar.gz    https://github.com/quietvoid/hdr10plus_tool/archive/refs/tags/${ver}.${ext}
 dovi_tool        2.3.0    tar.gz    https://github.com/quietvoid/dovi_tool/archive/refs/tags/${ver}.${ext}
 libsvtav1        3.1.1    tar.gz    https://gitlab.com/AOMediaCodec/SVT-AV1/-/archive/v${ver}/SVT-AV1-v${ver}.${ext}
-libsvtav1_psyex  3.0.2-A  tar.gz    https://github.com/BlueSwordM/svt-av1-psyex/archive/refs/tags/v${ver}.${ext} dovi_tool,hdr10plus_tool,cpuinfo
+libsvtav1_psy    3.0.2-A  tar.gz    https://github.com/BlueSwordM/svt-av1-psyex/archive/refs/tags/v${ver}.${ext} dovi_tool,hdr10plus_tool,cpuinfo
 librav1e         0.8.1    tar.gz    https://github.com/xiph/rav1e/archive/refs/tags/v${ver}.${ext}
 libaom           3.12.1   tar.gz    https://storage.googleapis.com/aom-releases/libaom-${ver}.${ext}
 libvmaf          3.0.0    tar.gz    https://github.com/Netflix/vmaf/archive/refs/tags/v${ver}.${ext}
@@ -468,7 +468,7 @@ build_libsvtav1() {
 	${SUDO_MODIFY} make -j"${JOBS}" install || return 1
 	sanitize_sysroot_libs 'libSvtAv1Enc' || return 1
 }
-build_libsvtav1_psyex() {
+build_libsvtav1_psy() {
 	local hdr10pluslib="$(find -L "${PREFIX}" -type f -name "libhdr10plus-rs.${USE_LIB_SUFF}")"
 	local dovilib="$(find -L "${PREFIX}" -type f -name "libdovi.${USE_LIB_SUFF}")"
 	cmake \
