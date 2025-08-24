@@ -41,7 +41,6 @@ set_compile_opts() {
 	)
 	PKG_CONFIG_PATH="${LIBDIR}/pkgconfig"
 	export PKG_CONFIG_PATH
-	export PKG_CONFIG_DEBUG_SPEW=1
 
 	# add prefix include
 	C_FLAGS+=("-I${PREFIX}/include")
@@ -55,7 +54,10 @@ set_compile_opts() {
 		LTO_SWITCH='ON'
 		LTO_FLAG='-flto'
 		C_FLAGS+=("${LTO_FLAG}")
-		CONFIGURE_FLAGS+=('--enable-lto')
+		# https://trac.ffmpeg.org/ticket/11479
+		if ! is_darwin; then
+			CONFIGURE_FLAGS+=('--enable-lto')
+		fi
 		MESON_FLAGS+=("-Db_lto=true")
 		RUSTFLAGS+=("-C lto=yes" "-C inline-threshold=1000" "-C codegen-units=1")
 		CARGO_BUILD_TYPE=release
@@ -177,17 +179,6 @@ set_compile_opts() {
 get_build_conf() {
 	local getBuild="${1}"
 
-	local libcVer='X.X'
-	if test "${getBuild}" == 'libc' && has_cmd ldd; then
-		local srcTest="${TMP_DIR}/libc-ver"
-		echo '#include <gnu/libc-version.h>
-#include <stdio.h>
-#include <unistd.h>
-int main() { puts(gnu_get_libc_version()); return 0; }' >"${srcTest}.c"
-		gcc "${srcTest}.c" -o "${srcTest}"
-		libcVer="$("${srcTest}")"
-	fi
-
 	# name version file-extension url dep1,dep2
 	# shellcheck disable=SC2016
 	local BUILDS_CONF='
@@ -203,8 +194,6 @@ libopus         1.5.2   tar.gz    https://github.com/xiph/opus/releases/download
 libdav1d        1.5.1   tar.xz    http://downloads.videolan.org/videolan/dav1d/${ver}/dav1d-${ver}.${ext}
 cpuinfo         latest  git       https://github.com/pytorch/cpuinfo/
 '
-	BUILDS_CONF+="libc ${libcVer} tar.xz"
-	BUILDS_CONF+=' https://ftpmirror.gnu.org/glibc/glibc-${ver}.${ext}'
 
 	local supported_builds=()
 	unset ver ext url deps extracted_dir
@@ -326,6 +315,11 @@ do_build() {
 	get_build_conf "${build}" || return 1
 	echo_info "building ${build}"
 	pushd "$extracted_dir" >/dev/null || return 1
+	# check for any patches
+	for patch in "${PATCHES_DIR}/${build}"/*.patch; do
+		test -f "${patch}" || continue
+		patch -p1 -i "${patch}" || return 1
+	done
 	echo_if_fail build_"${build}"
 	retval=$?
 	popd >/dev/null || return 1
@@ -562,46 +556,6 @@ build_libvmaf() {
 }
 
 ### AUTOTOOLS ###
-# special function mainly for arm64 builds
-# since most distros do not compile libc
-# with -fPIC for some reason
-build_libc() (
-	# only for arm64
-	test "${HOSTTYPE}" != "aarch64" && exit 0
-	# only for static builds
-	test "${STATIC}" == 'false' && exit 0
-	# only for glibc
-	has_cmd ldd || exit 0
-	# only build once
-	test -f "${LIBDIR}/libc.a" && exit 0
-
-	rm -rf build
-	mkdir build
-	cd build || exit 1
-
-	# manually set flags since these are
-	# not intended to be user-controlled
-	unset CFLAGS CXXFLAGS
-	export CFLAGS='-fPIC -O3 -U_FORTIFY_SOURCE'
-	export CXXFLAGS="${CFLAGS}"
-	libc_prefix="${PWD}/local-install"
-	libc_libdir="${libc_prefix}/lib"
-	./../configure \
-		--prefix="${libc_prefix}" \
-		--libdir="${libc_libdir}" \
-		--disable-werror || exit 1
-	make -j"${JOBS}" all || exit 1
-
-	# install only the -fPIC static libraries
-	for picLib in ./**_pic.a; do
-		echo_warn "${picLib}"
-	done
-	# exit 1
-	# cd "${libc_libdir}" || exit 1
-	# cp ./*.a "${LIBDIR}" || exit 1
-
-	exit 0
-)
 add_project_versioning_to_ffmpeg() {
 	local optFile
 	local fname='ffmpeg_opt.c'
@@ -653,8 +607,10 @@ build_ffmpeg() {
 		"${FFMPEG_EXTRA_FLAGS[@]}" \
 		--pkg-config='pkg-config' \
 		--pkg-config-flags="${PKG_CFG_FLAGS}" \
-		--cpu="${CPU}" --arch="${ARCH}" \
-		--enable-gpl --enable-version3 \
+		--arch="${ARCH}" \
+		--cpu="${CPU}" \
+		--enable-gpl \
+		--enable-version3 \
 		--enable-nonfree \
 		--disable-htmlpages \
 		--disable-podpages \
