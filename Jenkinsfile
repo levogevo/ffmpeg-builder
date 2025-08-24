@@ -1,30 +1,30 @@
+def withDockerCreds(body) {
+    withCredentials([
+        string(credentialsId: 'DOCKER_REGISTRY', variable: 'DOCKER_REGISTRY'),
+        usernamePassword(
+            credentialsId: 'DOCKER_REGISTRY_CRED',
+            passwordVariable: 'DOCKER_REGISTRY_PASS',
+            usernameVariable: 'DOCKER_REGISTRY_USER'
+        )
+    ]) {
+        body()
+    }
+}
+
 pipeline {
     agent none
     environment { DEBUG = "1" }
     stages {
-        stage('Build Docker Image') {
+        stage('build docker image') {
             matrix {
                 axes {
-                    axis {
-                        name 'DISTRO'
-                        values 'ubuntu-24.04',
-                                'fedora-42',
-                                'fedora-41',
-                                'debian-13',
-                                'archlinux-latest'
-                    }
+                    axis { name 'DISTRO'; values 'ubuntu-24.04', 'fedora-42', 'fedora-41', 'debian-13', 'archlinux-latest' }
                 }
                 stages {
-                    stage('Build Multiarch Image') {
+                    stage('build multiarch image') {
                         agent { label "linux && amd64" }
                         steps {
-                            withCredentials([string(
-                                    credentialsId: 'DOCKER_REGISTRY',
-                                    variable: 'DOCKER_REGISTRY'),
-                                    usernamePassword(credentialsId: 'DOCKER_REGISTRY_CRED',
-                                    passwordVariable: 'DOCKER_REGISTRY_PASS',
-                                    usernameVariable: 'DOCKER_REGISTRY_USER'
-                                    )]) {
+                            withDockerCreds {
                                 sh "./scripts/docker_build_multiarch_image.sh ${DISTRO}"
                             }
                         }
@@ -32,50 +32,36 @@ pipeline {
                 }
             }
         }
-        stage('Run Docker Image') {
+        stage('build ffmpeg on darwin') {
             matrix {
                 axes {
-                    axis {
-                        name 'DISTRO'
-                        values 'ubuntu-24.04',
-                                'fedora-42',
-                                'fedora-41',
-                                'debian-13',
-                                'archlinux-latest'
-                    }
-                    axis {
-                        name 'LABEL_ARCH'
-                        values 'arm64', 'amd64'
-                    }
-                    axis {
-                        name 'STATIC'
-                        values 'true', 'false'
-                    }
-                    axis {
-                        name 'OPT_AND_LTO'
-                        values 'OPT=0 LTO=false',
-                                'OPT=2 LTO=false',
-                                'OPT=3 LTO=true' 
-                    }
+                    axis { name 'OPT_LTO'; values 'OPT=0 LTO=false', 'OPT=2 LTO=false', 'OPT=3 LTO=true' }
+                    axis { name 'STATIC'; values 'true', 'false' }
                 }
                 stages {
-                    stage('Build on darwin') {
+                    stage('build on darwin ') {
                         agent { label "darwin" }
                         steps {
-                            sh "STATIC=${STATIC} ${OPT_AND_LTO} ./scripts/build.sh"
+                            sh "STATIC=${STATIC} ${OPT_LTO} ./scripts/build.sh"
                         }
                     }
-                    stage('Build using docker') {
+                }
+            }
+        }
+        stage('build ffmpeg on linux') {
+            matrix {
+                axes {
+                    axis { name 'LABEL_ARCH'; values 'arm64', 'amd64' }
+                    axis { name 'DISTRO'; values 'ubuntu-24.04', 'fedora-42', 'fedora-41', 'debian-13', 'archlinux-latest' }
+                    axis { name 'OPT_LTO'; values 'OPT=0 LTO=false', 'OPT=2 LTO=false', 'OPT=3 LTO=true' }
+                    axis { name 'STATIC'; values 'true', 'false' }
+                }
+                stages {
+                    stage('build ffmpeg on linux using docker') {
                         agent { label "linux && ${LABEL_ARCH}" }
                         steps {
-                            withCredentials([string(
-                                    credentialsId: 'DOCKER_REGISTRY',
-                                    variable: 'DOCKER_REGISTRY'),
-                                    usernamePassword(credentialsId: 'DOCKER_REGISTRY_CRED',
-                                    passwordVariable: 'DOCKER_REGISTRY_PASS',
-                                    usernameVariable: 'DOCKER_REGISTRY_USER'
-                                    )]) {
-                                sh "STATIC=${STATIC} ${OPT_AND_LTO} ./scripts/docker_run_image.sh ${DISTRO}"
+                            withDockerCreds {
+                                sh "STATIC=${STATIC} ${OPT_LTO} ./scripts/docker_run_image.sh ${DISTRO}"
                             }
                         }
                     }
