@@ -21,7 +21,7 @@ DEFAULT_ARCH=native
 DEFAULT_PREFIX='local'
 # configure what ffmpeg enables
 DEFAULT_ENABLE="\
-libsvtav1_psy \
+libsvtav1_psyex \
 libopus \
 libdav1d \
 libaom \

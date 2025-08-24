@@ -14,7 +14,7 @@ DL_DIR="${IGN_DIR}/downloads"
 BUILD_DIR="${IGN_DIR}/builds"
 CCACHE_DIR="${IGN_DIR}/ccache"
 DOCKER_DIR="${IGN_DIR}/docker"
-PATCHES_DIR="${IGN_DIR}/patches"
+PATCHES_DIR="${REPO_DIR}/patches"
 export REPO_DIR IGN_DIR TMP_DIR DL_DIR BUILD_DIR CCACHE_DIR DOCKER_DIR PATCHES_DIR
 
 # function names, descriptions, completions

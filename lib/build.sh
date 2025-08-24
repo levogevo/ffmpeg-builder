@@ -54,7 +54,6 @@ set_compile_opts() {
 		LTO_SWITCH='ON'
 		LTO_FLAG='-flto'
 		C_FLAGS+=("${LTO_FLAG}")
-		# https://trac.ffmpeg.org/ticket/11479
 		if ! is_darwin; then
 			CONFIGURE_FLAGS+=('--enable-lto')
 		fi
@@ -117,7 +116,7 @@ set_compile_opts() {
 		FFMPEG_EXTRA_FLAGS+=('--enable-rpath')
 		# remove static libraries for shared builds
 		USE_LIB_SUFF="${SHARED_LIB_SUFF}"
-		DEL_LIB_SUFF="${STATIC_LIB_SUFF}"		
+		DEL_LIB_SUFF="${STATIC_LIB_SUFF}"
 	fi
 
 	# architecture/cpu compile flags
@@ -182,17 +181,17 @@ get_build_conf() {
 	# name version file-extension url dep1,dep2
 	# shellcheck disable=SC2016
 	local BUILDS_CONF='
-ffmpeg          8.0     tar.gz    https://github.com/FFmpeg/FFmpeg/archive/refs/tags/n${ver}.${ext}
-hdr10plus_tool  1.7.1   tar.gz    https://github.com/quietvoid/hdr10plus_tool/archive/refs/tags/${ver}.${ext}
-dovi_tool       2.3.0   tar.gz    https://github.com/quietvoid/dovi_tool/archive/refs/tags/${ver}.${ext}
-libsvtav1       3.0.2   tar.gz    https://gitlab.com/AOMediaCodec/SVT-AV1/-/archive/v${ver}/SVT-AV1-v${ver}.${ext}
-libsvtav1_psy   3.0.2   tar.gz    https://github.com/psy-ex/svt-av1-psy/archive/refs/tags/v${ver}.${ext} dovi_tool,hdr10plus_tool,cpuinfo
-librav1e        0.8.1   tar.gz    https://github.com/xiph/rav1e/archive/refs/tags/v${ver}.${ext}
-libaom          3.12.1  tar.gz    https://storage.googleapis.com/aom-releases/libaom-${ver}.${ext}
-libvmaf         3.0.0   tar.gz    https://github.com/Netflix/vmaf/archive/refs/tags/v${ver}.${ext}
-libopus         1.5.2   tar.gz    https://github.com/xiph/opus/releases/download/v${ver}/opus-${ver}.${ext}
-libdav1d        1.5.1   tar.xz    http://downloads.videolan.org/videolan/dav1d/${ver}/dav1d-${ver}.${ext}
-cpuinfo         latest  git       https://github.com/pytorch/cpuinfo/
+ffmpeg           8.0      tar.gz    https://github.com/FFmpeg/FFmpeg/archive/refs/tags/n${ver}.${ext}
+hdr10plus_tool   1.7.1    tar.gz    https://github.com/quietvoid/hdr10plus_tool/archive/refs/tags/${ver}.${ext}
+dovi_tool        2.3.0    tar.gz    https://github.com/quietvoid/dovi_tool/archive/refs/tags/${ver}.${ext}
+libsvtav1        3.1.1    tar.gz    https://gitlab.com/AOMediaCodec/SVT-AV1/-/archive/v${ver}/SVT-AV1-v${ver}.${ext}
+libsvtav1_psyex  3.0.2-A  tar.gz    https://github.com/BlueSwordM/svt-av1-psyex/archive/refs/tags/v${ver}.${ext} dovi_tool,hdr10plus_tool,cpuinfo
+librav1e         0.8.1    tar.gz    https://github.com/xiph/rav1e/archive/refs/tags/v${ver}.${ext}
+libaom           3.12.1   tar.gz    https://storage.googleapis.com/aom-releases/libaom-${ver}.${ext}
+libvmaf          3.0.0    tar.gz    https://github.com/Netflix/vmaf/archive/refs/tags/v${ver}.${ext}
+libopus          1.5.2    tar.gz    https://github.com/xiph/opus/releases/download/v${ver}/opus-${ver}.${ext}
+libdav1d         1.5.1    tar.xz    http://downloads.videolan.org/videolan/dav1d/${ver}/dav1d-${ver}.${ext}
+cpuinfo          latest   git       https://github.com/pytorch/cpuinfo/
 '
 
 	local supported_builds=()
@@ -381,7 +380,7 @@ sanitize_sysroot_libs() {
 	local useLib="${libPath}.${USE_LIB_SUFF}"
 	local delLib="${libPath}.${DEL_LIB_SUFF}"
 
-	if [[ ! -f "${useLib}" ]]; then
+	if [[ ! -f ${useLib} ]]; then
 		echo_fail "could not find ${useLib}, something is wrong"
 		return 1
 	fi
@@ -433,13 +432,13 @@ build_librav1e() {
 		local newCfg="${TMP_DIR}/${fname}"
 		test -f "${cfg}" || return 1
 		local del='-lgcc_s'
-		
+
 		test -f "${newCfg}" && rm "${newCfg}"
 		while read -r line; do
 			if line_contains "${line}" "${del}"; then
 				line="${line//${del} /}"
 			fi
-			echo "${line}" >> "${newCfg}"
+			echo "${line}" >>"${newCfg}"
 		done <"${cfg}"
 		# overwrite the pkgconfig
 		${SUDO_MODIFY} cp "${newCfg}" "${cfg}"
@@ -469,7 +468,7 @@ build_libsvtav1() {
 	${SUDO_MODIFY} make -j"${JOBS}" install || return 1
 	sanitize_sysroot_libs 'libSvtAv1Enc' || return 1
 }
-build_libsvtav1_psy() {
+build_libsvtav1_psyex() {
 	local hdr10pluslib="$(find -L "${PREFIX}" -type f -name "libhdr10plus-rs.${USE_LIB_SUFF}")"
 	local dovilib="$(find -L "${PREFIX}" -type f -name "libdovi.${USE_LIB_SUFF}")"
 	cmake \
@@ -548,7 +547,7 @@ build_libvmaf() {
 			if line_contains "${line}" "${search}"; then
 				line+=" -lstdc++"
 			fi
-			echo "${line}" >> "${newCfg}"
+			echo "${line}" >>"${newCfg}"
 		done <"${cfg}"
 		# overwrite the pkgconfig
 		${SUDO_MODIFY} cp "${newCfg}" "${cfg}"
@@ -602,9 +601,23 @@ build_ffmpeg() {
 	done
 	add_project_versioning_to_ffmpeg || return 1
 
+	# lto is broken on darwin for ffmpeg only
+	# https://trac.ffmpeg.org/ticket/11479
+	local ffmpegFlags=()
+	if is_darwin; then
+		for flag in "${CONFIGURE_FLAGS[@]}"; do
+			test "${flag}" == '--enable-lto' && continue
+			ffmpegFlags+=("${flag}")
+		done
+		for flag in "${FFMPEG_EXTRA_FLAGS[@]}"; do
+			ffmpegFlags+=("${flag// -flto/}")
+		done
+	else
+		ffmpegFlags=("${CONFIGURE_FLAGS[@]}" "${FFMPEG_EXTRA_FLAGS[@]}")
+	fi
+
 	./configure \
-		"${CONFIGURE_FLAGS[@]}" \
-		"${FFMPEG_EXTRA_FLAGS[@]}" \
+		"${ffmpegFlags[@]}" \
 		--pkg-config='pkg-config' \
 		--pkg-config-flags="${PKG_CFG_FLAGS}" \
 		--arch="${ARCH}" \
