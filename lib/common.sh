@@ -162,3 +162,12 @@ line_starts_with() {
 is_darwin() {
 	line_contains "$(print_os)" darwin
 }
+
+is_positive_integer() {
+	local input="$1"
+	if [[ ${input} != ?(-)+([[:digit:]]) || ${input} -lt 0 ]]; then
+		echo_fail "${input} is not a positive integer"
+		return 1
+	fi
+	return 0
+}

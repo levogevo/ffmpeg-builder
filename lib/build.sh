@@ -184,7 +184,7 @@ get_build_conf() {
 ffmpeg           8.0      tar.gz    https://github.com/FFmpeg/FFmpeg/archive/refs/tags/n${ver}.${ext}
 hdr10plus_tool   1.7.1    tar.gz    https://github.com/quietvoid/hdr10plus_tool/archive/refs/tags/${ver}.${ext}
 dovi_tool        2.3.0    tar.gz    https://github.com/quietvoid/dovi_tool/archive/refs/tags/${ver}.${ext}
-libsvtav1        3.1.1    tar.gz    https://gitlab.com/AOMediaCodec/SVT-AV1/-/archive/v${ver}/SVT-AV1-v${ver}.${ext}
+libsvtav1        3.1.2    tar.gz    https://gitlab.com/AOMediaCodec/SVT-AV1/-/archive/v${ver}/SVT-AV1-v${ver}.${ext}
 libsvtav1_psy    3.0.2-A  tar.gz    https://github.com/BlueSwordM/svt-av1-psyex/archive/refs/tags/v${ver}.${ext} dovi_tool,hdr10plus_tool,cpuinfo
 librav1e         0.8.1    tar.gz    https://github.com/xiph/rav1e/archive/refs/tags/v${ver}.${ext}
 libaom           3.12.1   tar.gz    https://storage.googleapis.com/aom-releases/libaom-${ver}.${ext}
@@ -317,7 +317,7 @@ do_build() {
 	# check for any patches
 	for patch in "${PATCHES_DIR}/${build}"/*.patch; do
 		test -f "${patch}" || continue
-		patch -p1 -i "${patch}" || return 1
+		echo_if_fail patch -p1 -i "${patch}" || return 1
 	done
 	echo_if_fail build_"${build}"
 	retval=$?

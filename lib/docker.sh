@@ -226,6 +226,10 @@ docker_run_image() {
 			-u "$(id -u):$(id -g)" \
 			"${image_tag}" \
 			./scripts/build.sh || return 1
+
+		docker system prune -f
+
+		return 0
 	done
 }
 
