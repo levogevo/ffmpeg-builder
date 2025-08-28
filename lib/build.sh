@@ -319,6 +319,7 @@ do_build() {
 		test -f "${patch}" || continue
 		echo_if_fail patch -p1 -i "${patch}" || return 1
 	done
+	export LOGNAME="${build}"
 	echo_if_fail build_"${build}"
 	retval=$?
 	popd >/dev/null || return 1

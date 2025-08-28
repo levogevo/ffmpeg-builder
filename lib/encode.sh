@@ -219,7 +219,7 @@ set_encode_opts() {
 		case "${flag}" in
 		I)
 			echo_warn "attempting install"
-			sudo ln -sf "$(pwd)/scripts/recc_encode.sh" \
+			sudo ln -sf "${SCRIPT_DIR}/encode.sh" \
 				/usr/local/bin/encode || return 1
 			echo_pass "succesfull install"
 			exit 0
