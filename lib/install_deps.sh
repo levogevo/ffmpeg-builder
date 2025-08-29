@@ -77,7 +77,7 @@ print_req_pkgs() {
 		"${common_linux_pkgs[@]}" openssl-devel
 		pipx ninja-build fontconfig-devel wget2
 		cpuinfo-devel glibc-static glibc-devel
-		libstdc++-static libstdc++-devel
+		libstdc++-static libstdc++-devel patch
 	)
 
 	local req_pkgs_env_name="${pkg_mgr/-/_}_pkgs"

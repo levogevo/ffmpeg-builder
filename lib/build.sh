@@ -34,8 +34,12 @@ set_compile_opts() {
 		"-DCMAKE_PREFIX_PATH=${PREFIX}"
 		"-DCMAKE_INSTALL_PREFIX=${PREFIX}"
 		"-DCMAKE_INSTALL_LIBDIR=lib"
+		"-DCMAKE_BUILD_TYPE=Release"
 	)
+	CARGO_BUILD_TYPE=release
+	CARGO_FLAGS+=("--${CARGO_BUILD_TYPE}")
 	CARGO_CINSTALL_FLAGS=(
+		"--${CARGO_BUILD_TYPE}"
 		"--prefix" "${PREFIX}"
 		"--libdir" "${LIBDIR}"
 	)
@@ -59,17 +63,13 @@ set_compile_opts() {
 		fi
 		MESON_FLAGS+=("-Db_lto=true")
 		RUSTFLAGS+=("-C lto=yes" "-C inline-threshold=1000" "-C codegen-units=1")
-		CARGO_BUILD_TYPE=release
-		CARGO_FLAGS+=("--${CARGO_BUILD_TYPE}")
 	else
 		echo_info "building without LTO"
 		LTO_SWITCH='OFF'
 		LTO_FLAG=''
 		MESON_FLAGS+=("-Db_lto=false")
 		RUSTFLAGS+=("-C lto=no")
-		CARGO_BUILD_TYPE=debug
 	fi
-	CARGO_CINSTALL_FLAGS+=("--${CARGO_BUILD_TYPE}")
 
 	# setting optimization level
 	if [[ ${OPT} == '' ]]; then
@@ -461,7 +461,6 @@ build_cpuinfo() {
 build_libsvtav1() {
 	cmake \
 		"${CMAKE_FLAGS[@]}" \
-		-DSVT_AV1_LTO="${LTO_SWITCH}" \
 		-DENABLE_AVX512=ON \
 		-DBUILD_TESTING=OFF \
 		-DCOVERAGE=OFF || return 1
@@ -474,7 +473,6 @@ build_libsvtav1_psy() {
 	local dovilib="$(find -L "${PREFIX}" -type f -name "libdovi.${USE_LIB_SUFF}")"
 	cmake \
 		"${CMAKE_FLAGS[@]}" \
-		-DSVT_AV1_LTO="${LTO_SWITCH}" \
 		-DBUILD_TESTING=OFF \
 		-DENABLE_AVX512=ON \
 		-DCOVERAGE=OFF \
@@ -611,7 +609,7 @@ build_ffmpeg() {
 			ffmpegFlags+=("${flag}")
 		done
 		for flag in "${FFMPEG_EXTRA_FLAGS[@]}"; do
-			ffmpegFlags+=("${flag// -flto/}")
+			ffmpegFlags+=("${flag// ${LTO_FLAG}/}")
 		done
 	else
 		ffmpegFlags=("${CONFIGURE_FLAGS[@]}" "${FFMPEG_EXTRA_FLAGS[@]}")

@@ -76,7 +76,7 @@ set_completions() {
 test -f "${HOME}/.bashrc" && source "${HOME}/.bashrc"
 src_scripts || return 1
 determine_pkg_mgr || return 1
-check_compile_opts_override || return 
+check_compile_opts_override || return 1
 
 if [[ $FB_RUNNING_AS_SCRIPT -eq 0 ]]; then
 	print_cmds || return 1
