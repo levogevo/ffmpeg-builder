@@ -142,6 +142,34 @@ bash_basename() {
 	printf '%s\n' "${tmp:-/}"
 }
 
+bash_realpath() {
+	local file=$1
+	local dir
+
+	# If the file is already absolute
+	[[ $file == /* ]] && {
+		printf '%s\n' "$file"
+		return
+	}
+
+	# Otherwise: split into directory + basename
+	dir="$(bash_dirname "${file}")"
+	file="$(bash_basename "${file}")"
+
+	# If no directory component, use current directory
+	if [[ $dir == "$file" ]]; then
+		dir="$PWD"
+	else
+		# Save current dir, move into target dir, capture $PWD, then return
+		local oldpwd="$PWD"
+		cd "$dir" || return 1
+		dir="$PWD"
+		cd "$oldpwd" || return 1
+	fi
+
+	printf '%s/%s\n' "$dir" "$file"
+}
+
 line_contains() {
 	local line="$1"
 	local substr="$2"

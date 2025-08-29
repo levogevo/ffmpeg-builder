@@ -11,7 +11,8 @@ get_duration() {
 
 get_crop() {
 	local file="$1"
-	local duration="$(get_duration "${file}")"
+	local duration
+	duration="$(get_duration "${file}")" || return 1
 	# don't care about decimal points
 	IFS='.' read -r duration _ <<<"${duration}"
 	# get crop value for first half of input
@@ -48,11 +49,12 @@ get_stream_codec() {
 
 get_file_format() {
 	local file="$1"
-	local probe="$(ffprobe \
+	local probe
+	probe="$(ffprobe \
 		-v error \
 		-show_entries format=format_name \
 		-of default=noprint_wrappers=1:nokey=1 \
-		"${file}")"
+		"${file}")" || return 1
 	if line_contains "${probe}" 'matroska'; then
 		echo mkv
 	else
@@ -88,14 +90,16 @@ get_num_audio_channels() {
 		-show_entries stream=channels \
 		-of default=noprint_wrappers=1:nokey=1 \
 		"${file}"
-
 }
 
 unmap_streams() {
 	local file="$1"
 	local unmapFilter='bin_data|jpeg|png'
 	local unmap=()
-	for stream in $(get_streams "${file}"); do
+	local streamsStr
+	streamsStr="$(get_streams "${file}")" || return 1
+	mapfile -t streams <<<"${streamsStr}" || return 1
+	for stream in "${streams[@]}"; do
 		if [[ "$(get_stream_codec "${file}" "${stream}")" =~ ${unmapFilter} ]]; then
 			unmap+=("-map" "-0:${stream}")
 		fi
@@ -107,9 +111,10 @@ set_audio_bitrate() {
 	local file="$1"
 	local bitrate=()
 	for stream in $(get_audio_streams "${file}"); do
-		local numChannels="$(get_num_audio_channels "${file}" "a:${stream}")"
+		local numChannels codec
+		numChannels="$(get_num_audio_channels "${file}" "a:${stream}")" || return 1
 		local channelBitrate=$((numChannels * 64))
-		local codec="$(get_stream_codec "${file}" "a:${stream}")"
+		codec="$(get_stream_codec "${file}" "a:${stream}")" || return 1
 		if [[ ${codec} == 'opus' ]]; then
 			bitrate+=(
 				"-c:a:${stream}"
@@ -305,7 +310,8 @@ set_encode_opts() {
 
 	# use same container for output
 	if [[ $SAME_CONTAINER == "true" ]]; then
-		local fileFormat="$(get_file_format "${INPUT}")"
+		local fileFormat
+		fileFormat="$(get_file_format "${INPUT}")" || return 1
 		FILE_EXT=''
 		if [[ ${fileFormat} == 'MPEG-4' ]]; then
 			FILE_EXT='mp4'
@@ -351,7 +357,7 @@ gen_encode_script() {
 	)
 	local crop=''
 	if [[ $CROP == "true" ]]; then
-		crop="-vf $(get_crop "${INPUT}")"
+		crop="$(get_crop "${INPUT}")" || return 1
 	fi
 	local videoEncoder='libsvtav1'
 	local ffmpegVersion="$(ffmpeg_version)"
@@ -396,24 +402,30 @@ gen_encode_script() {
 		'-y' '-map' '0'
 	)
 
-	local unmap=($(unmap_streams "${INPUT}"))
+	local unmapStr
+	unmapStr="$(unmap_streams "${INPUT}")" || return 1
+	mapfile -t unmap <<<"${unmapStr}"
 	if [[ ${unmap[*]} != '' ]]; then
 		ffmpegParams+=('${unmap[@]}')
 	fi
 
-	local audioBitrate=($(set_audio_bitrate "${INPUT}"))
+	local audioBitrateStr
+	audioBitrateStr="$(set_audio_bitrate "${INPUT}")" || return 1
+	mapfile -t audioBitrate <<<"${audioBitrateStr}"
 	if [[ ${audioBitrate[*]} != '' ]]; then
 		ffmpegParams+=('${audioBitrate[@]}')
 	fi
 
 	if [[ ${crop} != '' ]]; then
-		ffmpegParams+=('${crop}')
+		ffmpegParams+=('-vf' '${crop}')
 	fi
 
 	ffmpegParams+=(
 		'-c:s' 'copy'
 	)
-	local convertSubs=($(convert_subs "${INPUT}"))
+	local convertSubsStr
+	convertSubsStr="$(convert_subs "${INPUT}")" || return 1
+	mapfile -t convertSubs <<<"${convertSubsStr}"
 	if [[ ${convertSubs[*]} != '' ]]; then
 		ffmpegParams+=('${convertSubs[@]}')
 	fi

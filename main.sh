@@ -1,12 +1,10 @@
 #!/usr/bin/env bash
 
 # set top dir
-relativeRepoRoot="${BASH_SOURCE[0]//'main.sh'/}"
-if [[ -d ${relativeRepoRoot} ]]; then
-	preloadCmd="cd ${relativeRepoRoot} &&"
+if [[ -z ${REPO_DIR} ]]; then
+	thisFile="${BASH_SOURCE[0]}"
+	REPO_DIR="$(dirname "${thisFile}")"
 fi
-REPO_DIR="$(${preloadCmd} echo "$PWD")"
-unset relativeRepoRoot preloadCmd
 
 IGN_DIR="${REPO_DIR}/gitignore"
 TMP_DIR="${IGN_DIR}/tmp"
@@ -37,9 +35,10 @@ src_scripts() {
 		rm "${SCRIPT_DIR}"/*.sh
 		# shellcheck disable=SC2016
 		echo '#!/usr/bin/env bash
-cd "$(dirname "$(readlink -f $0)")/.."
 export FB_RUNNING_AS_SCRIPT=1
-. main.sh || return 1
+thisFile="$(readlink -f "$0")"
+export REPO_DIR="$(cd "$(dirname "${thisFile}")/.." && echo "$PWD")"
+source "${REPO_DIR}/main.sh" || return 1
 scr_name="$(bash_basename $0)"
 cmd="${scr_name//.sh/}"
 if [[ $DEBUG == 1 ]]; then set -x; fi
