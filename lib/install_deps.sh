@@ -50,7 +50,7 @@ print_req_pkgs() {
 	# shellcheck disable=SC2034
 	local brew_pkgs=(
 		"${common_pkgs[@]}" pkgconf
-		mkvtoolnix pipx
+		mkvtoolnix pipx uutils-coreutils
 	)
 	local common_linux_pkgs=(
 		"${common_pkgs[@]}" clang valgrind
@@ -79,6 +79,17 @@ print_req_pkgs() {
 		cpuinfo-devel glibc-static glibc-devel
 		libstdc++-static libstdc++-devel patch
 	)
+	# shellcheck disable=SC2034
+	local android_pkgs=(
+		autoconf automake cmake libtool
+		texinfo nasm yasm python3 wget
+		doxygen jq ccache gawk rust
+		git gnuplot bison rsync ragel
+		zip unzip gperf build-essential
+		binutils
+	)
+	# pip install pipx
+	# pipx install virtualenv
 
 	local req_pkgs_env_name="${pkg_mgr/-/_}_pkgs"
 	declare -n req_pkgs="${req_pkgs_env_name}"

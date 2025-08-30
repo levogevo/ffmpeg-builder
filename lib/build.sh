@@ -159,7 +159,7 @@ set_compile_opts() {
 
 	# make sure RUSTUP_HOME and CARGO_HOME are defined
 	RUSTUP_HOME="${RUSTUP_HOME:-"${HOME}/.rustup"}"
-	CARGO_HOME="${CARGO_HOME:-"${HOME}/.rustup"}"
+	CARGO_HOME="${CARGO_HOME:-"${HOME}/.cargo"}"
 	test -d "${RUSTUP_HOME}" || echo_exit "RUSTUP_HOME does not exist"
 	test -d "${CARGO_HOME}" || echo_exit "CARGO_HOME does not exist"
 	export RUSTUP_HOME CARGO_HOME

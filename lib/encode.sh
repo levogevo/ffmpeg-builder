@@ -1,97 +1,5 @@
 #!/usr/bin/env bash
 
-get_duration() {
-	local file="$1"
-	ffprobe \
-		-v error \
-		-show_entries format=duration \
-		-of default=noprint_wrappers=1:nokey=1 \
-		"${file}"
-}
-
-get_crop() {
-	local file="$1"
-	local duration
-	duration="$(get_duration "${file}")" || return 1
-	# don't care about decimal points
-	IFS='.' read -r duration _ <<<"${duration}"
-	# get crop value for first half of input
-	local timeEnc=$((duration / 2))
-	ffmpeg \
-		-y \
-		-hide_banner \
-		-ss 0 \
-		-discard 'nokey' \
-		-i "${file}" \
-		-t "${timeEnc}" \
-		-map '0:v:0' \
-		-filter:v:0 'cropdetect=limit=100:round=16:skip=2:reset_count=0' \
-		-codec:v 'wrapped_avframe' \
-		-f 'null' '/dev/null' 2>&1 |
-		grep -o crop=.* |
-		sort -bh |
-		uniq -c |
-		sort -bh |
-		tail -n1 |
-		grep -o "crop=.*"
-}
-
-get_stream_codec() {
-	local file="$1"
-	local stream="$2"
-	ffprobe \
-		-v error \
-		-select_streams "${stream}" \
-		-show_entries stream=codec_name \
-		-of default=noprint_wrappers=1:nokey=1 \
-		"${file}"
-}
-
-get_file_format() {
-	local file="$1"
-	local probe
-	probe="$(ffprobe \
-		-v error \
-		-show_entries format=format_name \
-		-of default=noprint_wrappers=1:nokey=1 \
-		"${file}")" || return 1
-	if line_contains "${probe}" 'matroska'; then
-		echo mkv
-	else
-		echo mp4
-	fi
-}
-
-get_num_streams() {
-	local file="$1"
-	ffprobe \
-		-v error \
-		-show_entries stream=index \
-		-of default=noprint_wrappers=1:nokey=1 \
-		"${file}"
-}
-
-get_num_audio_streams() {
-	local file="$1"
-	ffprobe \
-		-v error \
-		-select_streams a \
-		-show_entries stream=index \
-		-of default=noprint_wrappers=1:nokey=1 \
-		"${file}"
-}
-
-get_num_audio_channels() {
-	local file="$1"
-	local stream="$2"
-	ffprobe \
-		-v error \
-		-select_streams "${stream}" \
-		-show_entries stream=channels \
-		-of default=noprint_wrappers=1:nokey=1 \
-		"${file}"
-}
-
 unmap_streams() {
 	local file="$1"
 	local unmapFilter='bin_data|jpeg|png'
@@ -187,16 +95,16 @@ audio_enc_version() {
 }
 
 encode_usage() {
-	echo "$(bash_basename "$0") -i input_file [options] "
+	echo "$(bash_basename "$0") -i input [options] output"
 	echo -e "\t[-P NUM] set preset (default: ${PRESET})"
 	echo -e "\t[-C NUM] set CRF (default: ${CRF})"
+	echo -e "\t[-g NUM] set film grain for encode"
 	echo -e "\t[-p] print the command instead of executing it (default: ${PRINT_OUT})"
 	echo -e "\t[-c] use cropdetect (default: ${CROP})"
 	echo -e "\t[-d] disable dolby vision (default: ${DISABLE_DV})"
 	echo -e "\t[-v] Print relevant version info"
-	echo -e "\t[-g NUM] set film grain for encode"
 	echo -e "\t[-s] use same container as input, default is mkv"
-	echo -e "\n\t[output_file] if unset, defaults to ${HOME}/"
+	echo -e "\n\t[output] if unset, defaults to ${HOME}/"
 	echo -e "\n\t[-I] Install this as /usr/local/bin/encode"
 	echo -e "\t[-U] Uninstall this from /usr/local/bin/encode"
 	return 0
