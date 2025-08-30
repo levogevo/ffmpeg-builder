@@ -2,7 +2,7 @@
 
 # set top dir
 if [[ -z ${REPO_DIR} ]]; then
-	thisFile="${BASH_SOURCE[0]}"
+	thisFile="$(readlink -f "${BASH_SOURCE[0]}")"
 	REPO_DIR="$(dirname "${thisFile}")"
 fi
 

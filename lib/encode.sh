@@ -62,8 +62,8 @@ get_file_format() {
 	fi
 }
 
-get_streams() {
-	file="$1"
+get_num_streams() {
+	local file="$1"
 	ffprobe \
 		-v error \
 		-show_entries stream=index \
@@ -71,8 +71,8 @@ get_streams() {
 		"${file}"
 }
 
-get_audio_streams() {
-	file="$1"
+get_num_audio_streams() {
+	local file="$1"
 	ffprobe \
 		-v error \
 		-select_streams a \
@@ -82,8 +82,8 @@ get_audio_streams() {
 }
 
 get_num_audio_channels() {
-	file="$1"
-	stream="$2"
+	local file="$1"
+	local stream="$2"
 	ffprobe \
 		-v error \
 		-select_streams "${stream}" \
@@ -97,7 +97,7 @@ unmap_streams() {
 	local unmapFilter='bin_data|jpeg|png'
 	local unmap=()
 	local streamsStr
-	streamsStr="$(get_streams "${file}")" || return 1
+	streamsStr="$(get_num_streams "${file}")" || return 1
 	mapfile -t streams <<<"${streamsStr}" || return 1
 	for stream in "${streams[@]}"; do
 		if [[ "$(get_stream_codec "${file}" "${stream}")" =~ ${unmapFilter} ]]; then
@@ -110,9 +110,9 @@ unmap_streams() {
 set_audio_bitrate() {
 	local file="$1"
 	local bitrate=()
-	for stream in $(get_audio_streams "${file}"); do
+	for stream in $(get_num_audio_streams "${file}"); do
 		local numChannels codec
-		numChannels="$(get_num_audio_channels "${file}" "a:${stream}")" || return 1
+		numChannels="$(get_num_audio_channels "${file}" "${stream}")" || return 1
 		local channelBitrate=$((numChannels * 64))
 		codec="$(get_stream_codec "${file}" "a:${stream}")" || return 1
 		if [[ ${codec} == 'opus' ]]; then
@@ -138,7 +138,7 @@ convert_subs() {
 	local file="$1"
 	local convertCodec='eia_608'
 	local convert=()
-	for stream in $(get_streams "${file}"); do
+	for stream in $(get_num_streams "${file}"); do
 		if [[ "$(get_stream_codec "${file}" "${stream}")" == "${convertCodec}" ]]; then
 			convert+=("-c:${stream}" "srt")
 		fi
@@ -203,7 +203,7 @@ encode_usage() {
 }
 
 set_encode_opts() {
-	local opts='vi:pcsdg:P:IU'
+	local opts='vi:pcsdg:P:C:IU'
 	local numOpts="${#opts}"
 	# default values
 	PRESET=3
@@ -400,34 +400,32 @@ gen_encode_script() {
 	local ffmpegParams=(
 		'-i' '${INPUT}'
 		'-y' '-map' '0'
+		'-c:s' 'copy'
 	)
 
-	local unmapStr
+	# these values may be empty
+	local unmapStr audioBitrateStr convertSubsStr
 	unmapStr="$(unmap_streams "${INPUT}")" || return 1
-	mapfile -t unmap <<<"${unmapStr}"
+	audioBitrateStr="$(set_audio_bitrate "${INPUT}")" || return 1
+	convertSubsStr="$(convert_subs "${INPUT}")" || return 1
+
+	unmap=(${unmapStr})
 	if [[ ${unmap[*]} != '' ]]; then
 		ffmpegParams+=('${unmap[@]}')
 	fi
 
-	local audioBitrateStr
-	audioBitrateStr="$(set_audio_bitrate "${INPUT}")" || return 1
-	mapfile -t audioBitrate <<<"${audioBitrateStr}"
+	audioBitrate=(${audioBitrateStr})
 	if [[ ${audioBitrate[*]} != '' ]]; then
 		ffmpegParams+=('${audioBitrate[@]}')
 	fi
 
-	if [[ ${crop} != '' ]]; then
-		ffmpegParams+=('-vf' '${crop}')
-	fi
-
-	ffmpegParams+=(
-		'-c:s' 'copy'
-	)
-	local convertSubsStr
-	convertSubsStr="$(convert_subs "${INPUT}")" || return 1
-	mapfile -t convertSubs <<<"${convertSubsStr}"
+	convertSubs=(${convertSubsStr})
 	if [[ ${convertSubs[*]} != '' ]]; then
 		ffmpegParams+=('${convertSubs[@]}')
+	fi
+
+	if [[ ${crop} != '' ]]; then
+		ffmpegParams+=('-vf' '${crop}')
 	fi
 
 	ffmpegParams+=(
