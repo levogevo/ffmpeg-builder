@@ -9,6 +9,33 @@ get_duration() {
 		"${file}"
 }
 
+get_avg_bitrate() {
+	local file="$1"
+	ffprobe \
+		-v error \
+		-select_streams v:0 \
+		-show_entries format=bit_rate \
+		-of default=noprint_wrappers=1:nokey=1 \
+		"${file}"
+}
+
+split_video() {
+	local file="$1"
+	local start="$2"
+	local time="$3"
+	local out="$4"
+	ffmpeg \
+		-ss "${start}" \
+		-i "${file}" \
+		-hide_banner \
+		-loglevel error \
+		-t "${time}" \
+		-map 0:v \
+		-reset_timestamps 1 \
+		-c copy \
+		"${out}"
+}
+
 get_crop() {
 	local file="$1"
 	local duration

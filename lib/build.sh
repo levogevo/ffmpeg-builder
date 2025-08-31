@@ -505,7 +505,7 @@ build_libopus() {
 
 ### MESON ###
 build_libdav1d() {
-	local enableAsm='true'
+	local enableAsm=true
 	# arm64 will fail the build at 0 optimization
 	if [[ "${HOSTTYPE}:${OPT}" == "aarch64:0" ]]; then
 		enableAsm="false"
@@ -626,8 +626,7 @@ build_ffmpeg() {
 		--enable-nonfree \
 		--disable-htmlpages \
 		--disable-podpages \
-		--disable-txtpages \
-		--disable-autodetect || return 1
+		--disable-txtpages || return 1
 	ccache make -j"${JOBS}" || return 1
 	${SUDO_MODIFY} make -j"${JOBS}" install || return 1
 }

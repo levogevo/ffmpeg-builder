@@ -22,19 +22,19 @@ set_audio_bitrate() {
 		local numChannels codec
 		numChannels="$(get_num_audio_channels "${file}" "${stream}")" || return 1
 		local channelBitrate=$((numChannels * 64))
-		codec="$(get_stream_codec "${file}" "a:${stream}")" || return 1
+		codec="$(get_stream_codec "${file}" "${stream}")" || return 1
 		if [[ ${codec} == 'opus' ]]; then
 			bitrate+=(
-				"-c:a:${stream}"
+				"-c:${stream}"
 				"copy"
 			)
 		else
 			bitrate+=(
-				"-filter:a:${stream}"
+				"-filter:${stream}"
 				"aformat=channel_layouts=7.1|5.1|stereo|mono"
-				"-c:a:${stream}"
+				"-c:${stream}"
 				"libopus"
-				"-b:a:${stream}"
+				"-b:${stream}"
 				"${channelBitrate}k"
 			)
 		fi
@@ -95,7 +95,7 @@ audio_enc_version() {
 }
 
 encode_usage() {
-	echo "$(bash_basename "$0") -i input [options] output"
+	echo "encode -i input [options] output"
 	echo -e "\t[-P NUM] set preset (default: ${PRESET})"
 	echo -e "\t[-C NUM] set CRF (default: ${CRF})"
 	echo -e "\t[-g NUM] set film grain for encode"
@@ -105,22 +105,23 @@ encode_usage() {
 	echo -e "\t[-v] Print relevant version info"
 	echo -e "\t[-s] use same container as input, default is mkv"
 	echo -e "\n\t[output] if unset, defaults to ${HOME}/"
-	echo -e "\n\t[-I] Install this as /usr/local/bin/encode"
-	echo -e "\t[-U] Uninstall this from /usr/local/bin/encode"
+	echo -e "\n\t[-I] system install at ${ENCODE_INSTALL_PATH}"
+	echo -e "\t[-U] uninstall from ${ENCODE_INSTALL_PATH}"
 	return 0
 }
 
 set_encode_opts() {
 	local opts='vi:pcsdg:P:C:IU'
-	local numOpts="${#opts}"
+	local numOpts=${#opts}
 	# default values
 	PRESET=3
 	CRF=25
 	GRAIN=""
-	CROP='false'
-	PRINT_OUT='false'
-	DISABLE_DV='false'
-	local SAME_CONTAINER="false"
+	CROP=false
+	PRINT_OUT=false
+	DISABLE_DV=false
+	ENCODE_INSTALL_PATH='/usr/local/bin/encode'
+	local sameContainer="false"
 	# only using -I/U
 	local minOpt=1
 	# using all + output name
@@ -128,18 +129,19 @@ set_encode_opts() {
 	test $# -lt ${minOpt} && echo_fail "not enough arguments" && encode_usage && return 1
 	test $# -gt ${maxOpt} && echo_fail "too many arguments" && encode_usage && return 1
 	local optsUsed=0
+	OPTIND=1
 	while getopts "${opts}" flag; do
 		case "${flag}" in
 		I)
 			echo_warn "attempting install"
 			sudo ln -sf "${SCRIPT_DIR}/encode.sh" \
-				/usr/local/bin/encode || return 1
+				"${ENCODE_INSTALL_PATH}" || return 1
 			echo_pass "succesfull install"
 			exit 0
 			;;
 		U)
 			echo_warn "attempting uninstall"
-			sudo rm /usr/local/bin/encode || return 1
+			sudo rm "${ENCODE_INSTALL_PATH}" || return 1
 			echo_pass "succesfull uninstall"
 			exit 0
 			;;
@@ -160,11 +162,11 @@ set_encode_opts() {
 			optsUsed=$((optsUsed + 2))
 			;;
 		p)
-			PRINT_OUT='true'
+			PRINT_OUT=true
 			optsUsed=$((optsUsed + 1))
 			;;
 		c)
-			CROP='true'
+			CROP=true
 			optsUsed=$((optsUsed + 1))
 			;;
 		d)
@@ -172,7 +174,7 @@ set_encode_opts() {
 			optsUsed=$((optsUsed + 1))
 			;;
 		s)
-			SAME_CONTAINER='true'
+			sameContainer=true
 			optsUsed=$((optsUsed + 1))
 			;;
 		g)
@@ -217,7 +219,7 @@ set_encode_opts() {
 	fi
 
 	# use same container for output
-	if [[ $SAME_CONTAINER == "true" ]]; then
+	if [[ $sameContainer == "true" ]]; then
 		local fileFormat
 		fileFormat="$(get_file_format "${INPUT}")" || return 1
 		FILE_EXT=''
@@ -234,6 +236,12 @@ set_encode_opts() {
 	fi
 	OUTPUT="${OUTPUT%.*}"
 	OUTPUT+=".${FILE_EXT}"
+
+	if [[ ! -f ${INPUT} ]]; then
+		echo "${INPUT} does not exist"
+		efg_usage
+		return 1
+	fi
 
 	echo
 	echo_info "INPUT: ${INPUT}"

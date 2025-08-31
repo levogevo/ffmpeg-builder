@@ -202,3 +202,24 @@ is_positive_integer() {
 	fi
 	return 0
 }
+
+bash_sort() {
+	local arr=("$@")
+	local n=${#arr[@]}
+	local i j val1 val2
+
+	# Bubble sort, numeric comparison
+	for ((i = 0; i < n; i++)); do
+		for ((j = 0; j < n - i - 1; j++)); do
+			read -r val1 _ <<<"${arr[j]}"
+			read -r val2 _ <<<"${arr[j + 1]}"
+			if (("${val1}" > "${val2}")); then
+				local tmp=${arr[j]}
+				arr[j]=${arr[j + 1]}
+				arr[j + 1]=$tmp
+			fi
+		done
+	done
+
+	printf '%s\n' "${arr[@]}"
+}
