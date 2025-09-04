@@ -120,17 +120,17 @@ set_compile_opts() {
 	fi
 
 	# architecture/cpu compile flags
-	# arm prefers -mcpu over -march
+	# arm prefers -mcpu over -march for native builds
 	# https://community.arm.com/arm-community-blogs/b/tools-software-ides-blog/posts/compiler-flags-across-architectures-march-mtune-and-mcpu
-	# and can fail static builds with -fpic
-	# warning: too many GOT entries for -fpic, please recompile with -fPIC
 	local arch_flags=()
-	if [[ ${HOSTTYPE} == "x86_64" ]]; then
-		arch_flags+=("-march=${CPU}")
-	elif [[ ${HOSTTYPE} == "aarch64" ]]; then
+	if [[ ${HOSTTYPE} == "aarch64" && "${CPU}" == 'native' ]]; then
 		arch_flags+=("-mcpu=${CPU}")
+	else
+		arch_flags+=("-march=${CPU}")
 	fi
 
+	# can fail static builds with -fpic
+	# warning: too many GOT entries for -fpic, please recompile with -fPIC
 	C_FLAGS+=("${arch_flags[@]}" "-fPIC")
 	CXX_FLAGS=("${C_FLAGS[@]}")
 	CPP_FLAGS=("${C_FLAGS[@]}")

@@ -18,7 +18,7 @@ pipeline {
         stage('build docker image') {
             matrix {
                 axes {
-                    axis { name 'DISTRO'; values 'ubuntu-24.04', 'fedora-42', 'fedora-41', 'debian-13', 'archlinux-latest' }
+                    axis { name 'DISTRO'; values 'ubuntu-24.04', 'fedora-42', 'debian-13', 'archlinux-latest' }
                 }
                 stages {
                     stage('build multiarch image') {
@@ -51,14 +51,14 @@ pipeline {
         stage('build ffmpeg on linux') {
             matrix {
                 axes {
-                    axis { name 'LABEL_ARCH'; values 'arm64', 'amd64' }
-                    axis { name 'DISTRO'; values 'ubuntu-24.04', 'fedora-42', 'fedora-41', 'debian-13', 'archlinux-latest' }
-                    axis { name 'OPT_LTO'; values 'OPT=0 LTO=false', 'OPT=2 LTO=false', 'OPT=3 LTO=true' }
+                    axis { name 'ARCH'; values 'armv8-a', 'x86-64-v3' }
+                    axis { name 'DISTRO'; values 'ubuntu-24.04', 'fedora-42', 'debian-13', 'archlinux-latest' }
+                    axis { name 'OPT_LTO'; values 'OPT=0 LTO=false', 'OPT=3 LTO=true' }
                     axis { name 'STATIC'; values 'true', 'false' }
                 }
                 stages {
                     stage('build ffmpeg on linux using docker') {
-                        agent { label "linux && ${LABEL_ARCH}" }
+                        agent { label "linux && ${ARCH}" }
                         steps {
                             withDockerCreds {
                                 sh "STATIC=${STATIC} ${OPT_LTO} ./scripts/docker_run_image.sh ${DISTRO}"
