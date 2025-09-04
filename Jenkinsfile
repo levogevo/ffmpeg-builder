@@ -42,7 +42,7 @@ pipeline {
                     stage('build on darwin ') {
                         agent { label "darwin" }
                         steps {
-                            sh "STATIC=${STATIC} ${OPT_LTO} ./scripts/build.sh"
+                            sh "${OPT_LTO} ./scripts/build.sh"
                         }
                     }
                 }
@@ -61,7 +61,7 @@ pipeline {
                         agent { label "linux && ${ARCH}" }
                         steps {
                             withDockerCreds {
-                                sh "STATIC=${STATIC} ${OPT_LTO} ./scripts/docker_run_image.sh ${DISTRO}"
+                                sh "${OPT_LTO} ./scripts/docker_run_image.sh ${DISTRO}"
                             }
                         }
                     }

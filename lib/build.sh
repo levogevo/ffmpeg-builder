@@ -123,10 +123,10 @@ set_compile_opts() {
 	# arm prefers -mcpu over -march for native builds
 	# https://community.arm.com/arm-community-blogs/b/tools-software-ides-blog/posts/compiler-flags-across-architectures-march-mtune-and-mcpu
 	local arch_flags=()
-	if [[ ${HOSTTYPE} == "aarch64" && "${CPU}" == 'native' ]]; then
-		arch_flags+=("-mcpu=${CPU}")
+	if [[ ${HOSTTYPE} == "aarch64" && "${ARCH}" == 'native' ]]; then
+		arch_flags+=("-mcpu=${ARCH}")
 	else
-		arch_flags+=("-march=${CPU}")
+		arch_flags+=("-march=${ARCH}")
 	fi
 
 	# can fail static builds with -fpic
@@ -134,7 +134,7 @@ set_compile_opts() {
 	C_FLAGS+=("${arch_flags[@]}" "-fPIC")
 	CXX_FLAGS=("${C_FLAGS[@]}")
 	CPP_FLAGS=("${C_FLAGS[@]}")
-	RUSTFLAGS+=("-C target-cpu=${CPU}")
+	RUSTFLAGS+=("-C target-cpu=${ARCH}")
 	CMAKE_FLAGS+=("-DCMAKE_C_FLAGS=${C_FLAGS[*]}")
 	CMAKE_FLAGS+=("-DCMAKE_CXX_FLAGS=${CXX_FLAGS[*]}")
 	MESON_FLAGS+=("-Dc_args=${C_FLAGS[*]}" "-Dcpp_args=${CPP_FLAGS[*]}")
@@ -620,7 +620,7 @@ build_ffmpeg() {
 		--pkg-config='pkg-config' \
 		--pkg-config-flags="${PKG_CFG_FLAGS}" \
 		--arch="${ARCH}" \
-		--cpu="${CPU}" \
+		--cpu="${ARCH}" \
 		--enable-gpl \
 		--enable-version3 \
 		--enable-nonfree \

@@ -13,9 +13,7 @@ DEFAULT_LTO=true
 DEFAULT_OPT=3
 # static or shared build
 DEFAULT_STATIC=true
-# CPU type (amd64/v{1,2,3}...)
-DEFAULT_CPU=native
-# architecture type
+# architecture type (x86-64-v{1,2,3,4}, armv8-a, etc)
 DEFAULT_ARCH=native
 # prefix to install to, default is local install
 DEFAULT_PREFIX='local'
@@ -31,7 +29,7 @@ libvmaf \
 
 # user-overridable compile option variable names
 FB_COMP_OPTS=(
-	CLEAN LTO OPT STATIC CPU ARCH PREFIX ENABLE
+	CLEAN LTO OPT STATIC ARCH PREFIX ENABLE
 )
 
 # sets FB_COMP_OPTS to allow for user-overriding
