@@ -619,8 +619,6 @@ build_ffmpeg() {
 		"${ffmpegFlags[@]}" \
 		--pkg-config='pkg-config' \
 		--pkg-config-flags="${PKG_CFG_FLAGS}" \
-		--arch="${ARCH}" \
-		--cpu="${ARCH}" \
 		--enable-gpl \
 		--enable-version3 \
 		--enable-nonfree \
