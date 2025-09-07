@@ -35,8 +35,8 @@ pipeline {
         stage('build ffmpeg on darwin') {
             matrix {
                 axes {
-                    axis { name 'OPT_LTO'; values 'OPT=0 LTO=false', 'OPT=2 LTO=false', 'OPT=3 LTO=true' }
-                    axis { name 'STATIC'; values 'true', 'false' }
+                    axis { name 'OPT_LTO'; values 'OPT=0 LTO=OFF', 'OPT=3 LTO=ON' }
+                    axis { name 'STATIC'; values 'ON', 'OFF' }
                 }
                 stages {
                     stage('build on darwin ') {
@@ -53,8 +53,8 @@ pipeline {
                 axes {
                     axis { name 'ARCH'; values 'armv8-a', 'x86-64-v3' }
                     axis { name 'DISTRO'; values 'ubuntu-24.04', 'fedora-42', 'debian-13', 'archlinux-latest' }
-                    axis { name 'OPT_LTO'; values 'OPT=0 LTO=false', 'OPT=3 LTO=true' }
-                    axis { name 'STATIC'; values 'true', 'false' }
+                    axis { name 'OPT_LTO'; values 'OPT=0 LTO=OFF', 'OPT=3 LTO=ON' }
+                    axis { name 'STATIC'; values 'ON', 'OFF' }
                 }
                 stages {
                     stage('build ffmpeg on linux using docker') {

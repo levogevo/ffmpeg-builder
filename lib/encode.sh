@@ -129,7 +129,7 @@ set_encode_opts() {
 	test $# -lt ${minOpt} && echo_fail "not enough arguments" && encode_usage && return 1
 	test $# -gt ${maxOpt} && echo_fail "too many arguments" && encode_usage && return 1
 	local optsUsed=0
-	OPTIND=1
+	local OPTARG OPTIND
 	while getopts "${opts}" flag; do
 		case "${flag}" in
 		I)

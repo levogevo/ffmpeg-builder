@@ -8,11 +8,11 @@
 # clean build directories before building
 DEFAULT_CLEAN=true
 # enable link time optimization
-DEFAULT_LTO=true
+DEFAULT_LTO=ON
 # optimization level (0-3)
 DEFAULT_OPT=3
 # static or shared build
-DEFAULT_STATIC=true
+DEFAULT_STATIC=ON
 # architecture type (x86-64-v{1,2,3,4}, armv8-a, etc)
 DEFAULT_ARCH=native
 # prefix to install to, default is local install
@@ -25,6 +25,8 @@ libdav1d \
 libaom \
 librav1e \
 libvmaf \
+libx264 \
+libx265 \
 "
 
 # user-overridable compile option variable names

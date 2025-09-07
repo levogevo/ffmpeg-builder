@@ -45,17 +45,17 @@ set_compile_opts() {
 	)
 	PKG_CONFIG_PATH="${LIBDIR}/pkgconfig"
 	export PKG_CONFIG_PATH
+	echo_info "PKG_CONFIG_PATH=${PKG_CONFIG_PATH}"
 
 	# add prefix include
 	C_FLAGS+=("-I${PREFIX}/include")
 
 	# enabling link-time optimization
 	# shellcheck disable=SC2034
-	unset LTO_SWITCH LTO_FLAG LTO_BOOL
-	export LTO_SWITCH LTO_FLAG LTO_BOOL
-	if [[ ${LTO} == 'true' ]]; then
+	unset LTO_FLAG
+	export LTO_FLAG
+	if [[ ${LTO} == 'ON' ]]; then
 		echo_info "building with LTO"
-		LTO_SWITCH='ON'
 		LTO_FLAG='-flto'
 		C_FLAGS+=("${LTO_FLAG}")
 		if ! is_darwin; then
@@ -65,7 +65,6 @@ set_compile_opts() {
 		RUSTFLAGS+=("-C lto=yes" "-C inline-threshold=1000" "-C codegen-units=1")
 	else
 		echo_info "building without LTO"
-		LTO_SWITCH='OFF'
 		LTO_FLAG=''
 		MESON_FLAGS+=("-Db_lto=false")
 		RUSTFLAGS+=("-C lto=no")
@@ -89,15 +88,15 @@ set_compile_opts() {
 	fi
 
 	# static/shared linking
-	unset PKG_CFG_FLAGS LIB_SUFF
-	export PKG_CFG_FLAGS LIB_SUFF
-	if [[ ${STATIC} == true ]]; then
+	unset PKG_CONFIG_FLAGS LIB_SUFF
+	export PKG_CONFIG_FLAGS LIB_SUFF
+	if [[ ${STATIC} == 'ON' ]]; then
 		LDFLAGS+=('-static')
 		CONFIGURE_FLAGS+=('--enable-static')
 		MESON_FLAGS+=('--default-library=static')
 		CMAKE_FLAGS+=("-DBUILD_SHARED_LIBS=OFF")
 		RUSTFLAGS+=("-C target-feature=+crt-static")
-		PKG_CFG_FLAGS='--static'
+		PKG_CONFIG_FLAGS='--static'
 		# darwin does not support static linkage
 		if ! is_darwin; then
 			CMAKE_FLAGS+=("-DCMAKE_EXE_LINKER_FLAGS=-static")
@@ -123,7 +122,7 @@ set_compile_opts() {
 	# arm prefers -mcpu over -march for native builds
 	# https://community.arm.com/arm-community-blogs/b/tools-software-ides-blog/posts/compiler-flags-across-architectures-march-mtune-and-mcpu
 	local arch_flags=()
-	if [[ ${HOSTTYPE} == "aarch64" && "${ARCH}" == 'native' ]]; then
+	if [[ ${HOSTTYPE} == "aarch64" && ${ARCH} == 'native' ]]; then
 		arch_flags+=("-mcpu=${ARCH}")
 	else
 		arch_flags+=("-march=${ARCH}")
@@ -145,7 +144,7 @@ set_compile_opts() {
 	dump_arr CARGO_CINSTALL_FLAGS
 	dump_arr CMAKE_FLAGS
 	dump_arr MESON_FLAGS
-	dump_arr PKG_CFG_FLAGS
+	dump_arr PKG_CONFIG_FLAGS
 
 	# extra ffmpeg flags
 	FFMPEG_EXTRA_FLAGS+=(
@@ -181,24 +180,30 @@ get_build_conf() {
 	# name version file-extension url dep1,dep2
 	# shellcheck disable=SC2016
 	local BUILDS_CONF='
-ffmpeg           8.0      tar.gz    https://github.com/FFmpeg/FFmpeg/archive/refs/tags/n${ver}.${ext}
-hdr10plus_tool   1.7.1    tar.gz    https://github.com/quietvoid/hdr10plus_tool/archive/refs/tags/${ver}.${ext}
-dovi_tool        2.3.0    tar.gz    https://github.com/quietvoid/dovi_tool/archive/refs/tags/${ver}.${ext}
-libsvtav1        3.1.2    tar.gz    https://gitlab.com/AOMediaCodec/SVT-AV1/-/archive/v${ver}/SVT-AV1-v${ver}.${ext}
-libsvtav1_psy    3.0.2-A  tar.gz    https://github.com/BlueSwordM/svt-av1-psyex/archive/refs/tags/v${ver}.${ext} dovi_tool,hdr10plus_tool,cpuinfo
-librav1e         0.8.1    tar.gz    https://github.com/xiph/rav1e/archive/refs/tags/v${ver}.${ext}
-libaom           3.12.1   tar.gz    https://storage.googleapis.com/aom-releases/libaom-${ver}.${ext}
-libvmaf          3.0.0    tar.gz    https://github.com/Netflix/vmaf/archive/refs/tags/v${ver}.${ext}
-libopus          1.5.2    tar.gz    https://github.com/xiph/opus/releases/download/v${ver}/opus-${ver}.${ext}
-libdav1d         1.5.1    tar.xz    http://downloads.videolan.org/videolan/dav1d/${ver}/dav1d-${ver}.${ext}
-cpuinfo          latest   git       https://github.com/pytorch/cpuinfo/
+ffmpeg			8.0			tar.gz		https://github.com/FFmpeg/FFmpeg/archive/refs/tags/n${ver}.${ext}
+
+libsvtav1_psy	3.0.2-A		tar.gz		https://github.com/BlueSwordM/svt-av1-psyex/archive/refs/tags/v${ver}.${ext} dovi_tool,hdr10plus_tool,cpuinfo
+hdr10plus_tool	1.7.1		tar.gz		https://github.com/quietvoid/hdr10plus_tool/archive/refs/tags/${ver}.${ext}
+dovi_tool		2.3.0		tar.gz		https://github.com/quietvoid/dovi_tool/archive/refs/tags/${ver}.${ext}
+cpuinfo			latest   	git   		https://github.com/pytorch/cpuinfo/
+
+libsvtav1		3.1.2		tar.gz		https://gitlab.com/AOMediaCodec/SVT-AV1/-/archive/v${ver}/SVT-AV1-v${ver}.${ext}
+librav1e		0.8.1		tar.gz		https://github.com/xiph/rav1e/archive/refs/tags/v${ver}.${ext}
+libaom			3.12.1		tar.gz		https://storage.googleapis.com/aom-releases/libaom-${ver}.${ext}
+libvmaf			3.0.0		tar.gz		https://github.com/Netflix/vmaf/archive/refs/tags/v${ver}.${ext}
+libopus			1.5.2		tar.gz		https://github.com/xiph/opus/releases/download/v${ver}/opus-${ver}.${ext}
+libdav1d		1.5.1		tar.xz		http://downloads.videolan.org/videolan/dav1d/${ver}/dav1d-${ver}.${ext}
+libx264			latest   	git   		https://code.videolan.org/videolan/x264.git    
+
+libx265			4.1			tar.gz		https://bitbucket.org/multicoreware/x265_git/downloads/x265_${ver}.${ext} libnuma
+libnuma			2.0.19		tar.gz		https://github.com/numactl/numactl/archive/refs/tags/v${ver}.${ext}
 '
 
 	local supported_builds=()
 	unset ver ext url deps extracted_dir
 	while read -r line; do
 		test "${line}" == '' && continue
-		IFS=' ' read -r build ver ext url deps <<<"${line}"
+		IFS=$' \t' read -r build ver ext url deps <<<"${line}"
 		supported_builds+=("${build}")
 		if [[ ${getBuild} != "${build}" ]]; then
 			build=''
@@ -287,6 +292,20 @@ download_release() {
 		# for git downloads
 		test -d "${base_dl_path}" ||
 			git clone "${url}" "${base_dl_path}" || return 1
+		(
+			cd "${base_dl_path}" || exit 1
+			local localHEAD remoteHEAD
+			localHEAD="$(git rev-parse HEAD)"
+			IFS=$' \t' read -r remoteHEAD _ <<< \
+				"$(git ls-remote "$(git config --get remote.origin.url)" HEAD)"
+			if [[ ${localHEAD} != "${remoteHEAD}" ]]; then
+				git pull --ff-only
+			fi
+			localHEAD="$(git rev-parse HEAD)"
+			if [[ ${localHEAD} != "${remoteHEAD}" ]]; then
+				echo_exit "could not update git for ${build}"
+			fi
+		) || return 1
 
 		# create new build directory
 		test -d "${extracted_dir}" ||
@@ -389,46 +408,11 @@ sanitize_sysroot_libs() {
 	return 0
 }
 
-### RUST ###
-build_hdr10plus_tool() {
-	cargo build "${CARGO_FLAGS[@]}" || return 1
-	${SUDO_MODIFY} cp \
-		"target/${CARGO_BUILD_TYPE}/hdr10plus_tool" \
-		"${PREFIX}/bin/" || return 1
-
-	# build libhdr10plus
-	cd hdr10plus || return 1
-	cargo cbuild "${CARGO_FLAGS[@]}" || return 1
-	${SUDO_CARGO} bash -lc "PATH=\"${PATH}\" cargo cinstall ${CARGO_CINSTALL_FLAGS[*]}" || return 1
-	sanitize_sysroot_libs 'libhdr10plus-rs' || return 1
-}
-build_dovi_tool() {
-	cargo build "${CARGO_FLAGS[@]}" || return 1
-	${SUDO_MODIFY} cp \
-		"target/${CARGO_BUILD_TYPE}/dovi_tool" \
-		"${PREFIX}/bin/" || return 1
-
-	# build libdovi
-	cd dolby_vision || return 1
-	cargo cbuild "${CARGO_FLAGS[@]}" || return 1
-	${SUDO_CARGO} bash -lc "PATH=\"${PATH}\" cargo cinstall ${CARGO_CINSTALL_FLAGS[*]}" || return 1
-	sanitize_sysroot_libs 'libdovi' || return 1
-}
-build_librav1e() {
-	cargo build "${CARGO_FLAGS[@]}" || return 1
-	${SUDO_MODIFY} cp \
-		"target/${CARGO_BUILD_TYPE}/rav1e" \
-		"${PREFIX}/bin/" || return 1
-
-	# build librav1e
-	cargo cbuild "${CARGO_FLAGS[@]}" || return 1
-	${SUDO_CARGO} bash -lc "PATH=\"${PATH}\" cargo cinstall ${CARGO_CINSTALL_FLAGS[*]}" || return 1
-	sanitize_sysroot_libs 'librav1e' || return 1
-
+del_pkgconfig_gcc_s() {
 	# HACK PATCH
 	# remove '-lgcc_s' from pkgconfig for static builds
-	if [[ ${STATIC} == 'true' ]]; then
-		local fname='rav1e.pc'
+	if [[ ${STATIC} == 'ON' ]]; then
+		local fname="$1"
 		local cfg="${PKG_CONFIG_PATH}/${fname}"
 		local newCfg="${TMP_DIR}/${fname}"
 		test -f "${cfg}" || return 1
@@ -446,6 +430,46 @@ build_librav1e() {
 	fi
 }
 
+### RUST ###
+build_hdr10plus_tool() {
+	cargo build "${CARGO_FLAGS[@]}" || return 1
+	${SUDO_MODIFY} cp \
+		"target/${CARGO_BUILD_TYPE}/hdr10plus_tool" \
+		"${PREFIX}/bin/" || return 1
+
+	# build libhdr10plus
+	cd hdr10plus || return 1
+	cargo cbuild "${CARGO_FLAGS[@]}" || return 1
+	${SUDO_CARGO} bash -lc "PATH=\"${PATH}\" cargo cinstall ${CARGO_CINSTALL_FLAGS[*]}" || return 1
+	sanitize_sysroot_libs 'libhdr10plus-rs' || return 1
+}
+
+build_dovi_tool() {
+	cargo build "${CARGO_FLAGS[@]}" || return 1
+	${SUDO_MODIFY} cp \
+		"target/${CARGO_BUILD_TYPE}/dovi_tool" \
+		"${PREFIX}/bin/" || return 1
+
+	# build libdovi
+	cd dolby_vision || return 1
+	cargo cbuild "${CARGO_FLAGS[@]}" || return 1
+	${SUDO_CARGO} bash -lc "PATH=\"${PATH}\" cargo cinstall ${CARGO_CINSTALL_FLAGS[*]}" || return 1
+	sanitize_sysroot_libs 'libdovi' || return 1
+}
+
+build_librav1e() {
+	cargo build "${CARGO_FLAGS[@]}" || return 1
+	${SUDO_MODIFY} cp \
+		"target/${CARGO_BUILD_TYPE}/rav1e" \
+		"${PREFIX}/bin/" || return 1
+
+	# build librav1e
+	cargo cbuild "${CARGO_FLAGS[@]}" || return 1
+	${SUDO_CARGO} bash -lc "PATH=\"${PATH}\" cargo cinstall ${CARGO_CINSTALL_FLAGS[*]}" || return 1
+	sanitize_sysroot_libs 'librav1e' || return 1
+	del_pkgconfig_gcc_s 'rav1e.pc' || return 1
+}
+
 ### CMAKE ###
 build_cpuinfo() {
 	cmake \
@@ -458,6 +482,7 @@ build_cpuinfo() {
 	${SUDO_MODIFY} make -j"${JOBS}" install || return 1
 	sanitize_sysroot_libs 'libcpuinfo' || return 1
 }
+
 build_libsvtav1() {
 	cmake \
 		"${CMAKE_FLAGS[@]}" \
@@ -468,6 +493,7 @@ build_libsvtav1() {
 	${SUDO_MODIFY} make -j"${JOBS}" install || return 1
 	sanitize_sysroot_libs 'libSvtAv1Enc' || return 1
 }
+
 build_libsvtav1_psy() {
 	local hdr10pluslib="$(find -L "${PREFIX}" -type f -name "libhdr10plus-rs.${USE_LIB_SUFF}")"
 	local dovilib="$(find -L "${PREFIX}" -type f -name "libdovi.${USE_LIB_SUFF}")"
@@ -485,6 +511,7 @@ build_libsvtav1_psy() {
 	${SUDO_MODIFY} make -j"${JOBS}" install || return 1
 	sanitize_sysroot_libs 'libSvtAv1Enc' || return 1
 }
+
 build_libaom() {
 	cmake \
 		"${CMAKE_FLAGS[@]}" \
@@ -495,12 +522,26 @@ build_libaom() {
 	${SUDO_MODIFY} make -j"${JOBS}" install || return 1
 	sanitize_sysroot_libs 'libaom' || return 1
 }
+
 build_libopus() {
 	cmake \
 		"${CMAKE_FLAGS[@]}" || return 1
 	ccache make -j"${JOBS}" || return 1
 	${SUDO_MODIFY} make -j"${JOBS}" install || return 1
 	sanitize_sysroot_libs 'libopus' || return 1
+}
+
+build_libx265() {
+	cmake \
+		"${CMAKE_FLAGS[@]}" \
+		-G "Unix Makefiles" \
+		-DHIGH_BIT_DEPTH=ON \
+		-DENABLE_HDR10_PLUS=ON \
+		./source || return 1
+	ccache make -j"${JOBS}" || return 1
+	${SUDO_MODIFY} make -j"${JOBS}" install || return 1
+	sanitize_sysroot_libs 'libx265' || return 1
+	del_pkgconfig_gcc_s 'x265.pc' || return 1
 }
 
 ### MESON ###
@@ -518,6 +559,7 @@ build_libdav1d() {
 	${SUDO_MODIFY} ninja -vC build.user install || return 1
 	sanitize_sysroot_libs 'libdav1d' || return 1
 }
+
 build_libvmaf() {
 	cd libvmaf || return 1
 	python3 -m virtualenv .venv
@@ -534,7 +576,7 @@ build_libvmaf() {
 
 	# HACK PATCH
 	# add '-lstdc++' to pkgconfig for static builds
-	if [[ ${STATIC} == 'true' ]]; then
+	if [[ ${STATIC} == 'ON' ]]; then
 		local fname='libvmaf.pc'
 		local cfg="${PKG_CONFIG_PATH}/${fname}"
 		local newCfg="${TMP_DIR}/${fname}"
@@ -554,6 +596,23 @@ build_libvmaf() {
 }
 
 ### AUTOTOOLS ###
+build_libx264() {
+	./configure \
+		"${CONFIGURE_FLAGS[@]}" || return 1
+	ccache make -j"${JOBS}" || return 1
+	${SUDO_MODIFY} make -j"${JOBS}" install || return 1
+	sanitize_sysroot_libs 'libx264' || return 1
+}
+
+build_libnuma() {
+	./autogen.sh || return 1
+	./configure \
+		"${CONFIGURE_FLAGS[@]}" || return 1
+	ccache make -j"${JOBS}" || return 1
+	${SUDO_MODIFY} make -j"${JOBS}" install || return 1
+	sanitize_sysroot_libs 'libnuma' || return 1
+}
+
 add_project_versioning_to_ffmpeg() {
 	local optFile
 	local fname='ffmpeg_opt.c'
@@ -618,7 +677,7 @@ build_ffmpeg() {
 	./configure \
 		"${ffmpegFlags[@]}" \
 		--pkg-config='pkg-config' \
-		--pkg-config-flags="${PKG_CFG_FLAGS}" \
+		--pkg-config-flags="${PKG_CONFIG_FLAGS}" \
 		--enable-gpl \
 		--enable-version3 \
 		--enable-nonfree \
@@ -634,7 +693,7 @@ sanity_check_ffmpeg() {
 	if has_cmd ldd; then
 		while read -r line; do
 			echo "${line}"
-			if [[ ${STATIC} == 'true' ]]; then
+			if [[ ${STATIC} == 'ON' ]]; then
 				echo static
 			else
 				echo hi

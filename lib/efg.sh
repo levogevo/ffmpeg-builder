@@ -27,7 +27,7 @@ set_efg_opts() {
 	local maxOpt=${numOpts}
 	test $# -lt ${minOpt} && echo_fail "not enough arguments" && efg_usage && return 1
 	test $# -gt ${maxOpt} && echo_fail "too many arguments" && efg_usage && return 1
-	OPTIND=1
+	local OPTARG OPTIND
 	while getopts "${opts}" flag; do
 		case "${flag}" in
 		I)
@@ -177,6 +177,7 @@ efg_encode() {
 			local out="${EFG_DIR}/grain-${grain}-${file}"
 			encode -P 10 -g ${grain} -i "${vid}" "${out}"
 			echo -e "\tgrain: ${grain}, bitrate: $(get_avg_bitrate "${out}")" >>"${GRAIN_LOG}"
+			rm "${out}"
 		done
 	done
 
@@ -220,7 +221,9 @@ efg_plot() {
 	done
 
 	# plot data
-	bash -c 'echo $COLUMNS $LINES' >/dev/null 2>&1
+	# run subprocess for bash COLUMNS/LINES
+	shopt -s checkwinsize
+	(true)
 	gnuplot -p -e "\
 set terminal dumb size ${COLUMNS}, ${LINES}; \
 set autoscale; \
