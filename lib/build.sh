@@ -45,7 +45,6 @@ set_compile_opts() {
 	)
 	PKG_CONFIG_PATH="${LIBDIR}/pkgconfig"
 	export PKG_CONFIG_PATH
-	echo_info "PKG_CONFIG_PATH=${PKG_CONFIG_PATH}"
 
 	# add prefix include
 	C_FLAGS+=("-I${PREFIX}/include")
@@ -55,7 +54,6 @@ set_compile_opts() {
 	unset LTO_FLAG
 	export LTO_FLAG
 	if [[ ${LTO} == 'ON' ]]; then
-		echo_info "building with LTO"
 		LTO_FLAG='-flto'
 		C_FLAGS+=("${LTO_FLAG}")
 		if ! is_darwin; then
@@ -64,7 +62,6 @@ set_compile_opts() {
 		MESON_FLAGS+=("-Db_lto=true")
 		RUSTFLAGS+=("-C lto=yes" "-C inline-threshold=1000" "-C codegen-units=1")
 	else
-		echo_info "building without LTO"
 		LTO_FLAG=''
 		MESON_FLAGS+=("-Db_lto=false")
 		RUSTFLAGS+=("-C lto=no")
@@ -92,9 +89,16 @@ set_compile_opts() {
 	export PKG_CONFIG_FLAGS LIB_SUFF
 	if [[ ${STATIC} == 'ON' ]]; then
 		LDFLAGS+=('-static')
-		CONFIGURE_FLAGS+=('--enable-static')
+		CONFIGURE_FLAGS+=(
+			'--enable-static'
+			'--disable-shared'
+		)
 		MESON_FLAGS+=('--default-library=static')
-		CMAKE_FLAGS+=("-DBUILD_SHARED_LIBS=OFF")
+		CMAKE_FLAGS+=(
+			"-DENABLE_STATIC=${STATIC}"
+			"-DENABLE_SHARED=OFF"
+			"-DBUILD_SHARED_LIBS=OFF"
+		)
 		RUSTFLAGS+=("-C target-feature=+crt-static")
 		PKG_CONFIG_FLAGS='--static'
 		# darwin does not support static linkage
@@ -107,8 +111,13 @@ set_compile_opts() {
 		DEL_LIB_SUFF="${SHARED_LIB_SUFF}"
 	else
 		LDFLAGS+=("-Wl,-rpath,${LIBDIR}" "-Wl,-rpath-link,${LIBDIR}")
-		CONFIGURE_FLAGS+=('--enable-shared')
+		CONFIGURE_FLAGS+=(
+			'--enable-shared'
+			'--disable-static'
+		)
 		CMAKE_FLAGS+=(
+			"-DENABLE_STATIC=${STATIC}"
+			"-DENABLE_SHARED=ON"
 			"-DBUILD_SHARED_LIBS=ON"
 			"-DCMAKE_INSTALL_RPATH=${LIBDIR}"
 		)
@@ -137,7 +146,6 @@ set_compile_opts() {
 	CMAKE_FLAGS+=("-DCMAKE_C_FLAGS=${C_FLAGS[*]}")
 	CMAKE_FLAGS+=("-DCMAKE_CXX_FLAGS=${CXX_FLAGS[*]}")
 	MESON_FLAGS+=("-Dc_args=${C_FLAGS[*]}" "-Dcpp_args=${CPP_FLAGS[*]}")
-	echo_info "CLEAN: $CLEAN"
 	dump_arr CONFIGURE_FLAGS
 	dump_arr C_FLAGS
 	dump_arr RUSTFLAGS
@@ -145,6 +153,7 @@ set_compile_opts() {
 	dump_arr CMAKE_FLAGS
 	dump_arr MESON_FLAGS
 	dump_arr PKG_CONFIG_FLAGS
+	echo_info "PKG_CONFIG_PATH=${PKG_CONFIG_PATH}"
 
 	# extra ffmpeg flags
 	FFMPEG_EXTRA_FLAGS+=(
@@ -174,6 +183,14 @@ set_compile_opts() {
 	echo
 }
 
+get_remote_head() {
+	local url="$1"
+	local remoteHEAD=''
+	IFS=$' \t' read -r remoteHEAD _ <<< \
+		"$(git ls-remote "${url}" HEAD)"
+	echo "${remoteHEAD}"
+}
+
 get_build_conf() {
 	local getBuild="${1}"
 
@@ -194,7 +211,9 @@ libvmaf			3.0.0		tar.gz		https://github.com/Netflix/vmaf/archive/refs/tags/v${ve
 libopus			1.5.2		tar.gz		https://github.com/xiph/opus/releases/download/v${ver}/opus-${ver}.${ext}
 libdav1d		1.5.1		tar.xz		http://downloads.videolan.org/videolan/dav1d/${ver}/dav1d-${ver}.${ext}
 libx264			latest   	git   		https://code.videolan.org/videolan/x264.git
-libx265			4.1			tar.gz		https://bitbucket.org/multicoreware/x265_git/downloads/x265_${ver}.${ext}
+
+libx265			4.1			tar.gz		https://bitbucket.org/multicoreware/x265_git/downloads/x265_${ver}.${ext} cmake
+cmake			3.31.8		tar.gz		https://github.com/Kitware/CMake/archive/refs/tags/v${ver}.${ext}
 '
 
 	local supported_builds=()
@@ -225,31 +244,38 @@ libx265			4.1			tar.gz		https://bitbucket.org/multicoreware/x265_git/downloads/x
 	# set dependencies array
 	# shellcheck disable=SC2206
 	deps=(${deps//,/ })
-	# set extracted directory
-	extracted_dir="${BUILD_DIR}/${build}-v${ver}"
+	# set version based off of remote head
+	# and set extracted directory
+	if [[ ${ext} == 'git' ]]; then
+		ver="$(get_remote_head "${url}")"
+		extracted_dir="${BUILD_DIR}/${build}-${ext}"
+	else
+		extracted_dir="${BUILD_DIR}/${build}-v${ver}"
+	fi
+	# download the release
+	download_release || return 1
 
 	return 0
 }
 
 download_release() {
-	local build="${1}"
-	# set env for wget download
-	get_build_conf "${build}" || return 1
-	local base_path="${build}-v${ver}"
+	local base_path="$(bash_basename "${extracted_dir}")"
 	local base_dl_path="${DL_DIR}/${base_path}"
 
 	# remove other versions of a download
-	for wrong_ver_dl in "${DL_DIR}/${build}-v"*; do
-		if [[ ${wrong_ver_dl} =~ ${base_path} ]]; then
+	for wrong_ver_dl in "${DL_DIR}/${build}-"*; do
+		if line_contains "${wrong_ver_dl}" "${base_path}"; then
 			continue
 		fi
-		test -f "${wrong_ver_dl}" || continue
+		if [[ ! -d ${wrong_ver_dl} && ! -f ${wrong_ver_dl} ]]; then
+			continue
+		fi
 		echo_warn "removing wrong version: ${wrong_ver_dl}"
 		rm -rf "${wrong_ver_dl}"
 	done
 	# remove other versions of a build
-	for wrong_ver_build in "${BUILD_DIR}/${build}-v"*; do
-		if [[ ${wrong_ver_build} =~ ${base_path} ]]; then
+	for wrong_ver_build in "${BUILD_DIR}/${build}-"*; do
+		if line_contains "${wrong_ver_build}" "${base_path}"; then
 			continue
 		fi
 		test -d "${wrong_ver_build}" || continue
@@ -294,8 +320,7 @@ download_release() {
 			cd "${base_dl_path}" || exit 1
 			local localHEAD remoteHEAD
 			localHEAD="$(git rev-parse HEAD)"
-			IFS=$' \t' read -r remoteHEAD _ <<< \
-				"$(git ls-remote "$(git config --get remote.origin.url)" HEAD)"
+			remoteHEAD="$(get_remote_head "$(git config --get remote.origin.url)")"
 			if [[ ${localHEAD} != "${remoteHEAD}" ]]; then
 				git pull --ff-only
 			fi
@@ -318,7 +343,6 @@ FB_FUNC_DESCS['do_build']='build a specific project'
 FB_FUNC_COMPLETION['do_build']="$(get_build_conf supported)"
 do_build() {
 	local build="${1:-''}"
-	download_release "${build}" || return 1
 	get_build_conf "${build}" || return 1
 
 	# add build configuration to FFMPEG_BUILDER_INFO
@@ -529,12 +553,41 @@ build_libopus() {
 	sanitize_sysroot_libs 'libopus' || return 1
 }
 
-build_libx265() {
+# libx265 does not support cmake >= 4
+build_cmake() {
+	local cmakeVersion verMajor
+	# don't need to build if system version is below 4
+	IFS=$' \t' read -r _ _ cmakeVersion <<<"$(cmake --version)"
+	IFS='.' read -r verMajor _ _ <<<"${cmakeVersion}"
+	if [[ ${verMajor} -lt 4 ]]; then
+		return 0
+	fi
+
+	# don't need to rebuild if already built
+	local cmake="${PREFIX}/bin/cmake"
+	if [[ -f ${cmake} ]]; then
+		IFS=$' \t' read -r _ _ cmakeVersion <<<"$("${cmake}" --version)"
+		IFS='.' read -r verMajor _ _ <<<"${cmakeVersion}"
+		if [[ ${verMajor} -lt 4 ]]; then
+			return 0
+		fi
+	fi
+
 	cmake \
+		-DCMAKE_PREFIX_PATH="${PREFIX}" \
+		-DCMAKE_INSTALL_PREFIX="${PREFIX}" \
+		-DCMAKE_INSTALL_LIBDIR=lib \
+		-DCMAKE_BUILD_TYPE=Release || return 1
+	ccache make -j"${JOBS}" || return 1
+	${SUDO_MODIFY} make -j"${JOBS}" install || return 1
+}
+
+build_libx265() {
+	PATH="${PREFIX}/bin:$PATH" cmake \
 		"${CMAKE_FLAGS[@]}" \
 		-G "Unix Makefiles" \
 		-DHIGH_BIT_DEPTH=ON \
-		-DENABLE_HDR10_PLUS=ON \
+		-DENABLE_HDR10_PLUS=OFF \
 		./source || return 1
 	ccache make -j"${JOBS}" || return 1
 	${SUDO_MODIFY} make -j"${JOBS}" install || return 1

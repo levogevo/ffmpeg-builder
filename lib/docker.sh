@@ -4,7 +4,7 @@ VALID_DOCKER_IMAGES=(
 	'ubuntu'
 	'fedora'
 	'debian'
-	'arch'
+	'archlinux'
 )
 DOCKER_WORKDIR='/workdir'
 
@@ -40,7 +40,7 @@ get_docker_image_tag() {
 	ubuntu) tag='ubuntu:24.04' ;;
 	debian) tag='debian:13' ;;
 	fedora) tag='fedora:42' ;;
-	arch) tag='ogarcia/archlinux:latest' ;;
+	archlinux) tag='ogarcia/archlinux:latest' ;;
 	esac
 	echo "${tag}"
 }

@@ -18,7 +18,7 @@ pipeline {
         stage('build docker image') {
             matrix {
                 axes {
-                    axis { name 'DISTRO'; values 'ubuntu', 'fedora', 'debian', 'arch' }
+                    axis { name 'DISTRO'; values 'ubuntu', 'fedora', 'debian', 'archlinux' }
                 }
                 stages {
                     stage('build multiarch image') {
@@ -52,7 +52,7 @@ pipeline {
             matrix {
                 axes {
                     axis { name 'ARCH'; values 'armv8-a', 'x86-64-v3' }
-                    axis { name 'DISTRO'; values 'ubuntu', 'fedora', 'debian', 'arch' }
+                    axis { name 'DISTRO'; values 'ubuntu', 'fedora', 'debian', 'archlinux' }
                     axis { name 'OPT_LTO'; values 'OPT=0 LTO=OFF', 'OPT=3 LTO=ON' }
                     axis { name 'STATIC'; values 'ON', 'OFF' }
                 }
