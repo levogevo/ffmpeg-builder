@@ -193,10 +193,8 @@ libaom			3.12.1		tar.gz		https://storage.googleapis.com/aom-releases/libaom-${ve
 libvmaf			3.0.0		tar.gz		https://github.com/Netflix/vmaf/archive/refs/tags/v${ver}.${ext}
 libopus			1.5.2		tar.gz		https://github.com/xiph/opus/releases/download/v${ver}/opus-${ver}.${ext}
 libdav1d		1.5.1		tar.xz		http://downloads.videolan.org/videolan/dav1d/${ver}/dav1d-${ver}.${ext}
-libx264			latest   	git   		https://code.videolan.org/videolan/x264.git    
-
-libx265			4.1			tar.gz		https://bitbucket.org/multicoreware/x265_git/downloads/x265_${ver}.${ext} libnuma
-libnuma			2.0.19		tar.gz		https://github.com/numactl/numactl/archive/refs/tags/v${ver}.${ext}
+libx264			latest   	git   		https://code.videolan.org/videolan/x264.git
+libx265			4.1			tar.gz		https://bitbucket.org/multicoreware/x265_git/downloads/x265_${ver}.${ext}
 '
 
 	local supported_builds=()
@@ -602,15 +600,6 @@ build_libx264() {
 	ccache make -j"${JOBS}" || return 1
 	${SUDO_MODIFY} make -j"${JOBS}" install || return 1
 	sanitize_sysroot_libs 'libx264' || return 1
-}
-
-build_libnuma() {
-	./autogen.sh || return 1
-	./configure \
-		"${CONFIGURE_FLAGS[@]}" || return 1
-	ccache make -j"${JOBS}" || return 1
-	${SUDO_MODIFY} make -j"${JOBS}" install || return 1
-	sanitize_sysroot_libs 'libnuma' || return 1
 }
 
 add_project_versioning_to_ffmpeg() {

@@ -1,11 +1,10 @@
 #!/usr/bin/env bash
 
 VALID_DOCKER_IMAGES=(
-	'ubuntu-24.04'
-	'fedora-42'
-	'fedora-41'
-	'debian-13'
-	'archlinux-latest'
+	'ubuntu'
+	'fedora'
+	'debian'
+	'arch'
 )
 DOCKER_WORKDIR='/workdir'
 
@@ -31,6 +30,19 @@ check_docker() {
 		curl https://get.docker.com -sSf | bash
 	fi
 	set_docker_run_flags || return 1
+}
+
+# get full image digest for a given image
+get_docker_image_tag() {
+	local distro="$1"
+	local tag=''
+	case "${distro}" in
+	ubuntu) tag='ubuntu:24.04' ;;
+	debian) tag='debian:13' ;;
+	fedora) tag='fedora:42' ;;
+	arch) tag='ogarcia/archlinux:latest' ;;
+	esac
+	echo "${tag}"
 }
 
 # change dash to colon for docker and add namespace
@@ -91,12 +103,7 @@ docker_build_image() {
 
 	for distro in "${DISTROS[@]}"; do
 		echo_info "sourcing package manager for ${distro}"
-		local dockerDistro="${distro}"
-		# custom multi-arch image for archlinux
-		test "${distro}" == 'archlinux-latest' &&
-			dockerDistro='ogarcia/archlinux-latest'
-		# docker expects colon instead of dash
-		dockerDistro="${dockerDistro//-/:}"
+		local dockerDistro="$(get_docker_image_tag "${distro}")"
 		# specific file for evaluated package manager info
 		distroPkgMgr="${DOCKER_DIR}/$(bash_basename "${distro}")-pkg_mgr"
 		# get package manager info
@@ -117,7 +124,7 @@ docker_build_image() {
 			echo 'ENV DEBIAN_FRONTEND=noninteractive'
 			# arch is rolling release, so highly likely
 			# an updated is required between pkg changes
-			if line_contains "${dockerDistro}" 'archlinux'; then
+			if line_contains "${dockerDistro}" 'arch'; then
 				local archRuns=''
 				archRuns+="${pkg_mgr_update}"
 				archRuns+=" && ${pkg_mgr_upgrade}"

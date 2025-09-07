@@ -70,7 +70,7 @@ print_req_pkgs() {
 	# shellcheck disable=SC2034
 	local pacman_pkgs=(
 		"${common_linux_pkgs[@]}" base-devel
-		python-pipx ninja
+		python-pipx ninja numactl
 	)
 	# shellcheck disable=SC2034
 	local dnf_pkgs=(
@@ -78,6 +78,7 @@ print_req_pkgs() {
 		pipx ninja-build fontconfig-devel wget2
 		cpuinfo-devel glibc-static glibc-devel
 		libstdc++-static libstdc++-devel patch
+		numactl-devel
 	)
 	# shellcheck disable=SC2034
 	local android_pkgs=(
