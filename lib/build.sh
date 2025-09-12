@@ -285,7 +285,7 @@ download_release() {
 	done
 
 	# enabling a clean build
-	if [[ ${CLEAN} == 'true' ]]; then
+	if [[ ${CLEAN} == true ]]; then
 		DO_CLEAN="rm -rf"
 	else
 		DO_CLEAN='void'
@@ -738,7 +738,8 @@ build_ffmpeg() {
 		--enable-nonfree \
 		--disable-htmlpages \
 		--disable-podpages \
-		--disable-txtpages || return 1
+		--disable-txtpages \
+		--disable-autodetect || return 1
 	ccache make -j"${JOBS}" || return 1
 	${SUDO_MODIFY} make -j"${JOBS}" install || return 1
 }

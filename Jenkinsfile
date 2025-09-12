@@ -61,7 +61,7 @@ pipeline {
                         agent { label "linux && ${ARCH}" }
                         steps {
                             withDockerCreds {
-                                sh "${OPT_LTO} ./scripts/docker_run_image.sh ${DISTRO}"
+                                sh "${OPT_LTO} ./scripts/build_with_docker.sh ${DISTRO}"
                             }
                         }
                     }

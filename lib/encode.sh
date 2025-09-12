@@ -381,7 +381,7 @@ gen_encode_script() {
 
 		# actually do ffmpeg commmand
 		echo
-		if [[ ${DISABLE_DV} == 'false' ]]; then
+		if [[ ${DISABLE_DV} == false ]]; then
 			echo 'ffmpeg "${ffmpegParams[@]}" -dolbyvision 1 "${OUTPUT}" || \'
 		fi
 		echo 'ffmpeg "${ffmpegParams[@]}" -dolbyvision 0 "${OUTPUT}" || exit 1'
@@ -398,7 +398,7 @@ gen_encode_script() {
 		echo
 	} >"${genScript}"
 
-	if [[ ${PRINT_OUT} == 'true' ]]; then
+	if [[ ${PRINT_OUT} == true ]]; then
 		echo_info "${genScript} contents:"
 		echo "$(<"${genScript}")"
 	else

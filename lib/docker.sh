@@ -70,15 +70,15 @@ echo_platform() {
 	echo "${platKernel}/${platCpu}"
 }
 
-# sets DISTROS
 validate_selected_image() {
-	local selectedImage="${1:-}"
+	local selectedImage="$1"
+	local valid=1
 	for distro in "${VALID_DOCKER_IMAGES[@]}"; do
 		if [[ ${selectedImage} == "${distro}" ]]; then
-			DISTROS+=("${distro}")
+			valid=0
 		fi
 	done
-	if [[ ${DISTROS[*]} == '' ]]; then
+	if [[ valid -eq 1 ]]; then
 		echo_fail "${selectedImage} is not valid"
 		echo_info "valid images:" "${VALID_DOCKER_IMAGES[@]}"
 		return 1
@@ -96,155 +96,168 @@ FB_FUNC_NAMES+=('docker_build_image')
 FB_FUNC_DESCS['docker_build_image']='build docker image with required dependencies pre-installed'
 FB_FUNC_COMPLETION['docker_build_image']="${VALID_DOCKER_IMAGES[*]}"
 docker_build_image() {
-	validate_selected_image "$@" || return 1
+	local image="$1"
+	validate_selected_image "${image}" || return 1
 	check_docker || return 1
 	test -d "${DOCKER_DIR}" || mkdir -p "${DOCKER_DIR}"
 	PLATFORM="${PLATFORM:-$(echo_platform)}"
 
-	for distro in "${DISTROS[@]}"; do
-		echo_info "sourcing package manager for ${distro}"
-		local dockerDistro="$(get_docker_image_tag "${distro}")"
-		# specific file for evaluated package manager info
-		distroPkgMgr="${DOCKER_DIR}/$(bash_basename "${distro}")-pkg_mgr"
-		# get package manager info
-		docker run \
-			"${DOCKER_RUN_FLAGS[@]}" \
-			"${dockerDistro}" \
-			bash -c "./scripts/print_pkg_mgr.sh" | tr -d '\r' >"${distroPkgMgr}"
-		# shellcheck disable=SC1090
-		cat "${distroPkgMgr}"
-		# shellcheck disable=SC1090
-		source "${distroPkgMgr}"
+	echo_info "sourcing package manager for ${distro}"
+	local dockerDistro="$(get_docker_image_tag "${distro}")"
+	# specific file for evaluated package manager info
+	distroPkgMgr="${DOCKER_DIR}/$(bash_basename "${distro}")-pkg_mgr"
+	# get package manager info
+	docker run \
+		"${DOCKER_RUN_FLAGS[@]}" \
+		"${dockerDistro}" \
+		bash -c "./scripts/print_pkg_mgr.sh" | tr -d '\r' >"${distroPkgMgr}"
+	# shellcheck disable=SC1090
+	cat "${distroPkgMgr}"
+	# shellcheck disable=SC1090
+	source "${distroPkgMgr}"
 
-		dockerfile="${DOCKER_DIR}/Dockerfile_$(bash_basename "${distro}")"
-		{
-			echo "FROM ${dockerDistro}"
-			echo 'SHELL ["/bin/bash", "-c"]'
-			echo 'RUN ln -sf /bin/bash /bin/sh'
-			echo 'ENV DEBIAN_FRONTEND=noninteractive'
-			# arch is rolling release, so highly likely
-			# an updated is required between pkg changes
-			if line_contains "${dockerDistro}" 'arch'; then
-				local archRuns=''
-				archRuns+="${pkg_mgr_update}"
-				archRuns+=" && ${pkg_mgr_upgrade}"
-				archRuns+=" && ${pkg_install} ${req_pkgs[*]}"
-				echo "RUN ${archRuns}"
-			else
-				echo "RUN ${pkg_mgr_update}"
-				echo "RUN ${pkg_mgr_upgrade}"
-				printf "RUN ${pkg_install} %s\n" "${req_pkgs[@]}"
-			fi
-			echo 'RUN pipx install virtualenv'
-			echo 'RUN pipx ensurepath'
-			echo 'ENV CARGO_HOME="/root/.cargo"'
-			echo 'ENV RUSTUP_HOME="/root/.rustup"'
-			echo 'ENV PATH="/root/.cargo/bin:$PATH"'
-			local cargoInst=''
-			cargoInst+='curl https://sh.rustup.rs -sSf | bash -s -- -y'
-			cargoInst+=' && rustup update stable'
-			cargoInst+=' && cargo install cargo-c'
-			cargoInst+=' && rm -rf "${CARGO_HOME}"/registry "${CARGO_HOME}"/git'
-			echo "RUN ${cargoInst}"
-			# since any user may run this image,
-			# open up root tools to everyone
-			echo 'ENV PATH="/root/.local/bin:$PATH"'
-			echo 'RUN chmod 777 -R /root/'
-			echo "WORKDIR ${DOCKER_WORKDIR}"
+	dockerfile="${DOCKER_DIR}/Dockerfile_$(bash_basename "${distro}")"
+	{
+		echo "FROM ${dockerDistro}"
+		echo 'SHELL ["/bin/bash", "-c"]'
+		echo 'RUN ln -sf /bin/bash /bin/sh'
+		echo 'ENV DEBIAN_FRONTEND=noninteractive'
+		# arch is rolling release, so highly likely
+		# an updated is required between pkg changes
+		if line_contains "${dockerDistro}" 'arch'; then
+			local archRuns=''
+			archRuns+="${pkg_mgr_update}"
+			archRuns+=" && ${pkg_mgr_upgrade}"
+			archRuns+=" && ${pkg_install} ${req_pkgs[*]}"
+			echo "RUN ${archRuns}"
+		else
+			echo "RUN ${pkg_mgr_update}"
+			echo "RUN ${pkg_mgr_upgrade}"
+			printf "RUN ${pkg_install} %s\n" "${req_pkgs[@]}"
+		fi
+		echo 'RUN pipx install virtualenv'
+		echo 'RUN pipx ensurepath'
+		echo 'ENV CARGO_HOME="/root/.cargo"'
+		echo 'ENV RUSTUP_HOME="/root/.rustup"'
+		echo 'ENV PATH="/root/.cargo/bin:$PATH"'
+		local cargoInst=''
+		cargoInst+='curl https://sh.rustup.rs -sSf | bash -s -- -y'
+		cargoInst+=' && rustup update stable'
+		cargoInst+=' && cargo install cargo-c'
+		cargoInst+=' && rm -rf "${CARGO_HOME}"/registry "${CARGO_HOME}"/git'
+		echo "RUN ${cargoInst}"
+		# since any user may run this image,
+		# open up root tools to everyone
+		echo 'ENV PATH="/root/.local/bin:$PATH"'
+		echo 'RUN chmod 777 -R /root/'
+		echo "WORKDIR ${DOCKER_WORKDIR}"
 
-		} >"${dockerfile}"
+	} >"${dockerfile}"
 
-		image_tag="$(set_distro_image_tag "${distro}")"
+	image_tag="$(set_distro_image_tag "${distro}")"
+	docker buildx build \
+		--platform "${PLATFORM}" \
+		-t "${image_tag}" \
+		-f "${dockerfile}" \
+		. || return 1
+
+	# if a docker registry is defined, push to it
+	if [[ ${DOCKER_REGISTRY} != '' ]]; then
+		docker_login || return 1
 		docker buildx build \
+			--push \
 			--platform "${PLATFORM}" \
-			-t "${image_tag}" \
+			-t "${DOCKER_REGISTRY}/${image_tag}" \
 			-f "${dockerfile}" \
 			. || return 1
+	fi
 
-		# if a docker registry is defined, push to it
-		if [[ ${DOCKER_REGISTRY} != '' ]]; then
-			docker_login || return 1
-			docker buildx build \
-				--push \
-				--platform "${PLATFORM}" \
-				-t "${DOCKER_REGISTRY}/${image_tag}" \
-				-f "${dockerfile}" \
-				. || return 1
-		fi
-
-		docker system prune -f
-	done
+	docker system prune -f
 }
 
 FB_FUNC_NAMES+=('docker_save_image')
 FB_FUNC_DESCS['docker_save_image']='save docker image into tar.zst'
 FB_FUNC_COMPLETION['docker_save_image']="${VALID_DOCKER_IMAGES[*]}"
 docker_save_image() {
-	validate_selected_image "$@" || return 1
+	local image="$1"
+	validate_selected_image "${image}" || return 1
 	check_docker || return 1
-	for distro in "${DISTROS[@]}"; do
-		image_tag="$(set_distro_image_tag "${distro}")"
-		echo_info "saving docker image for ${image_tag}"
-		docker save "${image_tag}" |
-			zstd -T0 >"${DOCKER_DIR}/$(docker_image_archive_name "${image_tag}")" ||
-			return 1
-	done
+	image_tag="$(set_distro_image_tag "${distro}")"
+	echo_info "saving docker image for ${image_tag}"
+	docker save "${image_tag}" |
+		zstd -T0 >"${DOCKER_DIR}/$(docker_image_archive_name "${image_tag}")" ||
+		return 1
 }
 
 FB_FUNC_NAMES+=('docker_load_image')
 FB_FUNC_DESCS['docker_load_image']='load docker image from tar.zst'
 FB_FUNC_COMPLETION['docker_load_image']="${VALID_DOCKER_IMAGES[*]}"
 docker_load_image() {
-	validate_selected_image "$@" || return 1
+	local image="$1"
+	validate_selected_image "${image}" || return 1
 	check_docker || return 1
-	for distro in "${DISTROS[@]}"; do
-		image_tag="$(set_distro_image_tag "${distro}")"
-		echo_info "loading docker image for ${image_tag}"
-		local archive="${DOCKER_DIR}/$(docker_image_archive_name "${image_tag}")"
-		test -f "$archive" || return 1
-		zstdcat -T0 "$archive" |
-			docker load || return 1
-		docker system prune -f
-	done
+	image_tag="$(set_distro_image_tag "${distro}")"
+	echo_info "loading docker image for ${image_tag}"
+	local archive="${DOCKER_DIR}/$(docker_image_archive_name "${image_tag}")"
+	test -f "$archive" || return 1
+	zstdcat -T0 "$archive" |
+		docker load || return 1
+	docker system prune -f
 }
 
 FB_FUNC_NAMES+=('docker_run_image')
-FB_FUNC_DESCS['docker_run_image']='run docker image to build ffmpeg'
+FB_FUNC_DESCS['docker_run_image']='run docker image with given flags'
 FB_FUNC_COMPLETION['docker_run_image']="${VALID_DOCKER_IMAGES[*]}"
 docker_run_image() {
-	validate_selected_image "$@" || return 1
+	local image="$1"
+	validate_selected_image "${image}" || return 1
 	check_docker || return 1
 
-	for distro in "${DISTROS[@]}"; do
-		dockerDistro="${distro//-/:}"
-		image_tag="$(set_distro_image_tag "${distro}")"
+	local cmd="${2}"
+	local runCmd=()
+	if [[ ${cmd} == '' ]]; then
+		DOCKER_RUN_FLAGS+=("-it")
+	else
+		runCmd+=(bash -c "${cmd}")
+	fi
 
-		# if a docker registry is defined, pull from it
-		if [[ ${DOCKER_REGISTRY} != '' ]]; then
-			docker_login || return 1
-			docker pull \
-				"${DOCKER_REGISTRY}/${image_tag}" || return 1
-			docker tag "${DOCKER_REGISTRY}/${image_tag}" "${image_tag}"
-		fi
+	dockerDistro="${distro//-/:}"
+	image_tag="$(set_distro_image_tag "${distro}")"
 
-		echo_info "running ffmpeg build with ${image_tag}"
-		docker run \
-			"${DOCKER_RUN_FLAGS[@]}" \
-			-u "$(id -u):$(id -g)" \
-			"${image_tag}" \
-			./scripts/build.sh || return 1
+	# if a docker registry is defined, pull from it
+	if [[ ${DOCKER_REGISTRY} != '' ]]; then
+		docker_login || return 1
+		docker pull \
+			"${DOCKER_REGISTRY}/${image_tag}" || return 1
+		docker tag "${DOCKER_REGISTRY}/${image_tag}" "${image_tag}"
+	fi
 
-		docker system prune -f
+	echo_info "running ffmpeg build with ${image_tag}"
+	docker run \
+		"${DOCKER_RUN_FLAGS[@]}" \
+		-u "$(id -u):$(id -g)" \
+		"${image_tag}" \
+		"${runCmd[@]}" || return 1
 
-		return 0
-	done
+	docker system prune -f
+
+	return 0
+}
+
+FB_FUNC_NAMES+=('build_with_docker')
+FB_FUNC_DESCS['build_with_docker']='run docker image with given flags'
+FB_FUNC_COMPLETION['build_with_docker']="${VALID_DOCKER_IMAGES[*]}"
+build_with_docker() {
+	local image="$1"
+	docker_run_image "${image}" ./scripts/build.sh
 }
 
 FB_FUNC_NAMES+=('docker_build_multiarch_image')
 FB_FUNC_DESCS['docker_build_multiarch_image']='build multiarch docker image'
 FB_FUNC_COMPLETION['docker_build_multiarch_image']="${VALID_DOCKER_IMAGES[*]}"
 docker_build_multiarch_image() {
-	validate_selected_image "$@" || return 1
+	local image="$1"
+	validate_selected_image "${image}" || return 1
 	check_docker || return 1
 	PLATFORM='linux/amd64,linux/arm64'
 

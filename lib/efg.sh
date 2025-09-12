@@ -175,7 +175,8 @@ efg_encode() {
 		for ((grain = LOW; grain <= HIGH; grain += STEP)); do
 			local file="$(bash_basename "${vid}")"
 			local out="${EFG_DIR}/grain-${grain}-${file}"
-			encode -P 10 -g ${grain} -i "${vid}" "${out}"
+			echo_info "encoding ${file} with grain ${grain}"
+			echo_if_fail encode -P 10 -g ${grain} -i "${vid}" "${out}"
 			echo -e "\tgrain: ${grain}, bitrate: $(get_avg_bitrate "${out}")" >>"${GRAIN_LOG}"
 			rm "${out}"
 		done
@@ -200,7 +201,7 @@ efg_plot() {
 		IFS=',' read -r grainText bitrateText <<<"${noWhite}"
 		IFS=':' read -r _ grain <<<"${grainText}"
 		IFS=':' read -r _ bitrate <<<"${bitrateText}"
-		if [[ ${setNewReference} == 'true' ]]; then
+		if [[ ${setNewReference} == true ]]; then
 			referenceBitrate="${bitrate}"
 			setNewReference=false
 		fi
@@ -248,7 +249,7 @@ efg() {
 
 	GRAIN_LOG="${EFG_DIR}/${LOW}-${STEP}-${HIGH}-grains.txt"
 
-	if [[ ${PLOT} == 'true' && -f ${GRAIN_LOG} ]]; then
+	if [[ ${PLOT} == true && -f ${GRAIN_LOG} ]]; then
 		efg_plot
 		return $?
 	fi
@@ -256,7 +257,7 @@ efg() {
 	efg_segment || return 1
 	efg_encode || return 1
 
-	if [[ ${PLOT} == 'true' && -f ${GRAIN_LOG} ]]; then
+	if [[ ${PLOT} == true && -f ${GRAIN_LOG} ]]; then
 		efg_plot || return 1
 	fi
 }
