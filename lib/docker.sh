@@ -210,15 +210,16 @@ FB_FUNC_DESCS['docker_run_image']='run docker image with given flags'
 FB_FUNC_COMPLETION['docker_run_image']="${VALID_DOCKER_IMAGES[*]}"
 docker_run_image() {
 	local image="$1"
+	shift
 	validate_selected_image "${image}" || return 1
 	check_docker || return 1
 
-	local cmd="${2}"
+	local cmd=("$@")
 	local runCmd=()
-	if [[ ${cmd} == '' ]]; then
+	if [[ ${cmd[*]} == '' ]]; then
 		DOCKER_RUN_FLAGS+=("-it")
 	else
-		runCmd+=(bash -c "${cmd}")
+		runCmd+=("${cmd[@]}")
 	fi
 
 	dockerDistro="${distro//-/:}"
@@ -249,7 +250,7 @@ FB_FUNC_DESCS['build_with_docker']='run docker image with given flags'
 FB_FUNC_COMPLETION['build_with_docker']="${VALID_DOCKER_IMAGES[*]}"
 build_with_docker() {
 	local image="$1"
-	docker_run_image "${image}" ./scripts/build.sh
+	docker_run_image "${image}" ./scripts/build.sh || return 1
 }
 
 FB_FUNC_NAMES+=('docker_build_multiarch_image')

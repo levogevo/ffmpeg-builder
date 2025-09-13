@@ -19,6 +19,7 @@ set_compile_opts() {
 	test "${PREFIX}" == 'local' && PREFIX="${IGN_DIR}/$(print_os)_sysroot"
 	# set library/pkgconfig directory
 	LIBDIR="${PREFIX}/lib"
+	LDFLAGS=("-L${LIBDIR}")
 
 	# set prefix flags
 	CONFIGURE_FLAGS+=(
@@ -74,7 +75,6 @@ set_compile_opts() {
 	C_FLAGS+=("-O${OPT}")
 	RUSTFLAGS+=("-C opt-level=${OPT}")
 	MESON_FLAGS+=("--optimization=${OPT}")
-	echo_info "building with optimization: ${OPT}"
 
 	STATIC_LIB_SUFF='a'
 	# darwin has different suffix for dynamic libraries
@@ -85,10 +85,9 @@ set_compile_opts() {
 	fi
 
 	# static/shared linking
-	unset PKG_CONFIG_FLAGS LIB_SUFF
-	export PKG_CONFIG_FLAGS LIB_SUFF
+	unset LIB_SUFF
+	export LIB_SUFF
 	if [[ ${STATIC} == 'ON' ]]; then
-		LDFLAGS+=('-static')
 		CONFIGURE_FLAGS+=(
 			'--enable-static'
 			'--disable-shared'
@@ -100,12 +99,13 @@ set_compile_opts() {
 			"-DBUILD_SHARED_LIBS=OFF"
 		)
 		RUSTFLAGS+=("-C target-feature=+crt-static")
-		PKG_CONFIG_FLAGS='--static'
+		FFMPEG_EXTRA_FLAGS+=("--pkg-config-flags=--static")
 		# darwin does not support static linkage
 		if ! is_darwin; then
+			LDFLAGS+=('-static')
 			CMAKE_FLAGS+=("-DCMAKE_EXE_LINKER_FLAGS=-static")
-			FFMPEG_EXTRA_FLAGS+=(--extra-ldflags="${LDFLAGS[*]}")
 		fi
+		FFMPEG_EXTRA_FLAGS+=(--extra-ldflags="${LDFLAGS[*]}")
 		# remove shared libraries for static builds
 		USE_LIB_SUFF="${STATIC_LIB_SUFF}"
 		DEL_LIB_SUFF="${SHARED_LIB_SUFF}"
@@ -152,13 +152,13 @@ set_compile_opts() {
 	dump_arr CARGO_CINSTALL_FLAGS
 	dump_arr CMAKE_FLAGS
 	dump_arr MESON_FLAGS
-	dump_arr PKG_CONFIG_FLAGS
 	echo_info "PKG_CONFIG_PATH=${PKG_CONFIG_PATH}"
 
 	# extra ffmpeg flags
 	FFMPEG_EXTRA_FLAGS+=(
 		--extra-cflags="${C_FLAGS[*]}"
 		--extra-cxxflags="${CXX_FLAGS[*]}"
+		--pkg-config='pkg-config'
 	)
 	dump_arr FFMPEG_EXTRA_FLAGS
 
@@ -211,6 +211,17 @@ libvmaf			3.0.0		tar.gz		https://github.com/Netflix/vmaf/archive/refs/tags/v${ve
 libopus			1.5.2		tar.gz		https://github.com/xiph/opus/releases/download/v${ver}/opus-${ver}.${ext}
 libdav1d		1.5.1		tar.xz		http://downloads.videolan.org/videolan/dav1d/${ver}/dav1d-${ver}.${ext}
 libx264			latest   	git   		https://code.videolan.org/videolan/x264.git
+libmp3lame		3.100		tar.gz		https://pilotfiber.dl.sourceforge.net/project/lame/lame/${ver}/lame-${ver}.${ext}
+
+libwebp			1.6.0		tar.gz		https://github.com/webmproject/libwebp/archive/refs/tags/v${ver}.${ext} libpng,libjpeg
+libjpeg			3.0.3		tar.gz		https://github.com/winlibs/libjpeg/archive/refs/tags/libjpeg-turbo-${ver}.${ext}
+libpng			1.6.50		tar.gz		https://github.com/pnggroup/libpng/archive/refs/tags/v${ver}.${ext}	zlib
+zlib			1.3.1		tar.gz		https://github.com/madler/zlib/archive/refs/tags/v${ver}.${ext}
+
+libplacebo		7.351.0		tar.gz		https://github.com/haasn/libplacebo/archive/refs/tags/v${ver}.${ext} glslang
+glslang			15.4.0		tar.gz		https://github.com/KhronosGroup/glslang/archive/refs/tags/${ver}.${ext} spirv_tools
+spirv_tools		2024.4		tar.gz		https://github.com/KhronosGroup/SPIRV-Tools/archive/refs/tags/v${ver}.${ext} spirv_headers
+spirv_headers	1.4.304.0	tar.gz		https://github.com/KhronosGroup/SPIRV-Headers/archive/refs/tags/vulkan-sdk-${ver}.${ext}
 
 libx265			4.1			tar.gz		https://bitbucket.org/multicoreware/x265_git/downloads/x265_${ver}.${ext} libnuma,cmake
 libnuma			2.0.19		tar.gz		https://github.com/numactl/numactl/archive/refs/tags/v${ver}.${ext}
@@ -316,7 +327,7 @@ download_release() {
 	else
 		# for git downloads
 		test -d "${base_dl_path}" ||
-			git clone "${url}" "${base_dl_path}" || return 1
+			git clone --recursive "${url}" "${base_dl_path}" || return 1
 		(
 			cd "${base_dl_path}" || exit 1
 			local localHEAD remoteHEAD
@@ -324,6 +335,7 @@ download_release() {
 			remoteHEAD="$(get_remote_head "$(git config --get remote.origin.url)")"
 			if [[ ${localHEAD} != "${remoteHEAD}" ]]; then
 				git pull --ff-only
+				git submodule update --init --recursive
 			fi
 			localHEAD="$(git rev-parse HEAD)"
 			if [[ ${localHEAD} != "${remoteHEAD}" ]]; then
@@ -362,11 +374,12 @@ do_build() {
 		echo_if_fail patch -p1 -i "${patch}" || return 1
 	done
 	export LOGNAME="${build}"
+	local timeBefore=$EPOCHSECONDS
 	echo_if_fail build_"${build}"
 	retval=$?
 	popd >/dev/null || return 1
 	test ${retval} -eq 0 || return ${retval}
-	echo_pass "built ${build}"
+	echo_pass "built ${build} in $((EPOCHSECONDS - timeBefore)) seconds"
 }
 
 FB_FUNC_NAMES+=('build')
@@ -411,6 +424,8 @@ build() {
 		echo "echo 'export PATH=\"${PREFIX}/bin:\$PATH\"' >> ~/.bashrc"
 	fi
 
+	package || return 1
+
 	return 0
 }
 
@@ -418,16 +433,20 @@ build() {
 # darwin will always link dynamically if a dylib is present
 # so they must be remove for static builds
 sanitize_sysroot_libs() {
-	local lib="$1"
-	local libPath="${LIBDIR}/${lib}"
-	local useLib="${libPath}.${USE_LIB_SUFF}"
-	local delLib="${libPath}.${DEL_LIB_SUFF}"
+	local libs=("$@")
 
-	if [[ ! -f ${useLib} ]]; then
-		echo_fail "could not find ${useLib}, something is wrong"
-		return 1
-	fi
-	${SUDO_MODIFY} rm "${delLib}"*
+	for lib in "${libs[@]}"; do
+		local libPath="${LIBDIR}/${lib}"
+		local useLib="${libPath}.${USE_LIB_SUFF}"
+
+		if [[ ! -f ${useLib} ]]; then
+			echo_fail "could not find ${useLib}, something is wrong"
+			return 1
+		fi
+
+		${SUDO_MODIFY} rm "${libPath}"*".${DEL_LIB_SUFF}"*
+	done
+
 	return 0
 }
 
@@ -464,7 +483,7 @@ build_hdr10plus_tool() {
 	cd hdr10plus || return 1
 	cargo cbuild "${CARGO_FLAGS[@]}" || return 1
 	${SUDO_CARGO} bash -lc "PATH=\"${PATH}\" cargo cinstall ${CARGO_CINSTALL_FLAGS[*]}" || return 1
-	sanitize_sysroot_libs 'libhdr10plus-rs' || return 1
+	sanitize_sysroot_libs libhdr10plus-rs || return 1
 }
 
 build_dovi_tool() {
@@ -477,7 +496,7 @@ build_dovi_tool() {
 	cd dolby_vision || return 1
 	cargo cbuild "${CARGO_FLAGS[@]}" || return 1
 	${SUDO_CARGO} bash -lc "PATH=\"${PATH}\" cargo cinstall ${CARGO_CINSTALL_FLAGS[*]}" || return 1
-	sanitize_sysroot_libs 'libdovi' || return 1
+	sanitize_sysroot_libs libdovi || return 1
 }
 
 build_librav1e() {
@@ -489,8 +508,8 @@ build_librav1e() {
 	# build librav1e
 	cargo cbuild "${CARGO_FLAGS[@]}" || return 1
 	${SUDO_CARGO} bash -lc "PATH=\"${PATH}\" cargo cinstall ${CARGO_CINSTALL_FLAGS[*]}" || return 1
-	sanitize_sysroot_libs 'librav1e' || return 1
-	del_pkgconfig_gcc_s 'rav1e.pc' || return 1
+	sanitize_sysroot_libs librav1e || return 1
+	del_pkgconfig_gcc_s rav1e.pc || return 1
 }
 
 ### CMAKE ###
@@ -503,7 +522,7 @@ build_cpuinfo() {
 		-DUSE_SYSTEM_LIBS=ON || return 1
 	ccache make -j"${JOBS}" || return 1
 	${SUDO_MODIFY} make -j"${JOBS}" install || return 1
-	sanitize_sysroot_libs 'libcpuinfo' || return 1
+	sanitize_sysroot_libs libcpuinfo || return 1
 }
 
 build_libsvtav1() {
@@ -514,7 +533,7 @@ build_libsvtav1() {
 		-DCOVERAGE=OFF || return 1
 	ccache make -j"${JOBS}" || return 1
 	${SUDO_MODIFY} make -j"${JOBS}" install || return 1
-	sanitize_sysroot_libs 'libSvtAv1Enc' || return 1
+	sanitize_sysroot_libs libSvtAv1Enc || return 1
 }
 
 build_libsvtav1_psy() {
@@ -532,7 +551,7 @@ build_libsvtav1_psy() {
 		. || return 1
 	ccache make -j"${JOBS}" || return 1
 	${SUDO_MODIFY} make -j"${JOBS}" install || return 1
-	sanitize_sysroot_libs 'libSvtAv1Enc' || return 1
+	sanitize_sysroot_libs libSvtAv1Enc || return 1
 }
 
 build_libaom() {
@@ -543,7 +562,7 @@ build_libaom() {
 	cd build.user || return 1
 	ccache make -j"${JOBS}" || return 1
 	${SUDO_MODIFY} make -j"${JOBS}" install || return 1
-	sanitize_sysroot_libs 'libaom' || return 1
+	sanitize_sysroot_libs libaom || return 1
 }
 
 build_libopus() {
@@ -551,7 +570,70 @@ build_libopus() {
 		"${CMAKE_FLAGS[@]}" || return 1
 	ccache make -j"${JOBS}" || return 1
 	${SUDO_MODIFY} make -j"${JOBS}" install || return 1
-	sanitize_sysroot_libs 'libopus' || return 1
+	sanitize_sysroot_libs libopus || return 1
+}
+
+build_libwebp() {
+	cmake \
+		"${CMAKE_FLAGS[@]}" || return 1
+	ccache make -j"${JOBS}" || return 1
+	${SUDO_MODIFY} make -j"${JOBS}" install || return 1
+	sanitize_sysroot_libs libwebp libsharpyuv || return 1
+}
+
+build_libjpeg() {
+	cmake \
+		"${CMAKE_FLAGS[@]}" || return 1
+	ccache make -j"${JOBS}" || return 1
+	${SUDO_MODIFY} make -j"${JOBS}" install || return 1
+	sanitize_sysroot_libs libjpeg || return 1
+}
+
+build_libpng() {
+	cmake \
+		"${CMAKE_FLAGS[@]}" \
+		-DPNG_TESTS=OFF \
+		-DPNG_TOOLS=OFF || return 1
+	ccache make -j"${JOBS}" || return 1
+	${SUDO_MODIFY} make -j"${JOBS}" install || return 1
+	sanitize_sysroot_libs libpng || return 1
+}
+
+build_zlib() {
+	cmake \
+		"${CMAKE_FLAGS[@]}" \
+		-DZLIB_BUILD_EXAMPLES=OFF || return 1
+	ccache make -j"${JOBS}" || return 1
+	${SUDO_MODIFY} make -j"${JOBS}" install || return 1
+	sanitize_sysroot_libs libz || return 1
+}
+
+build_glslang() {
+	cmake \
+		"${CMAKE_FLAGS[@]}" \
+		-DALLOW_EXTERNAL_SPIRV_TOOLS=ON || return 1
+	ccache make -j"${JOBS}" || return 1
+	${SUDO_MODIFY} make -j"${JOBS}" install || return 1
+	sanitize_sysroot_libs glslang || return 1
+}
+
+build_spirv_tools() {
+	cmake \
+		"${CMAKE_FLAGS[@]}" \
+		-DSPIRV-Headers_SOURCE_DIR="${PREFIX}" \
+		-DSPIRV_WERROR=OFF \
+		-DSPIRV_SKIP_TESTS=ON \
+		-G Ninja || return 1
+	ccache ninja || return 1
+	${SUDO_MODIFY} ninja install || return 1
+}
+
+build_spirv_headers() {
+	cmake \
+		"${CMAKE_FLAGS[@]}" \
+		-G Ninja || return 1
+	ccache ninja || return 1
+	${SUDO_MODIFY} ninja install || return 1
 }
 
 # libx265 does not support cmake >= 4
@@ -592,8 +674,8 @@ build_libx265() {
 		./source || return 1
 	ccache make -j"${JOBS}" || return 1
 	${SUDO_MODIFY} make -j"${JOBS}" install || return 1
-	sanitize_sysroot_libs 'libx265' || return 1
-	del_pkgconfig_gcc_s 'x265.pc' || return 1
+	sanitize_sysroot_libs libx265 || return 1
+	del_pkgconfig_gcc_s x265.pc || return 1
 }
 
 ### MESON ###
@@ -609,7 +691,16 @@ build_libdav1d() {
 		"${MESON_FLAGS[@]}" || return 1
 	ccache ninja -vC build.user || return 1
 	${SUDO_MODIFY} ninja -vC build.user install || return 1
-	sanitize_sysroot_libs 'libdav1d' || return 1
+	sanitize_sysroot_libs libdav1d || return 1
+}
+
+build_libplacebo() {
+	meson \
+		setup . build.user \
+		"${MESON_FLAGS[@]}" || return 1
+	ccache ninja -vC build.user || return 1
+	${SUDO_MODIFY} ninja -vC build.user install || return 1
+	sanitize_sysroot_libs libplacebo || return 1
 }
 
 build_libvmaf() {
@@ -624,7 +715,7 @@ build_libvmaf() {
 		ccache ninja -vC build.user || exit 1
 		${SUDO_MODIFY} ninja -vC build.user install || exit 1
 	) || return 1
-	sanitize_sysroot_libs 'libvmaf' || return 1
+	sanitize_sysroot_libs libvmaf || return 1
 
 	# HACK PATCH
 	# add '-lstdc++' to pkgconfig for static builds
@@ -650,10 +741,19 @@ build_libvmaf() {
 ### AUTOTOOLS ###
 build_libx264() {
 	./configure \
+		"${CONFIGURE_FLAGS[@]}" \
+		--disable-cli || return 1
+	ccache make -j"${JOBS}" || return 1
+	${SUDO_MODIFY} make -j"${JOBS}" install || return 1
+	sanitize_sysroot_libs libx264 || return 1
+}
+
+build_libmp3lame() {
+	./configure \
 		"${CONFIGURE_FLAGS[@]}" || return 1
 	ccache make -j"${JOBS}" || return 1
 	${SUDO_MODIFY} make -j"${JOBS}" install || return 1
-	sanitize_sysroot_libs 'libx264' || return 1
+	sanitize_sysroot_libs libmp3lame || return 1
 }
 
 build_libnuma() {
@@ -665,14 +765,13 @@ build_libnuma() {
 		"${CONFIGURE_FLAGS[@]}" || return 1
 	ccache make -j"${JOBS}" || return 1
 	${SUDO_MODIFY} make -j"${JOBS}" install || return 1
-	sanitize_sysroot_libs 'libnuma' || return 1
+	sanitize_sysroot_libs libnuma || return 1
 }
 
 add_project_versioning_to_ffmpeg() {
-	local optFile
 	local fname='ffmpeg_opt.c'
-	optFile="$(command ls ./**/"${fname}")"
-	if [[ ! $? -eq 0 || ${optFile} == '' || ! -f ${optFile} ]]; then
+	local optFile="fftools/${fname}"
+	if [[ ! -f ${optFile} ]]; then
 		echo_fail "could not find ${fname} to add project versioning"
 	fi
 
@@ -731,29 +830,15 @@ build_ffmpeg() {
 
 	./configure \
 		"${ffmpegFlags[@]}" \
-		--pkg-config='pkg-config' \
-		--pkg-config-flags="${PKG_CONFIG_FLAGS}" \
 		--enable-gpl \
 		--enable-version3 \
-		--enable-nonfree \
 		--disable-htmlpages \
 		--disable-podpages \
 		--disable-txtpages \
 		--disable-autodetect || return 1
 	ccache make -j"${JOBS}" || return 1
 	${SUDO_MODIFY} make -j"${JOBS}" install || return 1
-}
-# check that ffmpeg was built correctly
-sanity_check_ffmpeg() {
-	local ffmpeg="${PREFIX}/bin/ffmpeg"
-	if has_cmd ldd; then
-		while read -r line; do
-			echo "${line}"
-			if [[ ${STATIC} == 'ON' ]]; then
-				echo static
-			else
-				echo hi
-			fi
-		done
-	fi
+	sanitize_sysroot_libs \
+		libavcodec libavdevice libavfilter libswscale \
+		libavformat libavutil libswresample || return 1
 }

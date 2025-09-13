@@ -14,6 +14,7 @@ def withDockerCreds(body) {
 pipeline {
     agent none
     environment { DEBUG = "1" }
+    options { buildDiscarder logRotator(numToKeepStr: '3') }
     stages {
         stage('build docker image') {
             matrix {
@@ -43,6 +44,7 @@ pipeline {
                         agent { label "darwin" }
                         steps {
                             sh "${OPT_LTO} ./scripts/build.sh"
+                            archiveArtifacts allowEmptyArchive: true, artifacts: 'gitignore/package/*.tar.xz', defaultExcludes: false
                         }
                     }
                 }
@@ -62,6 +64,7 @@ pipeline {
                         steps {
                             withDockerCreds {
                                 sh "${OPT_LTO} ./scripts/build_with_docker.sh ${DISTRO}"
+                                archiveArtifacts allowEmptyArchive: true, artifacts: 'gitignore/package/*.tar.xz', defaultExcludes: false
                             }
                         }
                     }

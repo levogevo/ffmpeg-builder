@@ -27,6 +27,8 @@ librav1e \
 libvmaf \
 libx264 \
 libx265 \
+libwebp \
+libmp3lame \
 "
 
 # user-overridable compile option variable names
