@@ -7,11 +7,9 @@ set_compile_opts() {
 		CONFIGURE_FLAGS MESON_FLAGS \
 		RUSTFLAGS CMAKE_FLAGS \
 		FFMPEG_EXTRA_FLAGS \
-		CARGO_FLAGS CARGO_CINSTALL_FLAGS
+		CARGO_CINSTALL_FLAGS
 	export LDFLAGS C_FLAGS CXX_FLAGS CPP_FLAGS \
-		CONFIGURE_FLAGS MESON_FLAGS \
-		RUSTFLAGS CMAKE_FLAGS \
-		FFMPEG_EXTRA_FLAGS PATH
+		RUSTFLAGS PATH
 
 	# set job count for all builds
 	JOBS="$(nproc)"
@@ -21,10 +19,11 @@ set_compile_opts() {
 	LIBDIR="${PREFIX}/lib"
 	LDFLAGS=("-L${LIBDIR}")
 
-	# set prefix flags
+	# set prefix flags and basic flags
 	CONFIGURE_FLAGS+=(
 		"--prefix=${PREFIX}"
 		"--libdir=${LIBDIR}"
+		"--disable-debug"
 	)
 	MESON_FLAGS+=(
 		"--prefix" "${PREFIX}"
@@ -37,10 +36,8 @@ set_compile_opts() {
 		"-DCMAKE_INSTALL_LIBDIR=lib"
 		"-DCMAKE_BUILD_TYPE=Release"
 	)
-	CARGO_BUILD_TYPE=release
-	CARGO_FLAGS+=("--${CARGO_BUILD_TYPE}")
 	CARGO_CINSTALL_FLAGS=(
-		"--${CARGO_BUILD_TYPE}"
+		"--release"
 		"--prefix" "${PREFIX}"
 		"--libdir" "${LIBDIR}"
 	)
@@ -63,7 +60,7 @@ set_compile_opts() {
 		MESON_FLAGS+=("-Db_lto=true")
 		RUSTFLAGS+=("-C lto=yes" "-C inline-threshold=1000" "-C codegen-units=1")
 	else
-		LTO_FLAG=''
+		LTO_FLAG=' '
 		MESON_FLAGS+=("-Db_lto=false")
 		RUSTFLAGS+=("-C lto=no")
 	fi
@@ -110,6 +107,7 @@ set_compile_opts() {
 		USE_LIB_SUFF="${STATIC_LIB_SUFF}"
 		DEL_LIB_SUFF="${SHARED_LIB_SUFF}"
 	else
+		FFMPEG_EXTRA_FLAGS+=(--extra-ldflags="${LDFLAGS[*]}")
 		LDFLAGS+=("-Wl,-rpath,${LIBDIR}" "-Wl,-rpath-link,${LIBDIR}")
 		CONFIGURE_FLAGS+=(
 			'--enable-shared'
@@ -165,9 +163,22 @@ set_compile_opts() {
 	# shellcheck disable=SC2178
 	RUSTFLAGS="${RUSTFLAGS[*]}"
 
-	# make sure RUSTUP_HOME and CARGO_HOME are defined
-	RUSTUP_HOME="${RUSTUP_HOME:-"${HOME}/.rustup"}"
-	CARGO_HOME="${CARGO_HOME:-"${HOME}/.cargo"}"
+	# make sure RUSTUP_HOME and CARGO_HOME are defined for SUDO builds
+	# set fallback values
+	local rustupHome cargoHome
+	if has_cmd rustup; then
+		rustupHome="$(bash_dirname "$(command -v rustup)")"
+		# move out of bin/ dir
+		rustupHome="$(cd "${rustupHome}/../" && echo "$PWD")"
+	fi
+	if has_cmd cargo; then
+		cargoHome="$(bash_dirname "$(command -v cargo)")"
+		# move out of bin/ dir
+		cargoHome="$(cd "${cargoHome}/../" && echo "$PWD")"
+	fi
+
+	RUSTUP_HOME="${RUSTUP_HOME:-"${rustupHome}"}"
+	CARGO_HOME="${CARGO_HOME:-"${cargoHome}"}"
 	test -d "${RUSTUP_HOME}" || echo_exit "RUSTUP_HOME does not exist"
 	test -d "${CARGO_HOME}" || echo_exit "CARGO_HOME does not exist"
 	export RUSTUP_HOME CARGO_HOME
@@ -474,40 +485,28 @@ del_pkgconfig_gcc_s() {
 
 ### RUST ###
 build_hdr10plus_tool() {
-	cargo build "${CARGO_FLAGS[@]}" || return 1
-	${SUDO_MODIFY} cp \
-		"target/${CARGO_BUILD_TYPE}/hdr10plus_tool" \
-		"${PREFIX}/bin/" || return 1
+	${SUDO_CARGO} bash -c "cargo install --path . --root ${PREFIX}" || return 1
 
 	# build libhdr10plus
 	cd hdr10plus || return 1
-	cargo cbuild "${CARGO_FLAGS[@]}" || return 1
-	${SUDO_CARGO} bash -lc "PATH=\"${PATH}\" cargo cinstall ${CARGO_CINSTALL_FLAGS[*]}" || return 1
+	${SUDO_CARGO} bash -c "cargo cinstall ${CARGO_CINSTALL_FLAGS[*]}" || return 1
 	sanitize_sysroot_libs libhdr10plus-rs || return 1
 }
 
 build_dovi_tool() {
-	cargo build "${CARGO_FLAGS[@]}" || return 1
-	${SUDO_MODIFY} cp \
-		"target/${CARGO_BUILD_TYPE}/dovi_tool" \
-		"${PREFIX}/bin/" || return 1
+	${SUDO_CARGO} bash -c "cargo install --path . --root ${PREFIX}" || return 1
 
 	# build libdovi
 	cd dolby_vision || return 1
-	cargo cbuild "${CARGO_FLAGS[@]}" || return 1
-	${SUDO_CARGO} bash -lc "PATH=\"${PATH}\" cargo cinstall ${CARGO_CINSTALL_FLAGS[*]}" || return 1
+	${SUDO_CARGO} bash -c "cargo cinstall ${CARGO_CINSTALL_FLAGS[*]}" || return 1
 	sanitize_sysroot_libs libdovi || return 1
 }
 
 build_librav1e() {
-	cargo build "${CARGO_FLAGS[@]}" || return 1
-	${SUDO_MODIFY} cp \
-		"target/${CARGO_BUILD_TYPE}/rav1e" \
-		"${PREFIX}/bin/" || return 1
+	${SUDO_CARGO} bash -c "cargo install --path . --root ${PREFIX}" || return 1
 
 	# build librav1e
-	cargo cbuild "${CARGO_FLAGS[@]}" || return 1
-	${SUDO_CARGO} bash -lc "PATH=\"${PATH}\" cargo cinstall ${CARGO_CINSTALL_FLAGS[*]}" || return 1
+	${SUDO_CARGO} bash -c "cargo cinstall ${CARGO_CINSTALL_FLAGS[*]}" || return 1
 	sanitize_sysroot_libs librav1e || return 1
 	del_pkgconfig_gcc_s rav1e.pc || return 1
 }
@@ -537,8 +536,8 @@ build_libsvtav1() {
 }
 
 build_libsvtav1_psy() {
-	local hdr10pluslib="$(find -L "${PREFIX}" -type f -name "libhdr10plus-rs.${USE_LIB_SUFF}")"
-	local dovilib="$(find -L "${PREFIX}" -type f -name "libdovi.${USE_LIB_SUFF}")"
+	local hdr10pluslib="${LIBDIR}/libhdr10plus-rs.${USE_LIB_SUFF}"
+	local dovilib="${LIBDIR}/libdovi.${USE_LIB_SUFF}"
 	cmake \
 		"${CMAKE_FLAGS[@]}" \
 		-DBUILD_TESTING=OFF \
@@ -749,8 +748,16 @@ build_libx264() {
 }
 
 build_libmp3lame() {
+	# https://sourceforge.net/p/lame/mailman/message/36081038/
+	if is_darwin; then
+		remove_line \
+			'include/libmp3lame.sym' \
+			'lame_init_old' || return 1
+	fi
+
 	./configure \
-		"${CONFIGURE_FLAGS[@]}" || return 1
+		"${CONFIGURE_FLAGS[@]}" \
+		--enable-nasm || return 1
 	ccache make -j"${JOBS}" || return 1
 	${SUDO_MODIFY} make -j"${JOBS}" install || return 1
 	sanitize_sysroot_libs libmp3lame || return 1

@@ -34,9 +34,9 @@ check_docker() {
 
 # get full image digest for a given image
 get_docker_image_tag() {
-	local distro="$1"
+	local image="$1"
 	local tag=''
-	case "${distro}" in
+	case "${image}" in
 	ubuntu) tag='ubuntu:24.04' ;;
 	debian) tag='debian:13' ;;
 	fedora) tag='fedora:42' ;;
@@ -73,9 +73,10 @@ echo_platform() {
 validate_selected_image() {
 	local selectedImage="$1"
 	local valid=1
-	for distro in "${VALID_DOCKER_IMAGES[@]}"; do
-		if [[ ${selectedImage} == "${distro}" ]]; then
+	for image in "${VALID_DOCKER_IMAGES[@]}"; do
+		if [[ ${selectedImage} == "${image}" ]]; then
 			valid=0
+			break
 		fi
 	done
 	if [[ valid -eq 1 ]]; then
@@ -102,10 +103,10 @@ docker_build_image() {
 	test -d "${DOCKER_DIR}" || mkdir -p "${DOCKER_DIR}"
 	PLATFORM="${PLATFORM:-$(echo_platform)}"
 
-	echo_info "sourcing package manager for ${distro}"
-	local dockerDistro="$(get_docker_image_tag "${distro}")"
+	echo_info "sourcing package manager for ${image}"
+	local dockerDistro="$(get_docker_image_tag "${image}")"
 	# specific file for evaluated package manager info
-	distroPkgMgr="${DOCKER_DIR}/$(bash_basename "${distro}")-pkg_mgr"
+	distroPkgMgr="${DOCKER_DIR}/$(bash_basename "${image}")-pkg_mgr"
 	# get package manager info
 	docker run \
 		"${DOCKER_RUN_FLAGS[@]}" \
@@ -116,7 +117,7 @@ docker_build_image() {
 	# shellcheck disable=SC1090
 	source "${distroPkgMgr}"
 
-	dockerfile="${DOCKER_DIR}/Dockerfile_$(bash_basename "${distro}")"
+	dockerfile="${DOCKER_DIR}/Dockerfile_$(bash_basename "${image}")"
 	{
 		echo "FROM ${dockerDistro}"
 		echo 'SHELL ["/bin/bash", "-c"]'
@@ -154,7 +155,7 @@ docker_build_image() {
 
 	} >"${dockerfile}"
 
-	image_tag="$(set_distro_image_tag "${distro}")"
+	image_tag="$(set_distro_image_tag "${image}")"
 	docker buildx build \
 		--platform "${PLATFORM}" \
 		-t "${image_tag}" \
@@ -182,7 +183,7 @@ docker_save_image() {
 	local image="$1"
 	validate_selected_image "${image}" || return 1
 	check_docker || return 1
-	image_tag="$(set_distro_image_tag "${distro}")"
+	image_tag="$(set_distro_image_tag "${image}")"
 	echo_info "saving docker image for ${image_tag}"
 	docker save "${image_tag}" |
 		zstd -T0 >"${DOCKER_DIR}/$(docker_image_archive_name "${image_tag}")" ||
@@ -196,7 +197,7 @@ docker_load_image() {
 	local image="$1"
 	validate_selected_image "${image}" || return 1
 	check_docker || return 1
-	image_tag="$(set_distro_image_tag "${distro}")"
+	image_tag="$(set_distro_image_tag "${image}")"
 	echo_info "loading docker image for ${image_tag}"
 	local archive="${DOCKER_DIR}/$(docker_image_archive_name "${image_tag}")"
 	test -f "$archive" || return 1
@@ -222,8 +223,7 @@ docker_run_image() {
 		runCmd+=("${cmd[@]}")
 	fi
 
-	dockerDistro="${distro//-/:}"
-	image_tag="$(set_distro_image_tag "${distro}")"
+	image_tag="$(set_distro_image_tag "${image}")"
 
 	# if a docker registry is defined, pull from it
 	if [[ ${DOCKER_REGISTRY} != '' ]]; then

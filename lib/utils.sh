@@ -203,6 +203,30 @@ is_positive_integer() {
 	return 0
 }
 
+replace_line() {
+	local file="$1"
+	local search="$2"
+	local newLine="$3"
+	local newFile="${TMP_DIR}/$(bash_basename "${file}")"
+
+	test -f "${newFile}" && rm "${newFile}"
+	while read -r line; do
+		if line_contains "${line}" "${search}"; then
+			echo -en "${newLine}" >>"${newFile}"
+			continue
+		fi
+		echo "${line}" >>"${newFile}"
+	done <"${file}"
+
+	cp "${newFile}" "${file}"
+}
+
+remove_line() {
+	local file="$1"
+	local search="$2"
+	replace_line "${file}" "${search}" ''
+}
+
 bash_sort() {
 	local arr=("$@")
 	local n=${#arr[@]}
