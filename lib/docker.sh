@@ -141,12 +141,15 @@ docker_build_image() {
 		echo 'ENV CARGO_HOME="/root/.cargo"'
 		echo 'ENV RUSTUP_HOME="/root/.rustup"'
 		echo 'ENV PATH="/root/.cargo/bin:$PATH"'
+		local rustupVersion='1.28.2'
+		local rustcVersion='1.88.0'
 		local cargoInst=''
-		cargoInst+='curl https://sh.rustup.rs -sSf | bash -s -- -y'
-		cargoInst+=' && rustup update stable'
-		cargoInst+=' && cargo install cargo-c'
-		cargoInst+=' && rm -rf "${CARGO_HOME}"/registry "${CARGO_HOME}"/git'
+		cargoInst+="cd tmp && wget https://github.com/rust-lang/rustup/archive/refs/tags/${rustupVersion}.tar.gz -O rustup.tar.gz"
+		cargoInst+=" && tar -xf rustup.tar.gz && cd rustup-${rustupVersion}"
+		cargoInst+=" && bash rustup-init.sh -y --default-toolchain=${rustcVersion}"
+		cargoInst+=" && rm -rf /tmp/*"
 		echo "RUN ${cargoInst}"
+		echo "RUN cargo install cargo-c"
 		# since any user may run this image,
 		# open up root tools to everyone
 		echo 'ENV PATH="/root/.local/bin:$PATH"'

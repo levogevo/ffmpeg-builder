@@ -167,9 +167,7 @@ set_compile_opts() {
 	# set fallback values
 	local rustupHome cargoHome
 	if has_cmd rustup; then
-		rustupHome="$(bash_dirname "$(command -v rustup)")"
-		# move out of bin/ dir
-		rustupHome="$(cd "${rustupHome}/../" && echo "$PWD")"
+		rustupHome="$(rustup show home)"
 	fi
 	if has_cmd cargo; then
 		cargoHome="$(bash_dirname "$(command -v cargo)")"
@@ -484,29 +482,33 @@ del_pkgconfig_gcc_s() {
 }
 
 ### RUST ###
-build_hdr10plus_tool() {
-	${SUDO_CARGO} bash -c "cargo install --path . --root ${PREFIX}" || return 1
+cargo_build() {
+	${SUDO_CARGO} bash -c "cargo install --force --path . --root ${PREFIX}"
+}
+cargo_cbuild() {
+	${SUDO_CARGO} bash -c "cargo cinstall ${CARGO_CINSTALL_FLAGS[*]}"
+}
 
+build_hdr10plus_tool() {
+	cargo_build || return 1
 	# build libhdr10plus
 	cd hdr10plus || return 1
-	${SUDO_CARGO} bash -c "cargo cinstall ${CARGO_CINSTALL_FLAGS[*]}" || return 1
+	cargo_cbuild || return 1
 	sanitize_sysroot_libs libhdr10plus-rs || return 1
 }
 
 build_dovi_tool() {
-	${SUDO_CARGO} bash -c "cargo install --path . --root ${PREFIX}" || return 1
-
+	cargo_build || return 1
 	# build libdovi
 	cd dolby_vision || return 1
-	${SUDO_CARGO} bash -c "cargo cinstall ${CARGO_CINSTALL_FLAGS[*]}" || return 1
+	cargo_cbuild || return 1
 	sanitize_sysroot_libs libdovi || return 1
 }
 
 build_librav1e() {
-	${SUDO_CARGO} bash -c "cargo install --path . --root ${PREFIX}" || return 1
-
+	cargo_build || return 1
 	# build librav1e
-	${SUDO_CARGO} bash -c "cargo cinstall ${CARGO_CINSTALL_FLAGS[*]}" || return 1
+	cargo_cbuild || return 1
 	sanitize_sysroot_libs librav1e || return 1
 	del_pkgconfig_gcc_s rav1e.pc || return 1
 }
