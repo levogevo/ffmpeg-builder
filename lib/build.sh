@@ -844,9 +844,12 @@ build_ffmpeg() {
 		--disable-htmlpages \
 		--disable-podpages \
 		--disable-txtpages \
-		--disable-autodetect || return 1
+		--disable-ffplay \
+		--disable-autodetect \
+		--enable-runtime-cpudetect || return 1
 	ccache make -j"${JOBS}" || return 1
 	${SUDO_MODIFY} make -j"${JOBS}" install || return 1
+	${SUDO_MODIFY} cp ff*_g "${PREFIX}/bin"
 	sanitize_sysroot_libs \
 		libavcodec libavdevice libavfilter libswscale \
 		libavformat libavutil libswresample || return 1
