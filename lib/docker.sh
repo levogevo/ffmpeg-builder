@@ -9,8 +9,14 @@ VALID_DOCKER_IMAGES=(
 DOCKER_WORKDIR='/workdir'
 
 set_docker_run_flags() {
+	local cargo_git="${IGN_DIR}/cargo/git"
+	local cargo_registry="${IGN_DIR}/cargo/registry"
+	test -d "${cargo_git}" || mkdir -p "${cargo_git}"
+	test -d "${cargo_registry}" || mkdir -p "${cargo_registry}"
 	DOCKER_RUN_FLAGS=(
 		--rm
+		-v "${cargo_git}:/root/.cargo/git"
+		-v "${cargo_registry}:/root/.cargo/registry"
 		-v "${REPO_DIR}:${REPO_DIR}"
 		-w "${REPO_DIR}"
 		-e "DEBUG=${DEBUG}"
@@ -37,10 +43,10 @@ get_docker_image_tag() {
 	local image="$1"
 	local tag=''
 	case "${image}" in
-	ubuntu) tag='ubuntu:24.04' ;;
-	debian) tag='debian:13' ;;
-	fedora) tag='fedora:42' ;;
-	archlinux) tag='ogarcia/archlinux:latest' ;;
+	ubuntu) tag='ubuntu:24.04@sha256:9cbed754112939e914291337b5e554b07ad7c392491dba6daf25eef1332a22e8' ;;
+	debian) tag='debian:13@sha256:833c135acfe9521d7a0035a296076f98c182c542a2b6b5a0fd7063d355d696be' ;;
+	fedora) tag='fedora:42@sha256:6af051ad0a294182c3a957961df6203d91f643880aa41c2ffe3d1302e7505890' ;;
+	archlinux) tag='debian:13@sha256:833c135acfe9521d7a0035a296076f98c182c542a2b6b5a0fd7063d355d696be' ;;
 	esac
 	echo "${tag}"
 }
