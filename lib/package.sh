@@ -13,11 +13,11 @@ check_for_package_cfg() {
 FB_FUNC_NAMES+=('package')
 FB_FUNC_DESCS['package']='package ffmpeg build'
 package() {
+	local pkgDir="${IGN_DIR}/package"
+	test -d "${pkgDir}" && rm -rf "${pkgDir}"
 	check_for_package_cfg || return 0
 
 	echo_info "packaging"
-	local pkgDir="${IGN_DIR}/package"
-	test -d "${pkgDir}" && rm -rf "${pkgDir}"
 	mkdir "${pkgDir}" || return 1
 
 	set_compile_opts || return 1
