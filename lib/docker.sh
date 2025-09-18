@@ -46,7 +46,7 @@ get_docker_image_tag() {
 	ubuntu) tag='ubuntu:24.04@sha256:9cbed754112939e914291337b5e554b07ad7c392491dba6daf25eef1332a22e8' ;;
 	debian) tag='debian:13@sha256:833c135acfe9521d7a0035a296076f98c182c542a2b6b5a0fd7063d355d696be' ;;
 	fedora) tag='fedora:42@sha256:6af051ad0a294182c3a957961df6203d91f643880aa41c2ffe3d1302e7505890' ;;
-	archlinux) tag='debian:13@sha256:833c135acfe9521d7a0035a296076f98c182c542a2b6b5a0fd7063d355d696be' ;;
+	archlinux) tag='ogarcia/archlinux:latest@sha256:b93f426b23cd0ea0e1befd7d58a26eaf3e6eda3c154c0e8dd75145d11c21304c' ;;
 	esac
 	echo "${tag}"
 }
@@ -182,7 +182,8 @@ docker_build_image() {
 			. || return 1
 	fi
 
-	docker system prune -f
+	# FIXME uncomment
+	# docker system prune -f
 }
 
 FB_FUNC_NAMES+=('docker_save_image')

@@ -14,7 +14,7 @@ def withDockerCreds(body) {
 pipeline {
     agent none
     environment { DEBUG = "1" }
-    options { buildDiscarder logRotator(numToKeepStr: '3') }
+    options { buildDiscarder logRotator(numToKeepStr: '4') }
     stages {
         stage('build docker image') {
             matrix {
