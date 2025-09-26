@@ -80,6 +80,9 @@ video_enc_version() {
 		if line_contains "${line}" 'libsvtav1_psy='; then
 			echo "${line}"
 			break
+		elif line_contains "${line}" 'libsvtav1='; then
+			echo "${line}"
+			break
 		fi
 	done <<<"${output}"
 }
@@ -105,13 +108,19 @@ encode_usage() {
 	echo -e "\t[-v] Print relevant version info"
 	echo -e "\t[-s] use same container as input, default is mkv"
 	echo -e "\n\t[output] if unset, defaults to ${HOME}/"
-	echo -e "\n\t[-I] system install at ${ENCODE_INSTALL_PATH}"
+	echo -e "\n\t[-u] update script (git pull at ${REPO_DIR})"
+	echo -e "\t[-I] system install at ${ENCODE_INSTALL_PATH}"
 	echo -e "\t[-U] uninstall from ${ENCODE_INSTALL_PATH}"
 	return 0
 }
 
+encode_update() {
+	cd "${REPO_DIR}" || return 1
+	git pull
+}
+
 set_encode_opts() {
-	local opts='vi:pcsdg:P:C:IU'
+	local opts='vi:pcsdg:P:C:uIU'
 	local numOpts=${#opts}
 	# default values
 	PRESET=3
@@ -132,6 +141,10 @@ set_encode_opts() {
 	local OPTARG OPTIND
 	while getopts "${opts}" flag; do
 		case "${flag}" in
+		u)
+			encode_update
+			exit $?
+			;;
 		I)
 			echo_warn "attempting install"
 			sudo ln -sf "${SCRIPT_DIR}/encode.sh" \

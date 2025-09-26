@@ -194,6 +194,28 @@ is_darwin() {
 	line_contains "$(print_os)" darwin
 }
 
+print_os() {
+	if [[ -n ${FB_OS} ]]; then
+		echo "${FB_OS}"
+		return 0
+	fi
+	FB_OS=''
+	if [[ -f /etc/os-release ]]; then
+		source /etc/os-release
+		FB_OS="${ID}"
+		if [[ ${VERSION_ID} != '' ]]; then
+			FB_OS+="-${VERSION_ID}"
+		fi
+		if [[ ${FB_OS} == 'arch'* ]]; then
+			FB_OS=archlinux
+		fi
+	else
+		FB_OS="$(uname -o)"
+	fi
+
+	echo "${FB_OS,,}"
+}
+
 is_positive_integer() {
 	local input="$1"
 	if [[ ${input} != ?(-)+([[:digit:]]) || ${input} -lt 0 ]]; then

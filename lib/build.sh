@@ -208,14 +208,14 @@ get_build_conf() {
 	local BUILDS_CONF='
 ffmpeg			8.0			tar.gz		https://github.com/FFmpeg/FFmpeg/archive/refs/tags/n${ver}.${ext}
 
-libsvtav1_psy	3.0.2-A		tar.gz		https://github.com/BlueSwordM/svt-av1-psyex/archive/refs/tags/v${ver}.${ext} dovi_tool,hdr10plus_tool,cpuinfo
+libsvtav1_psy	3.0.2-B		tar.gz		https://github.com/BlueSwordM/svt-av1-psyex/archive/refs/tags/v${ver}.${ext} dovi_tool,hdr10plus_tool,cpuinfo
 hdr10plus_tool	1.7.1		tar.gz		https://github.com/quietvoid/hdr10plus_tool/archive/refs/tags/${ver}.${ext}
-dovi_tool		2.3.0		tar.gz		https://github.com/quietvoid/dovi_tool/archive/refs/tags/${ver}.${ext}
+dovi_tool		2.3.1		tar.gz		https://github.com/quietvoid/dovi_tool/archive/refs/tags/${ver}.${ext}
 cpuinfo			latest   	git   		https://github.com/pytorch/cpuinfo/
 
 libsvtav1		3.1.2		tar.gz		https://gitlab.com/AOMediaCodec/SVT-AV1/-/archive/v${ver}/SVT-AV1-v${ver}.${ext}
 librav1e		0.8.1		tar.gz		https://github.com/xiph/rav1e/archive/refs/tags/v${ver}.${ext}
-libaom			3.12.1		tar.gz		https://storage.googleapis.com/aom-releases/libaom-${ver}.${ext}
+libaom			3.13.1		tar.gz		https://storage.googleapis.com/aom-releases/libaom-${ver}.${ext}
 libvmaf			3.0.0		tar.gz		https://github.com/Netflix/vmaf/archive/refs/tags/v${ver}.${ext}
 libopus			1.5.2		tar.gz		https://github.com/xiph/opus/releases/download/v${ver}/opus-${ver}.${ext}
 libdav1d		1.5.1		tar.xz		http://downloads.videolan.org/videolan/dav1d/${ver}/dav1d-${ver}.${ext}
@@ -587,7 +587,7 @@ build_libjpeg() {
 		"${CMAKE_FLAGS[@]}" || return 1
 	ccache make -j"${JOBS}" || return 1
 	${SUDO_MODIFY} make -j"${JOBS}" install || return 1
-	sanitize_sysroot_libs libjpeg || return 1
+	sanitize_sysroot_libs libjpeg libturbojpeg || return 1
 }
 
 build_libpng() {

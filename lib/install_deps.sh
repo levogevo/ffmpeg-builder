@@ -112,21 +112,6 @@ print_pkg_mgr() {
 	echo "export req_pkgs=($(print_req_pkgs))"
 }
 
-print_os() {
-	if [[ -f /etc/os-release ]]; then
-		source /etc/os-release
-		local OS="${ID}"
-		if [[ ${VERSION_ID} != '' ]]; then
-			OS+="-${VERSION_ID}"
-		fi
-		echo "${OS}"
-	else
-		local os
-		os="$(uname -o)"
-		echo "${os,,}"
-	fi
-}
-
 check_for_req_pkgs() {
 	echo_info "checking for required packages"
 	local missing_pkgs=()
