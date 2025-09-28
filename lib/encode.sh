@@ -104,7 +104,7 @@ encode_usage() {
 	echo -e "\t[-g NUM] set film grain for encode"
 	echo -e "\t[-p] print the command instead of executing it (default: ${PRINT_OUT})"
 	echo -e "\t[-c] use cropdetect (default: ${CROP})"
-	echo -e "\t[-d] disable dolby vision (default: ${DISABLE_DV})"
+	echo -e "\t[-d] enable dolby vision (default: ${DV_TOGGLE})"
 	echo -e "\t[-v] Print relevant version info"
 	echo -e "\t[-s] use same container as input, default is mkv"
 	echo -e "\n\t[output] if unset, defaults to ${HOME}/"
@@ -128,7 +128,7 @@ set_encode_opts() {
 	GRAIN=""
 	CROP=false
 	PRINT_OUT=false
-	DISABLE_DV=false
+	DV_TOGGLE=false
 	ENCODE_INSTALL_PATH='/usr/local/bin/encode'
 	local sameContainer="false"
 	# only using -I/U
@@ -183,7 +183,7 @@ set_encode_opts() {
 			optsUsed=$((optsUsed + 1))
 			;;
 		d)
-			DISABLE_DV='enable'
+			DV_TOGGLE=true
 			optsUsed=$((optsUsed + 1))
 			;;
 		s)
@@ -394,7 +394,7 @@ gen_encode_script() {
 
 		# actually do ffmpeg commmand
 		echo
-		if [[ ${DISABLE_DV} == false ]]; then
+		if [[ ${DV_TOGGLE} == true ]]; then
 			echo 'ffmpeg "${ffmpegParams[@]}" -dolbyvision 1 "${OUTPUT}" || \'
 		fi
 		echo 'ffmpeg "${ffmpegParams[@]}" -dolbyvision 0 "${OUTPUT}" || exit 1'
