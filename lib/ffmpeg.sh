@@ -91,18 +91,15 @@ get_file_format() {
 
 get_num_streams() {
 	local file="$1"
-	ffprobe \
-		-v error \
-		-show_entries stream=index \
-		-of default=noprint_wrappers=1:nokey=1 \
-		"${file}"
-}
+	local type="${2:-}"
+	local select=()
 
-get_num_audio_streams() {
-	local file="$1"
+	if [[ ${type} != '' ]]; then
+		select=("-select_streams" "${type}")
+	fi
+
 	ffprobe \
-		-v error \
-		-select_streams a \
+		-v error "${select[@]}" \
 		-show_entries stream=index \
 		-of default=noprint_wrappers=1:nokey=1 \
 		"${file}"
@@ -115,6 +112,17 @@ get_num_audio_channels() {
 		-v error \
 		-select_streams "${stream}" \
 		-show_entries stream=channels \
+		-of default=noprint_wrappers=1:nokey=1 \
+		"${file}"
+}
+
+get_stream_lang() {
+	local file="$1"
+	local stream="$2"
+	ffprobe \
+		-v error \
+		-select_streams "${stream}" \
+		-show_entries stream_tags=language \
 		-of default=noprint_wrappers=1:nokey=1 \
 		"${file}"
 }

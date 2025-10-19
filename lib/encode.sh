@@ -15,21 +15,29 @@ unmap_streams() {
 	echo "${unmap[@]}"
 }
 
-set_audio_bitrate() {
+set_audio_params() {
 	local file="$1"
-	local bitrate=()
-	for stream in $(get_num_audio_streams "${file}"); do
-		local numChannels codec
-		numChannels="$(get_num_audio_channels "${file}" "${stream}")" || return 1
+	local audioParams=()
+	local videoLang
+	videoLang="$(get_stream_lang "${file}" 'v:0')" || return 1
+	for stream in $(get_num_streams "${file}" 'a'); do
+		local numChannels codec lang
+		numChannels="$(get_num_audio_channels "${file}" "a:${stream}")" || return 1
 		local channelBitrate=$((numChannels * 64))
 		codec="$(get_stream_codec "${file}" "${stream}")" || return 1
-		if [[ ${codec} == 'opus' ]]; then
-			bitrate+=(
+		lang="$(get_stream_lang "${file}" "${stream}")" || return 1
+		if [[ ${videoLang} != '' && ${videoLang} != "${lang}" ]]; then
+			audioParams+=(
+				'-map'
+				"-0:${stream}"
+			)
+		elif [[ ${codec} == 'opus' ]]; then
+			audioParams+=(
 				"-c:${stream}"
 				"copy"
 			)
 		else
-			bitrate+=(
+			audioParams+=(
 				"-filter:${stream}"
 				"aformat=channel_layouts=7.1|5.1|stereo|mono"
 				"-c:${stream}"
@@ -39,62 +47,61 @@ set_audio_bitrate() {
 			)
 		fi
 	done
-	echo "${bitrate[@]}"
+	echo "${audioParams[@]}"
 }
 
-convert_subs() {
+set_subtitle_params() {
 	local file="$1"
 	local convertCodec='eia_608'
-	local convert=()
-	for stream in $(get_num_streams "${file}"); do
-		if [[ "$(get_stream_codec "${file}" "${stream}")" == "${convertCodec}" ]]; then
-			convert+=("-c:${stream}" "srt")
+	local keepLang='eng'
+	local subtitleParams=()
+	for stream in $(get_num_streams "${file}" 's'); do
+		local codec lang
+		codec="$(get_stream_codec "${file}" "${stream}")" || return 1
+		lang="$(get_stream_lang "${file}" "${stream}")" || return 1
+		if [[ ${lang} != '' && ${keepLang} != "${lang}" ]]; then
+			subtitleParams+=(
+				'-map'
+				"-0:${stream}"
+			)
+		elif [[ ${codec} == "${convertCodec}" ]]; then
+			subtitleParams+=("-c:${stream}" "srt")
 		fi
 	done
-	echo "${convert[@]}"
+	echo "${subtitleParams[@]}"
 }
 
-encode_version() (
-	cd "${REPO_DIR}" || exit 1
-	echo "encode=$(git rev-parse --short HEAD)"
-)
+get_encode_versions() {
+	action="${1:-}"
 
-ffmpeg_version() {
-	local output="$(ffmpeg 2>&1)"
-	local commit=''
-	local version=''
+	encodeVersion="encode=$(git -C "${REPO_DIR}" rev-parse --short HEAD)"
+	ffmpegVersion=''
+	videoEncVersion=''
+	audioEncVersion=''
+
+	# shellcheck disable=SC2155
+	local output="$(ffmpeg -hide_banner 2>&1)"
 	while read -r line; do
-		if line_contains "${line}" 'ffmpeg version'; then
-			read -r _ _ commit _ <<<"${line}"
-		fi
 		if line_contains "${line}" 'ffmpeg='; then
-			IFS='=' read -r _ version <<<"${line}"
+			ffmpegVersion="${line}"
+		elif line_contains "${line}" 'libsvtav1_psy=' || line_contains "${line}" 'libsvtav1='; then
+			videoEncVersion="${line}"
+		elif line_contains "${line}" 'libopus='; then
+			audioEncVersion="${line}"
 		fi
 	done <<<"${output}"
-	echo "ffmpeg=${version}-${commit}"
-}
 
-video_enc_version() {
-	local output="$(ffmpeg -hide_banner 2>&1)"
-	while read -r line; do
-		if line_contains "${line}" 'libsvtav1_psy='; then
-			echo "${line}"
-			break
-		elif line_contains "${line}" 'libsvtav1='; then
-			echo "${line}"
-			break
-		fi
-	done <<<"${output}"
-}
+	test "${ffmpegVersion}" == '' && return 1
+	test "${videoEncVersion}" == '' && return 1
+	test "${audioEncVersion}" == '' && return 1
 
-audio_enc_version() {
-	local output="$(ffmpeg -hide_banner 2>&1)"
-	while read -r line; do
-		if line_contains "${line}" 'libopus='; then
-			echo "${line}"
-			break
-		fi
-	done <<<"${output}"
+	if [[ ${action} == 'print' ]]; then
+		echo "${encodeVersion}"
+		echo "${ffmpegVersion}"
+		echo "${videoEncVersion}"
+		echo "${audioEncVersion}"
+	fi
+	return 0
 }
 
 encode_usage() {
@@ -115,8 +122,7 @@ encode_usage() {
 }
 
 encode_update() {
-	cd "${REPO_DIR}" || return 1
-	git pull
+	git -C "${REPO_DIR}" pull
 }
 
 set_encode_opts() {
@@ -159,10 +165,7 @@ set_encode_opts() {
 			exit 0
 			;;
 		v)
-			encode_version
-			ffmpeg_version
-			video_enc_version
-			audio_enc_version
+			get_encode_versions print
 			exit 0
 			;;
 		i)
@@ -277,21 +280,16 @@ gen_encode_script() {
 		PRESET
 		CRF
 		crop
-		videoEncoder
+		encodeVersion
 		ffmpegVersion
 		videoEncVersion
 		audioEncVersion
 		svtAv1Params
-		svtAv1ParamsMetadata
 	)
 	local crop=''
 	if [[ $CROP == "true" ]]; then
 		crop="$(get_crop "${INPUT}")" || return 1
 	fi
-	local videoEncoder='libsvtav1'
-	local ffmpegVersion="$(ffmpeg_version)"
-	local videoEncVersion="$(video_enc_version)"
-	local audioEncVersion="$(audio_enc_version)"
 
 	svtAv1ParamsArr=(
 		"tune=0"
@@ -311,16 +309,13 @@ gen_encode_script() {
 	local svtAv1Params="${GRAIN}${svtAv1ParamsArr[*]}"
 	unset IFS
 
-	local svtAv1ParamsMetadata='svtav1_params=${svtAv1Params}'
-
 	# arrays
 	local arrays=(
 		unmap
-		audioBitrate
+		audioParams
 		videoParams
-		videoParamsMetadata
 		metadata
-		convertSubs
+		subtitleParams
 		ffmpegParams
 	)
 	local videoParams=(
@@ -333,44 +328,53 @@ gen_encode_script() {
 	)
 
 	# these values may be empty
-	local unmapStr audioBitrateStr convertSubsStr
+	local unmapStr audioParamsStr subtitleParamsStr
 	unmapStr="$(unmap_streams "${INPUT}")" || return 1
-	audioBitrateStr="$(set_audio_bitrate "${INPUT}")" || return 1
-	convertSubsStr="$(convert_subs "${INPUT}")" || return 1
+	audioParamsStr="$(set_audio_params "${INPUT}")" || return 1
+	subtitleParamsStr="$(set_subtitle_params "${INPUT}")" || return 1
 
 	unmap=(${unmapStr})
 	if [[ ${unmap[*]} != '' ]]; then
 		ffmpegParams+=('${unmap[@]}')
 	fi
 
-	audioBitrate=(${audioBitrateStr})
-	if [[ ${audioBitrate[*]} != '' ]]; then
-		ffmpegParams+=('${audioBitrate[@]}')
+	audioParams=(${audioParamsStr})
+	if [[ ${audioParams[*]} != '' ]]; then
+		ffmpegParams+=('${audioParams[@]}')
 	fi
 
-	convertSubs=(${convertSubsStr})
-	if [[ ${convertSubs[*]} != '' ]]; then
-		ffmpegParams+=('${convertSubs[@]}')
+	subtitleParams=(${subtitleParamsStr})
+	if [[ ${subtitleParams[*]} != '' ]]; then
+		ffmpegParams+=('${subtitleParams[@]}')
 	fi
 
 	if [[ ${crop} != '' ]]; then
 		ffmpegParams+=('-vf' '${crop}')
 	fi
 
-	ffmpegParams+=(
-		'-pix_fmt' 'yuv420p10le' '-c:V' '${videoEncoder}' '${videoParams[@]}'
-		'-svtav1-params' '${svtAv1Params}'
-		'${metadata[@]}'
-	)
+	local inputVideoCodec="$(get_stream_codec "${INPUT}" 'v:0')"
+	if [[ ${inputVideoCodec} == 'av1' ]]; then
+		ffmpegParams+=(
+			'-c:v' 'copy'
+		)
+	else
+		ffmpegParams+=(
+			'-pix_fmt' 'yuv420p10le'
+			'-c:v' 'libsvtav1' '${videoParams[@]}'
+			'-svtav1-params' '${svtAv1Params}'
+		)
+	fi
 
-	local videoParamsMetadata='video_params=${videoParams[*]}'
+	get_encode_versions || return 1
 	local metadata=(
+		'-metadata' '${encodeVersion}'
 		'-metadata' '${ffmpegVersion}'
 		'-metadata' '${videoEncVersion}'
 		'-metadata' '${audioEncVersion}'
-		'-metadata' '${svtAv1ParamsMetadata}'
-		'-metadata' '${videoParamsMetadata[@]}'
+		'-metadata' 'svtav1_params=${svtAv1Params}'
+		'-metadata' 'video_params=${videoParams[*]}'
 	)
+	ffmpegParams+=('${metadata[@]}')
 
 	{
 		echo '#!/usr/bin/env bash'
