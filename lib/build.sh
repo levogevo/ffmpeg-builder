@@ -375,7 +375,7 @@ do_build() {
 		do_build "${dep}" || return 1
 	done
 	get_build_conf "${build}" || return 1
-	echo_info "building ${build}"
+	echo_info -n "building ${build} "
 	pushd "$extracted_dir" >/dev/null || return 1
 	# check for any patches
 	for patch in "${PATCHES_DIR}/${build}"/*.patch; do
@@ -383,9 +383,15 @@ do_build() {
 		echo_if_fail patch -p1 -i "${patch}" || return 1
 	done
 	export LOGNAME="${build}"
-	local timeBefore=$EPOCHSECONDS
-	echo_if_fail build_"${build}"
+	local timeBefore=${EPOCHSECONDS}
+	echo_if_fail build_"${build}" &
+	local buildPid=$!
+	spinner &
+	local spinPid=$!
+	wait ${buildPid}
 	retval=$?
+	kill ${spinPid}
+	spinner reset
 	popd >/dev/null || return 1
 	test ${retval} -eq 0 || return ${retval}
 	echo_pass "built ${build} in $((EPOCHSECONDS - timeBefore)) seconds"

@@ -10,10 +10,18 @@ YELLOW='\e[0;33m'
 NC='\e[0m'
 
 # echo wrappers
-echo_fail() { echo -e "${RED}FAIL${NC}:" "$@"; }
-echo_info() { echo -e "${CYAN}INFO${NC}:" "$@"; }
-echo_pass() { echo -e "${GREEN}PASS${NC}:" "$@"; }
-echo_warn() { echo -e "${YELLOW}WARN${NC}:" "$@"; }
+echo_wrapper() {
+	local args
+	if [[ $1 == '-n' ]]; then
+		args=("$1")
+		shift
+	fi
+	echo -e "${args[@]}" "${color}${word}${NC}" "$@"
+}
+echo_fail() { color="${RED}" word="FAIL" echo_wrapper "$@"; }
+echo_info() { color="${CYAN}" word="INFO" echo_wrapper "$@"; }
+echo_pass() { color="${GREEN}" word="PASS" echo_wrapper "$@"; }
+echo_warn() { color="${YELLOW}" word="WARN" echo_wrapper "$@"; }
 echo_exit() {
 	echo_fail "$@"
 	exit 1
@@ -268,4 +276,24 @@ bash_sort() {
 	done
 
 	printf '%s\n' "${arr[@]}"
+}
+
+spinner() {
+	if [[ $1 == 'reset' ]]; then
+		echo -ne ' \n'
+		return 0
+	fi
+
+	local spinChars=(
+		"-"
+		'\'
+		"|"
+		"/"
+	)
+	while true; do
+		for ((ind = 0; ind < "${#spinChars[@]}"; ind++)); do
+			echo -ne "${spinChars[${ind}]}" '\b\b'
+			sleep .25
+		done
+	done
 }

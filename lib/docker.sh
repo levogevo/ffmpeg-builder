@@ -142,16 +142,23 @@ docker_build_image() {
 			echo "RUN ${pkg_mgr_upgrade}"
 			printf "RUN ${pkg_install} %s\n" "${req_pkgs[@]}"
 		fi
+		# pipx
 		echo 'RUN pipx install virtualenv'
 		echo 'RUN pipx ensurepath'
+		# rust
 		echo 'ENV CARGO_HOME="/root/.cargo"'
 		echo 'ENV RUSTUP_HOME="/root/.rustup"'
 		echo 'ENV PATH="/root/.cargo/bin:$PATH"'
 		local rustupVersion='1.28.2'
 		local rustcVersion='1.88.0'
+		local rustupTarball="${DOCKER_DIR}/rustup.tar.gz"
+		if [[ ! -f ${rustupTarball} ]]; then
+			wget https://github.com/rust-lang/rustup/archive/refs/tags/${rustupVersion}.tar.gz -O "${rustupTarball}"
+		fi
+
+		echo "ADD ./rustup.tar.gz /tmp/"
 		local cargoInst=''
-		cargoInst+="cd tmp && wget https://github.com/rust-lang/rustup/archive/refs/tags/${rustupVersion}.tar.gz -O rustup.tar.gz"
-		cargoInst+=" && tar -xf rustup.tar.gz && cd rustup-${rustupVersion}"
+		cargoInst+="cd /tmp/rustup-${rustupVersion}"
 		cargoInst+=" && bash rustup-init.sh -y --default-toolchain=${rustcVersion}"
 		cargoInst+=" && rm -rf /tmp/*"
 		echo "RUN ${cargoInst}"
@@ -169,7 +176,7 @@ docker_build_image() {
 		--platform "${PLATFORM}" \
 		-t "${image_tag}" \
 		-f "${dockerfile}" \
-		. || return 1
+		"${DOCKER_DIR}" || return 1
 
 	# if a docker registry is defined, push to it
 	if [[ ${DOCKER_REGISTRY} != '' ]]; then
