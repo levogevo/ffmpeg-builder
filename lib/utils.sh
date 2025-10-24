@@ -30,12 +30,12 @@ void() { echo "$@" >/dev/null; }
 
 echo_if_fail() {
 	local cmd=("$@")
-	local logName="${LOGNAME:-${RANDOM}}"
-	local out="${TMP_DIR}/.stdout-${logName}"
-	local err="${TMP_DIR}/.stderr-${logName}"
+	local logName="${LOGNAME:-${RANDOM}}-"
+	local out="${TMP_DIR}/.${logName}stdout"
+	local err="${TMP_DIR}/.${logName}stderr"
 
 	# set trace to the cmdEvalTrace and open file descriptor
-	local cmdEvalTrace="${TMP_DIR}/.cmdEvalTrace-${logName}"
+	local cmdEvalTrace="${TMP_DIR}/.${logName}cmdEvalTrace"
 	test -d "${TMP_DIR}" || mkdir -p "${TMP_DIR}"
 	exec 5>"${cmdEvalTrace}"
 	export BASH_XTRACEFD=5

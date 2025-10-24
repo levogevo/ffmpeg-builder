@@ -273,8 +273,6 @@ cmake			3.31.8		tar.gz		https://github.com/Kitware/CMake/archive/refs/tags/v${ve
 	else
 		extracted_dir="${BUILD_DIR}/${build}-v${ver}"
 	fi
-	# download the release
-	download_release || return 1
 
 	return 0
 }
@@ -366,15 +364,16 @@ FB_FUNC_COMPLETION['do_build']="$(get_build_conf supported)"
 do_build() {
 	local build="${1:-''}"
 	get_build_conf "${build}" || return 1
-
-	# add build configuration to FFMPEG_BUILDER_INFO
-	FFMPEG_BUILDER_INFO+=("${build}=${ver}")
+	download_release || return 1
 
 	set_compile_opts || return 1
 	for dep in "${deps[@]}"; do
 		do_build "${dep}" || return 1
 	done
 	get_build_conf "${build}" || return 1
+	download_release || return 1
+
+	# start build
 	echo_info -n "building ${build} "
 	pushd "$extracted_dir" >/dev/null || return 1
 	# check for any patches
@@ -419,9 +418,6 @@ build() {
 	test -f "${testfile}" && ${SUDO_MODIFY} rm "${testfile}"
 	test -d "${PREFIX}/bin/" || { ${SUDO_MODIFY} mkdir -p "${PREFIX}/bin/" || return 1; }
 
-	# embed this project's enables/versions
-	# into ffmpeg with this variable
-	FFMPEG_BUILDER_INFO=("ffmpeg-builder=$(cd "${REPO_DIR}" && git rev-parse HEAD)")
 	for build in ${ENABLE}; do
 		do_build "${build}" || return 1
 	done
@@ -747,8 +743,15 @@ build_libvmaf() {
 
 ### AUTOTOOLS ###
 build_libx264() {
+	# libx264 does not support LTO
+	local configureFlags=()
+	for flag in "${CONFIGURE_FLAGS[@]}"; do
+		test "${flag}" == '--enable-lto' && continue
+		configureFlags+=("${flag}")
+	done
+
 	./configure \
-		"${CONFIGURE_FLAGS[@]}" \
+		"${configureFlags[@]}" \
 		--disable-cli || return 1
 	ccache make -j"${JOBS}" || return 1
 	${SUDO_MODIFY} make -j"${JOBS}" install || return 1
@@ -784,6 +787,18 @@ build_libnuma() {
 }
 
 add_project_versioning_to_ffmpeg() {
+	# embed this project's enables/versions
+	# into ffmpeg with FFMPEG_BUILDER_INFO
+	local FFMPEG_BUILDER_INFO=("ffmpeg-builder=$(git -C "${REPO_DIR}" rev-parse HEAD)")
+	for build in ${ENABLE}; do
+		get_build_conf "${build}" || return 1
+		# add build configuration info
+		FFMPEG_BUILDER_INFO+=("${build}=${ver}")
+	done
+	# and finally for ffmpeg itself
+	get_build_conf ffmpeg || return 1
+	FFMPEG_BUILDER_INFO+=("${build}=${ver}")
+
 	local fname='ffmpeg_opt.c'
 	local optFile="fftools/${fname}"
 	if [[ ! -f ${optFile} ]]; then
