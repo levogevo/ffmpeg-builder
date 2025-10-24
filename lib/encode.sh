@@ -80,7 +80,7 @@ get_encode_versions() {
 	audioEncVersion=''
 
 	# shellcheck disable=SC2155
-	local output="$(ffmpeg -hide_banner 2>&1)"
+	local output="$(ffmpeg -version 2>&1)"
 	while read -r line; do
 		if line_contains "${line}" 'ffmpeg='; then
 			ffmpegVersion="${line}"
@@ -90,6 +90,29 @@ get_encode_versions() {
 			audioEncVersion="${line}"
 		fi
 	done <<<"${output}"
+
+	local version
+	if [[ ${ffmpegVersion} == '' ]]; then
+		while read -r line; do
+			if line_starts_with "${line}" 'ffmpeg version '; then
+				read -r _ _ version _ <<<"${line}"
+				ffmpegVersion="ffmpeg=${version}"
+				break
+			fi
+		done <<<"${output}"
+	fi
+
+	if [[ ${videoEncVersion} == '' ]]; then
+		version="$(get_pkgconfig_version SvtAv1Enc)"
+		test "${version}" == '' && return 1
+		videoEncVersion="libsvtav1=${version}"
+	fi
+
+	if [[ ${audioEncVersion} == '' ]]; then
+		version="$(get_pkgconfig_version opus)"
+		test "${version}" == '' && return 1
+		audioEncVersion="libopus=${version}"
+	fi
 
 	test "${ffmpegVersion}" == '' && return 1
 	test "${videoEncVersion}" == '' && return 1
@@ -166,7 +189,7 @@ set_encode_opts() {
 			;;
 		v)
 			get_encode_versions print
-			exit 0
+			exit $?
 			;;
 		i)
 			if [[ $# -lt 2 ]]; then

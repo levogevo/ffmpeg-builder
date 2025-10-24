@@ -297,3 +297,8 @@ spinner() {
 		done
 	done
 }
+
+get_pkgconfig_version() {
+	local pkg="$1"
+	pkg-config --modversion "${pkg}"
+}

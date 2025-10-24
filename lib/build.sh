@@ -789,7 +789,10 @@ build_libnuma() {
 add_project_versioning_to_ffmpeg() {
 	# embed this project's enables/versions
 	# into ffmpeg with FFMPEG_BUILDER_INFO
-	local FFMPEG_BUILDER_INFO=("ffmpeg-builder=$(git -C "${REPO_DIR}" rev-parse HEAD)")
+	local FFMPEG_BUILDER_INFO=(
+		'' # pad with empty line
+		"ffmpeg-builder=$(git -C "${REPO_DIR}" rev-parse HEAD)"
+	)
 	for build in ${ENABLE}; do
 		get_build_conf "${build}" || return 1
 		# add build configuration info
@@ -799,13 +802,13 @@ add_project_versioning_to_ffmpeg() {
 	get_build_conf ffmpeg || return 1
 	FFMPEG_BUILDER_INFO+=("${build}=${ver}")
 
-	local fname='ffmpeg_opt.c'
+	local fname='opt_common.c'
 	local optFile="fftools/${fname}"
 	if [[ ! -f ${optFile} ]]; then
 		echo_fail "could not find ${fname} to add project versioning"
 	fi
 
-	local searchFor='Universal media converter\n'
+	local searchFor='static void print_all_libs_info'
 	local foundUsageStart=0
 	local newOptFile="${TMP_DIR}/${fname}"
 	test -f "${newOptFile}" && rm "${newOptFile}"
