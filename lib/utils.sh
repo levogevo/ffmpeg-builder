@@ -103,18 +103,26 @@ dump_arr() {
 }
 
 has_cmd() {
-	local cmd="$1"
-	command -v "${cmd}" >/dev/null 2>&1
+	local cmds=("$@")
+	local rv=0
+	for cmd in "${cmds[@]}"; do
+		command -v "${cmd}" >/dev/null 2>&1 || rv=1
+	done
+
+	return ${rv}
 }
 
 missing_cmd() {
-	local cmd="$1"
-	rv=1
-	if ! has_cmd "${cmd}"; then
-		echo_warn "missing ${cmd}"
-		rv=0
-	fi
-	return $rv
+	local cmds=("$@")
+	local rv=1
+	for cmd in "${cmds[@]}"; do
+		if ! has_cmd "${cmd}"; then
+			echo_warn "missing ${cmd}"
+			rv=0
+		fi
+	done
+
+	return ${rv}
 }
 
 bash_dirname() {

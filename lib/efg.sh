@@ -52,6 +52,7 @@ set_efg_opts() {
 			INPUT="${OPTARG}"
 			;;
 		p)
+			missing_cmd gnuplot && return 1
 			PLOT=true
 			;;
 		l)

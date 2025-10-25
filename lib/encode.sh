@@ -235,7 +235,7 @@ set_encode_opts() {
 		C)
 			if ! is_positive_integer "${OPTARG}" || test ${OPTARG} -gt 63; then
 				echo_fail "${OPTARG} is not a valid CRF value (0-63)"
-				usage
+				encode_usage
 				exit 1
 			fi
 			CRF="${OPTARG}"
@@ -278,7 +278,7 @@ set_encode_opts() {
 
 	if [[ ! -f ${INPUT} ]]; then
 		echo "${INPUT} does not exist"
-		efg_usage
+		encode_usage
 		return 1
 	fi
 
