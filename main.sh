@@ -55,17 +55,9 @@ $cmd "$@"' >"${ENTRY_SCRIPT}"
 FB_FUNC_NAMES+=('print_cmds')
 FB_FUNC_DESCS['print_cmds']='print usable commands'
 print_cmds() {
-	local color="${1:-true}"
-	local uncolor=''
-	if [[ ${color} == true ]]; then
-		color="${CYAN}"
-		uncolor="${NC}"
-	else
-		color=''
-	fi
 	echo -e "~~~ Usable Commands ~~~\n"
 	for funcname in "${FB_FUNC_NAMES[@]}"; do
-		echo -e "${color}${funcname}${uncolor}:\n\t" "${FB_FUNC_DESCS[${funcname}]}"
+		color="${CYAN}" word="${funcname}:" echo_wrapper "\n\t${FB_FUNC_DESCS[${funcname}]}"
 		if [[ $FB_RUNNING_AS_SCRIPT -eq 0 ]]; then
 			(cd "$SCRIPT_DIR" && ln -sf entry.sh "${funcname}.sh")
 		fi

@@ -16,7 +16,16 @@ echo_wrapper() {
 		args=("$1")
 		shift
 	fi
-	echo -e "${args[@]}" "${color}${word}${NC}" "$@"
+	# COLOR is override for using ${color}
+	# shellcheck disable=SC2153
+	if [[ ${COLOR} == 'OFF' ]]; then
+		color=''
+		endColor=''
+	else
+		endColor="${NC}"
+	fi
+
+	echo -e "${args[@]}" "${color}${word:-''}${endColor}" "$@"
 }
 echo_fail() { color="${RED}" word="FAIL" echo_wrapper "$@"; }
 echo_info() { color="${CYAN}" word="INFO" echo_wrapper "$@"; }
@@ -31,11 +40,11 @@ void() { echo "$@" >/dev/null; }
 echo_if_fail() {
 	local cmd=("$@")
 	local logName="${LOGNAME:-${RANDOM}}-"
-	local out="${TMP_DIR}/.${logName}stdout"
-	local err="${TMP_DIR}/.${logName}stderr"
+	local out="${TMP_DIR}/${logName}stdout"
+	local err="${TMP_DIR}/${logName}stderr"
 
 	# set trace to the cmdEvalTrace and open file descriptor
-	local cmdEvalTrace="${TMP_DIR}/.${logName}cmdEvalTrace"
+	local cmdEvalTrace="${TMP_DIR}/${logName}cmdEvalTrace"
 	test -d "${TMP_DIR}" || mkdir -p "${TMP_DIR}"
 	exec 5>"${cmdEvalTrace}"
 	export BASH_XTRACEFD=5

@@ -3,13 +3,23 @@
 set_compile_opts() {
 	test "$FB_COMPILE_OPTS_SET" == 1 && return 0
 
-	unset LDFLAGS C_FLAGS CXX_FLAGS CPP_FLAGS \
-		CONFIGURE_FLAGS MESON_FLAGS \
-		RUSTFLAGS CMAKE_FLAGS \
-		FFMPEG_EXTRA_FLAGS \
+	EXPORTED_ENV_NAMES=(
+		LDFLAGS
+		C_FLAGS
+		CXX_FLAGS
+		CPP_FLAGS
+		RUSTFLAGS
+	)
+	BUILD_ENV_NAMES=(
+		"${EXPORTED_ENV_NAMES[@]}"
+		CONFIGURE_FLAGS
+		MESON_FLAGS
+		CMAKE_FLAGS
+		FFMPEG_EXTRA_FLAGS
 		CARGO_CINSTALL_FLAGS
-	export LDFLAGS C_FLAGS CXX_FLAGS CPP_FLAGS \
-		RUSTFLAGS PATH
+	)
+	unset "${BUILD_ENV_NAMES[@]}"
+	export "${EXPORTED_ENV_NAMES[@]}"
 
 	# set job count for all builds
 	JOBS="$(nproc)"
@@ -373,27 +383,64 @@ do_build() {
 	get_build_conf "${build}" || return 1
 	download_release || return 1
 
-	# start build
-	echo_info -n "building ${build} "
+	# save the metadata for a build to skip re-building identical builds
+	local oldMetadataFile="${TMP_DIR}/${build}-old-metadata"
+	local newMetadataFile="${TMP_DIR}/${build}-new-metadata"
+
+	# add build function, version, url, and top-level env to metadata
+	type "build_${build}" >"${oldMetadataFile}"
+	echo "ver: ${ver}" >>"${oldMetadataFile}"
+	echo "url: ${url}" >>"${oldMetadataFile}"
+	for envName in "${BUILD_ENV_NAMES[@]}"; do
+		COLOR=OFF dump_arr "${envName}" >>"${oldMetadataFile}"
+	done
+
+	# only ffmpeg cares about ENABLE and has special function
+	if [[ ${build} == 'ffmpeg' ]]; then
+		# shellcheck disable=SC2153
+		echo "ENABLE=${ENABLE}" >>"${oldMetadataFile}"
+		type add_project_versioning_to_ffmpeg >>"${oldMetadataFile}"
+	fi
+
+	# prepare build
 	pushd "$extracted_dir" >/dev/null || return 1
 	# check for any patches
 	for patch in "${PATCHES_DIR}/${build}"/*.patch; do
 		test -f "${patch}" || continue
 		echo_if_fail patch -p1 -i "${patch}" || return 1
+		echo "patch:${patch}" >>"${oldMetadataFile}"
 	done
-	export LOGNAME="${build}"
-	local timeBefore=${EPOCHSECONDS}
-	echo_if_fail build_"${build}" &
-	local buildPid=$!
-	spinner &
-	local spinPid=$!
-	wait ${buildPid}
-	retval=$?
-	kill ${spinPid}
-	spinner reset
-	popd >/dev/null || return 1
-	test ${retval} -eq 0 || return ${retval}
-	echo_pass "built ${build} in $((EPOCHSECONDS - timeBefore)) seconds"
+
+	# rebuild if metadata is different
+	local oldMetadata="$(<"${oldMetadataFile}")"
+	local newMetadata=''
+	test -f "${newMetadataFile}" && newMetadata="$(<"${newMetadataFile}")"
+	if [[ ${oldMetadata} != "${newMetadata}" ]]; then
+		echo_info -n "building ${build} "
+		# build in background
+		local timeBefore=${EPOCHSECONDS}
+		LOGNAME="${build}" echo_if_fail "build_${build}" &
+		local buildPid=$!
+		# start spinner
+		spinner &
+		local spinPid=$!
+		# get build return code
+		wait ${buildPid}
+		local retval=$?
+		# stop spinner
+		kill ${spinPid}
+		spinner reset
+
+		popd >/dev/null || return 1
+		test ${retval} -eq 0 || return ${retval}
+		echo_pass "built ${build} in $((EPOCHSECONDS - timeBefore)) seconds"
+	else
+		popd >/dev/null || return 1
+		echo_info "re-using identical previous build for ${build}"
+	fi
+
+	# update build metadata
+	cp "${oldMetadataFile}" "${newMetadataFile}"
 }
 
 FB_FUNC_NAMES+=('build')
@@ -421,16 +468,17 @@ build() {
 	for build in ${ENABLE}; do
 		do_build "${build}" || return 1
 	done
-	do_build "ffmpeg" || return 1
+	do_build ffmpeg || return 1
+	local ffmpegBin="${PREFIX}/bin/ffmpeg"
 	# run ffmpeg to show completion
-	"${PREFIX}/bin/ffmpeg"
+	"${ffmpegBin}" -version
 
 	# suggestion for path
 	hash -r
 	local ffmpeg="$(command -v ffmpeg 2>/dev/null)"
-	if [[ ${ffmpeg} != "${PREFIX}/bin/ffmpeg" ]]; then
+	if [[ ${ffmpeg} != "${ffmpegBin}" ]]; then
 		echo
-		echo_warn "ffmpeg in path (${ffmpeg}) is not the built one (${PREFIX}/bin/ffmpeg)"
+		echo_warn "ffmpeg in path (${ffmpeg}) is not the built one (${ffmpegBin})"
 		echo_info "consider adding ${PREFIX}/bin to \$PATH"
 		echo "echo 'export PATH=\"${PREFIX}/bin:\$PATH\"' >> ~/.bashrc"
 	fi
@@ -840,12 +888,13 @@ add_project_versioning_to_ffmpeg() {
 	return 0
 }
 build_ffmpeg() {
+	add_project_versioning_to_ffmpeg || return 1
+
+	# libsvtav1_psy real name is libsvtav1
 	for enable in ${ENABLE}; do
 		test "${enable}" == 'libsvtav1_psy' && enable='libsvtav1'
 		CONFIGURE_FLAGS+=("--enable-${enable}")
 	done
-	add_project_versioning_to_ffmpeg || return 1
-
 	# lto is broken on darwin for ffmpeg only
 	# https://trac.ffmpeg.org/ticket/11479
 	local ffmpegFlags=()
@@ -870,6 +919,7 @@ build_ffmpeg() {
 		--disable-txtpages \
 		--disable-ffplay \
 		--disable-autodetect \
+		--extra-version="${ver}" \
 		--enable-runtime-cpudetect || return 1
 	ccache make -j"${JOBS}" || return 1
 	${SUDO_MODIFY} make -j"${JOBS}" install || return 1

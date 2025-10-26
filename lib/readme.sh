@@ -14,7 +14,7 @@ $(printf '  - %s\n' "${VALID_DOCKER_IMAGES[@]}")
 - darwin aarch64
 
 \`\`\`bash
-$(print_cmds false)
+$(COLOR=OFF print_cmds)
 \`\`\`
 
 " >"${readme}"
