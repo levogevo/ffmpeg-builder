@@ -25,6 +25,26 @@ set_compile_opts() {
 	JOBS="$(nproc)"
 	# local vs system prefix
 	test "${PREFIX}" == 'local' && PREFIX="${IGN_DIR}/$(print_os)_sysroot"
+
+	# check if we need to handle PREFIX with sudo
+	local testfile=''
+	if [[ -d ${PREFIX} ]]; then
+		testfile="${PREFIX}/ffmpeg-build-testfile"
+	else
+		# try creating in parent path
+		testfile="$(bash_basename "${PREFIX}")/ffmpeg-build-testfile"
+	fi
+	unset SUDO_MODIFY
+	if touch "${testfile}" 2>/dev/null; then
+		SUDO_MODIFY=''
+	else
+		SUDO_MODIFY="${SUDO}"
+		echo_warn "using ${SUDO}to install"
+		${SUDO_MODIFY} mkdir -p "${PREFIX}/bin/" || return 1
+	fi
+	test -f "${testfile}" && ${SUDO_MODIFY} rm "${testfile}"
+	test -d "${PREFIX}" || { ${SUDO_MODIFY} mkdir -p "${PREFIX}" || return 1; }
+
 	# set library/pkgconfig directory
 	LIBDIR="${PREFIX}/lib"
 	LDFLAGS=("-L${LIBDIR}")
@@ -172,31 +192,6 @@ set_compile_opts() {
 
 	# shellcheck disable=SC2178
 	RUSTFLAGS="${RUSTFLAGS[*]}"
-
-	# make sure RUSTUP_HOME and CARGO_HOME are defined for SUDO builds
-	# set fallback values
-	local rustupHome cargoHome
-	if has_cmd rustup; then
-		rustupHome="$(rustup show home)"
-	fi
-	if has_cmd cargo; then
-		cargoHome="$(bash_dirname "$(command -v cargo)")"
-		# move out of bin/ dir
-		cargoHome="$(cd "${cargoHome}/../" && echo "$PWD")"
-	fi
-
-	RUSTUP_HOME="${RUSTUP_HOME:-"${rustupHome}"}"
-	CARGO_HOME="${CARGO_HOME:-"${cargoHome}"}"
-	test -d "${RUSTUP_HOME}" || echo_exit "RUSTUP_HOME does not exist"
-	test -d "${CARGO_HOME}" || echo_exit "CARGO_HOME does not exist"
-	export RUSTUP_HOME CARGO_HOME
-
-	unset SUDO_CARGO
-	if [[ ${SUDO_MODIFY} == '' ]]; then
-		SUDO_CARGO=''
-	else
-		SUDO_CARGO="${SUDO} --preserve-env=PATH,RUSTUP_HOME,CARGO_HOME"
-	fi
 
 	FB_COMPILE_OPTS_SET=1
 	echo
@@ -452,18 +447,6 @@ build() {
 	test -d "${BUILD_DIR}" || { mkdir -p "${BUILD_DIR}" || return 1; }
 
 	set_compile_opts || return 1
-	# check if we need to install with sudo
-	test -d "${PREFIX}" || mkdir -p "${PREFIX}"
-	unset SUDO_MODIFY
-	testfile="${PREFIX}/ffmpeg-build-testfile"
-	if touch "${testfile}" 2>/dev/null; then
-		SUDO_MODIFY=''
-	else
-		SUDO_MODIFY="${SUDO}"
-		${SUDO_MODIFY} mkdir -p "${PREFIX}/bin/" || return 1
-	fi
-	test -f "${testfile}" && ${SUDO_MODIFY} rm "${testfile}"
-	test -d "${PREFIX}/bin/" || { ${SUDO_MODIFY} mkdir -p "${PREFIX}/bin/" || return 1; }
 
 	for build in ${ENABLE}; do
 		do_build "${build}" || return 1
@@ -532,15 +515,14 @@ del_pkgconfig_gcc_s() {
 }
 
 ### RUST ###
-cargo_build() {
-	${SUDO_CARGO} bash -c "cargo install --force --path . --root ${PREFIX}"
-}
 cargo_cbuild() {
-	${SUDO_CARGO} bash -c "cargo cinstall ${CARGO_CINSTALL_FLAGS[*]}"
+	cargo cinstall \
+		--destdir ./local-install \
+		"${CARGO_CINSTALL_FLAGS[@]}"
+	${SUDO_MODIFY} cp -r ./local-install "${PREFIX}/"
 }
 
 build_hdr10plus_tool() {
-	cargo_build || return 1
 	# build libhdr10plus
 	cd hdr10plus || return 1
 	cargo_cbuild || return 1
@@ -548,7 +530,6 @@ build_hdr10plus_tool() {
 }
 
 build_dovi_tool() {
-	cargo_build || return 1
 	# build libdovi
 	cd dolby_vision || return 1
 	cargo_cbuild || return 1
@@ -556,8 +537,6 @@ build_dovi_tool() {
 }
 
 build_librav1e() {
-	cargo_build || return 1
-	# build librav1e
 	cargo_cbuild || return 1
 	sanitize_sysroot_libs librav1e || return 1
 	del_pkgconfig_gcc_s rav1e.pc || return 1
