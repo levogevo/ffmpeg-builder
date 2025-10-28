@@ -32,7 +32,7 @@ set_compile_opts() {
 		testfile="${PREFIX}/ffmpeg-build-testfile"
 	else
 		# try creating in parent path
-		testfile="$(bash_basename "${PREFIX}")/ffmpeg-build-testfile"
+		testfile="$(bash_dirname "${PREFIX}")/ffmpeg-build-testfile"
 	fi
 	unset SUDO_MODIFY
 	if touch "${testfile}" 2>/dev/null; then
@@ -286,6 +286,11 @@ download_release() {
 	local base_path="$(bash_basename "${extracted_dir}")"
 	local base_dl_path="${DL_DIR}/${base_path}"
 
+	# make paths if needed
+	test -d "${DL_DIR}" || { mkdir -p "${DL_DIR}" || return 1; }
+	test -d "${BUILD_DIR}" || { mkdir -p "${BUILD_DIR}" || return 1; }
+	test -d "${CCACHE_DIR}" || { mkdir -p "${CCACHE_DIR}" || return 1; }
+
 	# remove other versions of a download
 	for wrong_ver_dl in "${DL_DIR}/${build}-"*; do
 		if line_contains "${wrong_ver_dl}" "${base_path}"; then
@@ -442,10 +447,6 @@ FB_FUNC_NAMES+=('build')
 # shellcheck disable=SC2034
 FB_FUNC_DESCS['build']='build ffmpeg with desired configuration'
 build() {
-	test -d "${DL_DIR}" || { mkdir -p "${DL_DIR}" || return 1; }
-	test -d "${CCACHE_DIR}" || { mkdir -p "${CCACHE_DIR}" || return 1; }
-	test -d "${BUILD_DIR}" || { mkdir -p "${BUILD_DIR}" || return 1; }
-
 	set_compile_opts || return 1
 
 	for build in ${ENABLE}; do
@@ -517,9 +518,11 @@ del_pkgconfig_gcc_s() {
 ### RUST ###
 cargo_cbuild() {
 	cargo cinstall \
-		--destdir ./local-install \
+		--destdir "${PWD}/local-install" \
 		"${CARGO_CINSTALL_FLAGS[@]}"
-	${SUDO_MODIFY} cp -r ./local-install "${PREFIX}/"
+	# cargo cinstall destdir prepends with entire prefix
+	cd "./local-install${PREFIX}" || return 1
+	${SUDO_MODIFY} cp -r ./* "${PREFIX}/"
 }
 
 build_hdr10plus_tool() {
