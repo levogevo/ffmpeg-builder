@@ -106,7 +106,6 @@ docker_build_image() {
 	local image="$1"
 	validate_selected_image "${image}" || return 1
 	check_docker || return 1
-	test -d "${DOCKER_DIR}" || mkdir -p "${DOCKER_DIR}"
 	PLATFORM="${PLATFORM:-$(echo_platform)}"
 
 	echo_info "sourcing package manager for ${image}"

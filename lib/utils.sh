@@ -45,7 +45,6 @@ echo_if_fail() {
 
 	# set trace to the cmdEvalTrace and open file descriptor
 	local cmdEvalTrace="${TMP_DIR}/${logName}cmdEvalTrace"
-	test -d "${TMP_DIR}" || mkdir -p "${TMP_DIR}"
 	exec 5>"${cmdEvalTrace}"
 	export BASH_XTRACEFD=5
 
@@ -220,25 +219,35 @@ is_darwin() {
 }
 
 print_os() {
+	# cached response
 	if [[ -n ${FB_OS} ]]; then
 		echo "${FB_OS}"
 		return 0
 	fi
-	FB_OS=''
+
+	unset FB_OS
 	if [[ -f /etc/os-release ]]; then
 		source /etc/os-release
 		FB_OS="${ID}"
 		if [[ ${VERSION_ID} != '' ]]; then
 			FB_OS+="-${VERSION_ID}"
 		fi
-		if [[ ${FB_OS} == 'arch'* ]]; then
-			FB_OS=archlinux
+		if line_starts_with "${FB_OS}" 'arch'; then
+			FB_OS='archlinux'
 		fi
 	else
 		FB_OS="$(uname -o)"
 	fi
 
-	echo "${FB_OS,,}"
+	# lowercase
+	FB_OS="${FB_OS,,}"
+
+	# special treatment for windows
+	if line_contains "${FB_OS}" 'windows' || line_contains "${FB_OS}" 'msys'; then
+		FB_OS='windows'
+	fi
+
+	echo "${FB_OS}"
 }
 
 is_positive_integer() {

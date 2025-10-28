@@ -286,11 +286,6 @@ download_release() {
 	local base_path="$(bash_basename "${extracted_dir}")"
 	local base_dl_path="${DL_DIR}/${base_path}"
 
-	# make paths if needed
-	test -d "${DL_DIR}" || { mkdir -p "${DL_DIR}" || return 1; }
-	test -d "${BUILD_DIR}" || { mkdir -p "${BUILD_DIR}" || return 1; }
-	test -d "${CCACHE_DIR}" || { mkdir -p "${CCACHE_DIR}" || return 1; }
-
 	# remove other versions of a download
 	for wrong_ver_dl in "${DL_DIR}/${build}-"*; do
 		if line_contains "${wrong_ver_dl}" "${base_path}"; then
@@ -521,7 +516,15 @@ cargo_cbuild() {
 		--destdir "${PWD}/local-install" \
 		"${CARGO_CINSTALL_FLAGS[@]}"
 	# cargo cinstall destdir prepends with entire prefix
-	cd "./local-install${PREFIX}" || return 1
+	# this breaks windows with msys path augmentation
+	# so recurse into directories until sysroot is there
+	cd ./local-install || return 1
+	local sysrootDir="$(bash_basename "${PREFIX}")"
+	while ! test -d "${sysrootDir}"; do
+		cd ./* || return 1
+	done
+	# final cd
+	cd "${sysrootDir}" || return 1
 	${SUDO_MODIFY} cp -r ./* "${PREFIX}/"
 }
 

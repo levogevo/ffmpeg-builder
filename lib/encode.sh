@@ -293,7 +293,6 @@ set_encode_opts() {
 # shellcheck disable=SC2155
 # shellcheck disable=SC2016
 gen_encode_script() {
-	test -d "${TMP_DIR}" || mkdir -p "${TMP_DIR}"
 	local genScript="${TMP_DIR}/$(bash_basename "${OUTPUT}").sh"
 
 	# single string params

@@ -15,6 +15,19 @@ DOCKER_DIR="${IGN_DIR}/docker"
 PATCHES_DIR="${REPO_DIR}/patches"
 export REPO_DIR IGN_DIR TMP_DIR DL_DIR BUILD_DIR CCACHE_DIR DOCKER_DIR PATCHES_DIR
 
+# make paths if needed
+IGN_DIRS=(
+	"${TMP_DIR}"
+	"${DL_DIR}"
+	"${BUILD_DIR}"
+	"${CCACHE_DIR}"
+	"${DOCKER_DIR}"
+)
+for dir in "${IGN_DIRS[@]}"; do
+	test -d "${dir}" || mkdir -p "${dir}"
+done
+unset IGN_DIRS
+
 # function names, descriptions, completions
 unset FB_FUNC_NAMES FB_FUNC_DESCS FB_FUNC_COMPLETION
 FB_FUNC_NAMES=()
