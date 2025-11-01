@@ -141,15 +141,33 @@ docker_build_image() {
 			echo "RUN ${pkg_mgr_upgrade}"
 			printf "RUN ${pkg_install} %s\n" "${req_pkgs[@]}"
 		fi
-		local openPerms='sudo -E -u nobody -g nogroup'
-		echo 'RUN chmod 777 -R /root/'
-		# pipx
-		echo "RUN ${openPerms} pipx install virtualenv"
-		echo "RUN ${openPerms} pipx ensurepath"
-		# rust
+
+		# ENV for pipx/rust
+		echo 'ENV PIPX_HOME=/root/.local'
+		echo 'ENV PIPX_BIN_DIR=/root/.local/bin'
+		echo 'ENV PATH="/root/.local/bin:$PATH"'
 		echo 'ENV CARGO_HOME="/root/.cargo"'
 		echo 'ENV RUSTUP_HOME="/root/.rustup"'
 		echo 'ENV PATH="/root/.cargo/bin:$PATH"'
+		# add to profile
+		echo 'RUN export PIPX_HOME=${PIPX_HOME} >> /etc/profile'
+		echo 'RUN export PIPX_BIN_DIR=${PIPX_BIN_DIR} >> /etc/profile'
+		echo 'RUN export CARGO_HOME=${CARGO_HOME} >> /etc/profile'
+		echo 'RUN export RUSTUP_HOME=${RUSTUP_HOME} >> /etc/profile'
+		echo 'RUN export PATH=${PATH} >> /etc/profile'
+
+		# make nobody:nogroup usable
+		echo 'RUN sed -i '/nobody/d' /etc/passwd || true'
+		echo 'RUN echo "nobody:x:65534:65534:nobody:/root:/bin/bash" >> /etc/passwd'
+		echo 'RUN sed -i '/nogroup/d' /etc/group || true'
+		echo 'RUN echo "nogroup:x:65534:" >> /etc/group'
+		# open up permissions before switching user
+		echo 'RUN chmod 777 -R /root/'
+		# run as nobody:nogroup for rest of install
+		echo 'USER 65534:65534'
+		# pipx
+		echo "RUN pipx install virtualenv"
+		# rust
 		local rustupVersion='1.28.2'
 		local rustcVersion='1.88.0'
 		local rustupTarball="rustup-${rustupVersion}.tar.gz"
@@ -161,20 +179,13 @@ docker_build_image() {
 		echo "ADD ${rustupTarball} /tmp/"
 		local cargoInst="\
 		cd /tmp/rustup-${rustupVersion} \
-		&& ${openPerms} bash rustup-init.sh -y --default-toolchain=${rustcVersion} \
-		&& rm -rf /tmp/*"
+		&& bash rustup-init.sh -y --default-toolchain=${rustcVersion}"
 		echo "RUN ${cargoInst}"
-		# add to profile
-		echo 'RUN export CARGO_HOME=${CARGO_HOME} >> /etc/profile'
-		echo 'RUN export RUSTUP_HOME=${RUSTUP_HOME} >> /etc/profile'
-		echo 'RUN export PATH=${PATH} >> /etc/profile'
 		# install cargo-binstall
-		echo "RUN curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | ${openPerms} bash -l"
+		echo "RUN curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash"
 		# install cargo-c
-		echo "RUN ${openPerms} bash -l -c 'cargo-binstall -y cargo-c'"
-		# since any user may run this image,
-		# open up root tools to everyone
-		echo 'ENV PATH="/root/.local/bin:$PATH"'
+		echo "RUN cargo-binstall -y cargo-c"
+
 		echo "WORKDIR ${DOCKER_WORKDIR}"
 
 	} >"${dockerfile}"
