@@ -161,7 +161,10 @@ docker_build_image() {
 		cargoInst+=" && bash rustup-init.sh -y --default-toolchain=${rustcVersion}"
 		cargoInst+=" && rm -rf /tmp/*"
 		echo "RUN ${cargoInst}"
-		echo "RUN cargo install cargo-c"
+		# install cargo-binstall
+		echo "RUN curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash"
+		# install cargo-c
+		echo "RUN cargo-binstall -y cargo-c"
 		# since any user may run this image,
 		# open up root tools to everyone
 		echo 'ENV PATH="/root/.local/bin:$PATH"'
