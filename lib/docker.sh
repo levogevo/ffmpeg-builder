@@ -141,40 +141,47 @@ docker_build_image() {
 			echo "RUN ${pkg_mgr_upgrade}"
 			printf "RUN ${pkg_install} %s\n" "${req_pkgs[@]}"
 		fi
+		local openPerms='sudo -E -u nobody -g nogroup'
+		echo 'RUN chmod 777 -R /root/'
 		# pipx
-		echo 'RUN pipx install virtualenv'
-		echo 'RUN pipx ensurepath'
+		echo "RUN ${openPerms} pipx install virtualenv"
+		echo "RUN ${openPerms} pipx ensurepath"
 		# rust
 		echo 'ENV CARGO_HOME="/root/.cargo"'
 		echo 'ENV RUSTUP_HOME="/root/.rustup"'
 		echo 'ENV PATH="/root/.cargo/bin:$PATH"'
 		local rustupVersion='1.28.2'
 		local rustcVersion='1.88.0'
-		local rustupTarball="${DOCKER_DIR}/rustup.tar.gz"
-		if [[ ! -f ${rustupTarball} ]]; then
-			wget https://github.com/rust-lang/rustup/archive/refs/tags/${rustupVersion}.tar.gz -O "${rustupTarball}"
+		local rustupTarball="rustup-${rustupVersion}.tar.gz"
+		local rustupTarballPath="${DOCKER_DIR}/${rustupTarball}"
+		if [[ ! -f ${rustupTarballPath} ]]; then
+			wget https://github.com/rust-lang/rustup/archive/refs/tags/${rustupVersion}.tar.gz -O "${rustupTarballPath}"
 		fi
 
-		echo "ADD ./rustup.tar.gz /tmp/"
-		local cargoInst=''
-		cargoInst+="cd /tmp/rustup-${rustupVersion}"
-		cargoInst+=" && bash rustup-init.sh -y --default-toolchain=${rustcVersion}"
-		cargoInst+=" && rm -rf /tmp/*"
+		echo "ADD ${rustupTarball} /tmp/"
+		local cargoInst="\
+		cd /tmp/rustup-${rustupVersion} \
+		&& ${openPerms} bash rustup-init.sh -y --default-toolchain=${rustcVersion} \
+		&& rm -rf /tmp/*"
 		echo "RUN ${cargoInst}"
+		# add to profile
+		echo 'RUN export CARGO_HOME=${CARGO_HOME} >> /etc/profile'
+		echo 'RUN export RUSTUP_HOME=${RUSTUP_HOME} >> /etc/profile'
+		echo 'RUN export PATH=${PATH} >> /etc/profile'
 		# install cargo-binstall
-		echo "RUN curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash"
+		echo "RUN curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | ${openPerms} bash -l"
 		# install cargo-c
-		echo "RUN cargo-binstall -y cargo-c"
+		echo "RUN ${openPerms} bash -l -c 'cargo-binstall -y cargo-c'"
 		# since any user may run this image,
 		# open up root tools to everyone
 		echo 'ENV PATH="/root/.local/bin:$PATH"'
-		echo 'RUN chmod 777 -R /root/'
 		echo "WORKDIR ${DOCKER_WORKDIR}"
 
 	} >"${dockerfile}"
 
 	image_tag="$(set_distro_image_tag "${image}")"
 	docker buildx build \
+		--load \
 		--platform "${PLATFORM}" \
 		-t "${image_tag}" \
 		-f "${dockerfile}" \
@@ -188,7 +195,7 @@ docker_build_image() {
 			--platform "${PLATFORM}" \
 			-t "${DOCKER_REGISTRY}/${image_tag}" \
 			-f "${dockerfile}" \
-			. || return 1
+			"${DOCKER_DIR}" || return 1
 	fi
 
 	# FIXME uncomment
