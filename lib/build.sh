@@ -381,20 +381,21 @@ do_build() {
 	# save the metadata for a build to skip re-building identical builds
 	local oldMetadataFile="${TMP_DIR}/${build}-old-metadata"
 	local newMetadataFile="${TMP_DIR}/${build}-new-metadata"
+	local ffmpegOldMetadataFile="${TMP_DIR}/ffmpeg-old-metadata"
 
 	# add build function, version, url, and top-level env to metadata
-	type "build_${build}" >"${oldMetadataFile}"
-	echo "ver: ${ver}" >>"${oldMetadataFile}"
-	echo "url: ${url}" >>"${oldMetadataFile}"
+	type "build_${build}" >"${newMetadataFile}"
+	echo "ver: ${ver}" >>"${newMetadataFile}"
+	echo "url: ${url}" >>"${newMetadataFile}"
 	for envName in "${BUILD_ENV_NAMES[@]}"; do
-		COLOR=OFF dump_arr "${envName}" >>"${oldMetadataFile}"
+		COLOR=OFF dump_arr "${envName}" >>"${newMetadataFile}"
 	done
 
 	# only ffmpeg cares about ENABLE and has special function
 	if [[ ${build} == 'ffmpeg' ]]; then
 		# shellcheck disable=SC2153
-		echo "ENABLE=${ENABLE}" >>"${oldMetadataFile}"
-		type add_project_versioning_to_ffmpeg >>"${oldMetadataFile}"
+		echo "ENABLE=${ENABLE}" >>"${newMetadataFile}"
+		type add_project_versioning_to_ffmpeg >>"${newMetadataFile}"
 	fi
 
 	# prepare build
@@ -403,14 +404,14 @@ do_build() {
 	for patch in "${PATCHES_DIR}/${build}"/*.patch; do
 		test -f "${patch}" || continue
 		echo_if_fail patch -p1 -i "${patch}" || return 1
-		echo "patch:${patch}" >>"${oldMetadataFile}"
+		echo "patch:${patch}" >>"${newMetadataFile}"
 	done
 
-	# rebuild if metadata is different
-	local oldMetadata="$(<"${oldMetadataFile}")"
-	local newMetadata=''
-	test -f "${newMetadataFile}" && newMetadata="$(<"${newMetadataFile}")"
-	if [[ ${oldMetadata} != "${newMetadata}" ]]; then
+	# rebuild if new metadata is different
+	local newMetadata="$(<"${newMetadataFile}")"
+	local oldMetadata=''
+	test -f "${oldMetadataFile}" && oldMetadata="$(<"${oldMetadataFile}")"
+	if [[ ${oldMetadata} != "${newMetadata}" || -n ${REQUIRES_REBUILD} ]]; then
 		echo_info -n "building ${build} "
 		# build in background
 		local timeBefore=${EPOCHSECONDS}
@@ -429,13 +430,20 @@ do_build() {
 		popd >/dev/null || return 1
 		test ${retval} -eq 0 || return ${retval}
 		echo_pass "built ${build} in $((EPOCHSECONDS - timeBefore)) seconds"
+
+		# set new to old for later builds
+		cp "${newMetadataFile}" "${oldMetadataFile}"
+
+		# force ffmpeg to rebuild since one of the libraries has changed
+		if [[ ${build} != 'ffmpeg' && -f ${ffmpegOldMetadataFile} ]]; then
+			rm "${ffmpegOldMetadataFile}"
+		fi
+		# indicate that build chain will require rebuild
+		REQUIRES_REBUILD=1
 	else
 		popd >/dev/null || return 1
 		echo_info "re-using identical previous build for ${build}"
 	fi
-
-	# update build metadata
-	cp "${oldMetadataFile}" "${newMetadataFile}"
 }
 
 FB_FUNC_NAMES+=('build')
@@ -446,6 +454,8 @@ build() {
 
 	for build in ${ENABLE}; do
 		do_build "${build}" || return 1
+		# reset whether build chain requires a rebuild
+		unset REQUIRES_REBUILD
 	done
 	do_build ffmpeg || return 1
 	local ffmpegBin="${PREFIX}/bin/ffmpeg"

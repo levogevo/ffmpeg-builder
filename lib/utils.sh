@@ -218,6 +218,10 @@ is_darwin() {
 	line_contains "$(print_os)" darwin
 }
 
+is_windows() {
+	line_contains "$(print_os)" windows
+}
+
 print_os() {
 	# cached response
 	if [[ -n ${FB_OS} ]]; then
