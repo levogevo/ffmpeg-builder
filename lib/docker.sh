@@ -181,7 +181,6 @@ docker_build_image() {
 
 	image_tag="$(set_distro_image_tag "${image}")"
 	docker buildx build \
-		--load \
 		--platform "${PLATFORM}" \
 		-t "${image_tag}" \
 		-f "${dockerfile}" \
