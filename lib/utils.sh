@@ -74,8 +74,8 @@ echo_if_fail() {
 		echo_fail "command failed:"
 		printf "%s\n" "${cmd[@]}"
 		echo_warn "command output:"
-		tail -n 10 "${out}"
-		tail -n 10 "${err}"
+		tail -n 20 "${out}"
+		tail -n 20 "${err}"
 		echo
 	fi
 	if [[ -z ${LOGNAME} ]]; then

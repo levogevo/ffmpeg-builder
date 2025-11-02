@@ -9,6 +9,7 @@ set_compile_opts() {
 		CXX_FLAGS
 		CPP_FLAGS
 		RUSTFLAGS
+		PKG_CONFIG_PATH
 	)
 	BUILD_ENV_NAMES=(
 		"${EXPORTED_ENV_NAMES[@]}"
@@ -17,6 +18,8 @@ set_compile_opts() {
 		CMAKE_FLAGS
 		FFMPEG_EXTRA_FLAGS
 		CARGO_CINSTALL_FLAGS
+		LTO_FLAG
+		LIB_SUFF
 	)
 	unset "${BUILD_ENV_NAMES[@]}"
 	export "${EXPORTED_ENV_NAMES[@]}"
@@ -59,12 +62,15 @@ set_compile_opts() {
 		"--prefix" "${PREFIX}"
 		"--libdir" "lib"
 		"--bindir" "bin"
+		"--buildtype" "release"
 	)
 	CMAKE_FLAGS+=(
 		"-DCMAKE_PREFIX_PATH=${PREFIX}"
 		"-DCMAKE_INSTALL_PREFIX=${PREFIX}"
 		"-DCMAKE_INSTALL_LIBDIR=lib"
 		"-DCMAKE_BUILD_TYPE=Release"
+		"-DCMAKE_C_COMPILER_LAUNCHER=ccache"
+		"-DCMAKE_CXX_COMPILER_LAUNCHER=ccache"
 	)
 	CARGO_CINSTALL_FLAGS=(
 		"--release"
@@ -72,15 +78,11 @@ set_compile_opts() {
 		"--libdir" "${LIBDIR}"
 	)
 	PKG_CONFIG_PATH="${LIBDIR}/pkgconfig"
-	export PKG_CONFIG_PATH
 
 	# add prefix include
 	C_FLAGS+=("-I${PREFIX}/include")
 
 	# enabling link-time optimization
-	# shellcheck disable=SC2034
-	unset LTO_FLAG
-	export LTO_FLAG
 	if [[ ${LTO} == 'ON' ]]; then
 		LTO_FLAG='-flto'
 		C_FLAGS+=("${LTO_FLAG}")
@@ -112,8 +114,6 @@ set_compile_opts() {
 	fi
 
 	# static/shared linking
-	unset LIB_SUFF
-	export LIB_SUFF
 	if [[ ${STATIC} == 'ON' ]]; then
 		CONFIGURE_FLAGS+=(
 			'--enable-static'
@@ -232,10 +232,11 @@ libjpeg			3.0.3		tar.gz		https://github.com/winlibs/libjpeg/archive/refs/tags/li
 libpng			1.6.50		tar.gz		https://github.com/pnggroup/libpng/archive/refs/tags/v${ver}.${ext}	zlib
 zlib			1.3.1		tar.gz		https://github.com/madler/zlib/archive/refs/tags/v${ver}.${ext}
 
-libplacebo		7.351.0		tar.gz		https://github.com/haasn/libplacebo/archive/refs/tags/v${ver}.${ext} glslang
-glslang			15.4.0		tar.gz		https://github.com/KhronosGroup/glslang/archive/refs/tags/${ver}.${ext} spirv_tools
-spirv_tools		2024.4		tar.gz		https://github.com/KhronosGroup/SPIRV-Tools/archive/refs/tags/v${ver}.${ext} spirv_headers
-spirv_headers	1.4.304.0	tar.gz		https://github.com/KhronosGroup/SPIRV-Headers/archive/refs/tags/vulkan-sdk-${ver}.${ext}
+libplacebo		7.351.0		tar.gz		https://github.com/haasn/libplacebo/archive/refs/tags/v${ver}.${ext} glslang,vulkan_loader,glad
+glslang			16.0.0		tar.gz		https://github.com/KhronosGroup/glslang/archive/refs/tags/${ver}.${ext} spirv_tools
+spirv_tools		2025.4		tar.gz		https://github.com/KhronosGroup/SPIRV-Tools/archive/refs/tags/v${ver}.${ext} spirv_headers
+spirv_headers	1.4.328.1	tar.gz		https://github.com/KhronosGroup/SPIRV-Headers/archive/refs/tags/vulkan-sdk-${ver}.${ext}
+glad			2.0.8		tar.gz		https://github.com/Dav1dde/glad/archive/refs/tags/v${ver}.${ext}
 
 libx265			4.1			tar.gz		https://bitbucket.org/multicoreware/x265_git/downloads/x265_${ver}.${ext} libnuma,cmake
 libnuma			2.0.19		tar.gz		https://github.com/numactl/numactl/archive/refs/tags/v${ver}.${ext}
@@ -243,7 +244,7 @@ cmake			3.31.8		tar.gz		https://github.com/Kitware/CMake/archive/refs/tags/v${ve
 '
 
 	local supported_builds=()
-	unset ver ext url deps extracted_dir
+	unset ver ext url deps extractedDir
 	while read -r line; do
 		test "${line}" == '' && continue
 		IFS=$' \t' read -r build ver ext url deps <<<"${line}"
@@ -274,37 +275,37 @@ cmake			3.31.8		tar.gz		https://github.com/Kitware/CMake/archive/refs/tags/v${ve
 	# and set extracted directory
 	if [[ ${ext} == 'git' ]]; then
 		ver="$(get_remote_head "${url}")"
-		extracted_dir="${BUILD_DIR}/${build}-${ext}"
+		extractedDir="${BUILD_DIR}/${build}-${ext}"
 	else
-		extracted_dir="${BUILD_DIR}/${build}-v${ver}"
+		extractedDir="${BUILD_DIR}/${build}-v${ver}"
 	fi
 
 	return 0
 }
 
 download_release() {
-	local base_path="$(bash_basename "${extracted_dir}")"
-	local base_dl_path="${DL_DIR}/${base_path}"
+	local basename="$(bash_basename "${extractedDir}")"
+	local download="${DL_DIR}/${basename}"
 
 	# remove other versions of a download
-	for wrong_ver_dl in "${DL_DIR}/${build}-"*; do
-		if line_contains "${wrong_ver_dl}" "${base_path}"; then
+	for alreadyDownloaded in "${DL_DIR}/${build}-"*; do
+		if line_contains "${alreadyDownloaded}" "${basename}"; then
 			continue
 		fi
-		if [[ ! -d ${wrong_ver_dl} && ! -f ${wrong_ver_dl} ]]; then
+		if [[ ! -d ${alreadyDownloaded} && ! -f ${alreadyDownloaded} ]]; then
 			continue
 		fi
-		echo_warn "removing wrong version: ${wrong_ver_dl}"
-		rm -rf "${wrong_ver_dl}"
+		echo_warn "removing wrong version: ${alreadyDownloaded}"
+		rm -rf "${alreadyDownloaded}"
 	done
 	# remove other versions of a build
-	for wrong_ver_build in "${BUILD_DIR}/${build}-"*; do
-		if line_contains "${wrong_ver_build}" "${base_path}"; then
+	for alreadyBuilt in "${BUILD_DIR}/${build}-"*; do
+		if line_contains "${alreadyBuilt}" "${basename}"; then
 			continue
 		fi
-		test -d "${wrong_ver_build}" || continue
-		echo_warn "removing wrong version: ${extracted_dir}"
-		rm -rf "${wrong_ver_build}"
+		test -d "${alreadyBuilt}" || continue
+		echo_warn "removing wrong version: ${extractedDir}"
+		rm -rf "${alreadyBuilt}"
 	done
 
 	# enabling a clean build
@@ -315,33 +316,33 @@ download_release() {
 	fi
 
 	# create new build dir for clean builds
-	test -d "${extracted_dir}" &&
-		{ ${DO_CLEAN} "${extracted_dir}" || return 1; }
+	test -d "${extractedDir}" &&
+		{ ${DO_CLEAN} "${extractedDir}" || return 1; }
 
 	if test "${ext}" != "git"; then
-		wget_out="${base_dl_path}.${ext}"
+		wgetOut="${download}.${ext}"
 
 		# download archive if not present
-		if ! test -f "${wget_out}"; then
+		if ! test -f "${wgetOut}"; then
 			echo_info "downloading ${build}"
-			echo_if_fail wget "${url}" -O "${wget_out}"
+			echo_if_fail wget "${url}" -O "${wgetOut}"
 		fi
 
 		# create new build directory
-		test -d "${extracted_dir}" ||
+		test -d "${extractedDir}" ||
 			{
-				mkdir "${extracted_dir}"
-				tar -xf "${wget_out}" \
+				mkdir "${extractedDir}"
+				tar -xf "${wgetOut}" \
 					--strip-components=1 \
 					--no-same-permissions \
-					-C "${extracted_dir}"
+					-C "${extractedDir}"
 			}
 	else
 		# for git downloads
-		test -d "${base_dl_path}" ||
-			git clone --recursive "${url}" "${base_dl_path}" || return 1
+		test -d "${download}" ||
+			git clone --recursive "${url}" "${download}" || return 1
 		(
-			cd "${base_dl_path}" || exit 1
+			cd "${download}" || exit 1
 			local localHEAD remoteHEAD
 			localHEAD="$(git rev-parse HEAD)"
 			remoteHEAD="$(get_remote_head "$(git config --get remote.origin.url)")"
@@ -356,8 +357,8 @@ download_release() {
 		) || return 1
 
 		# create new build directory
-		test -d "${extracted_dir}" ||
-			cp -r "${base_dl_path}" "${extracted_dir}" || return 1
+		test -d "${extractedDir}" ||
+			cp -r "${download}" "${extractedDir}" || return 1
 	fi
 }
 
@@ -399,7 +400,7 @@ do_build() {
 	fi
 
 	# prepare build
-	pushd "$extracted_dir" >/dev/null || return 1
+	pushd "${extractedDir}" >/dev/null || return 1
 	# check for any patches
 	for patch in "${PATCHES_DIR}/${build}"/*.patch; do
 		test -f "${patch}" || continue
@@ -559,127 +560,104 @@ build_librav1e() {
 }
 
 ### CMAKE ###
-build_cpuinfo() {
+cmake_build() {
+	local addFlags=("$@")
+	# configure
 	cmake \
+		-B fb-build \
 		"${CMAKE_FLAGS[@]}" \
+		"${addFlags[@]}" || return 1
+	# build
+	cmake \
+		--build fb-build \
+		-j "${JOBS}" || return 1
+	# install
+	${SUDO_MODIFY} cmake \
+		--install fb-build || return 1
+}
+
+build_cpuinfo() {
+	cmake_build \
 		-DCPUINFO_BUILD_UNIT_TESTS=OFF \
 		-DCPUINFO_BUILD_MOCK_TESTS=OFF \
 		-DCPUINFO_BUILD_BENCHMARKS=OFF \
 		-DUSE_SYSTEM_LIBS=ON || return 1
-	ccache make -j"${JOBS}" || return 1
-	${SUDO_MODIFY} make -j"${JOBS}" install || return 1
 	sanitize_sysroot_libs libcpuinfo || return 1
 }
 
 build_libsvtav1() {
-	cmake \
-		"${CMAKE_FLAGS[@]}" \
+	cmake_build \
 		-DENABLE_AVX512=ON \
 		-DBUILD_TESTING=OFF \
 		-DCOVERAGE=OFF || return 1
-	ccache make -j"${JOBS}" || return 1
-	${SUDO_MODIFY} make -j"${JOBS}" install || return 1
 	sanitize_sysroot_libs libSvtAv1Enc || return 1
 }
 
 build_libsvtav1_psy() {
 	local hdr10pluslib="${LIBDIR}/libhdr10plus-rs.${USE_LIB_SUFF}"
 	local dovilib="${LIBDIR}/libdovi.${USE_LIB_SUFF}"
-	cmake \
-		"${CMAKE_FLAGS[@]}" \
+	cmake_build \
 		-DBUILD_TESTING=OFF \
 		-DENABLE_AVX512=ON \
 		-DCOVERAGE=OFF \
 		-DLIBDOVI_FOUND=1 \
 		-DLIBHDR10PLUS_RS_FOUND=1 \
 		-DLIBHDR10PLUS_RS_LIBRARY="${hdr10pluslib}" \
-		-DLIBDOVI_LIBRARY="${dovilib}" \
-		. || return 1
-	ccache make -j"${JOBS}" || return 1
-	${SUDO_MODIFY} make -j"${JOBS}" install || return 1
+		-DLIBDOVI_LIBRARY="${dovilib}" || return 1
 	sanitize_sysroot_libs libSvtAv1Enc || return 1
 }
 
 build_libaom() {
-	cmake \
-		"${CMAKE_FLAGS[@]}" \
-		-B build.user \
+	cmake_build \
 		-DENABLE_TESTS=OFF || return 1
-	cd build.user || return 1
-	ccache make -j"${JOBS}" || return 1
-	${SUDO_MODIFY} make -j"${JOBS}" install || return 1
 	sanitize_sysroot_libs libaom || return 1
 }
 
 build_libopus() {
-	cmake \
-		"${CMAKE_FLAGS[@]}" || return 1
-	ccache make -j"${JOBS}" || return 1
-	${SUDO_MODIFY} make -j"${JOBS}" install || return 1
+	cmake_build || return 1
 	sanitize_sysroot_libs libopus || return 1
 }
 
 build_libwebp() {
-	cmake \
-		"${CMAKE_FLAGS[@]}" || return 1
-	ccache make -j"${JOBS}" || return 1
-	${SUDO_MODIFY} make -j"${JOBS}" install || return 1
+	cmake_build || return 1
 	sanitize_sysroot_libs libwebp libsharpyuv || return 1
 }
 
 build_libjpeg() {
-	cmake \
-		"${CMAKE_FLAGS[@]}" || return 1
-	ccache make -j"${JOBS}" || return 1
-	${SUDO_MODIFY} make -j"${JOBS}" install || return 1
+	cmake_build || return 1
 	sanitize_sysroot_libs libjpeg libturbojpeg || return 1
 }
 
 build_libpng() {
-	cmake \
-		"${CMAKE_FLAGS[@]}" \
+	cmake_build \
 		-DPNG_TESTS=OFF \
 		-DPNG_TOOLS=OFF || return 1
-	ccache make -j"${JOBS}" || return 1
-	${SUDO_MODIFY} make -j"${JOBS}" install || return 1
 	sanitize_sysroot_libs libpng || return 1
 }
 
 build_zlib() {
-	cmake \
-		"${CMAKE_FLAGS[@]}" \
+	cmake_build \
 		-DZLIB_BUILD_EXAMPLES=OFF || return 1
-	ccache make -j"${JOBS}" || return 1
-	${SUDO_MODIFY} make -j"${JOBS}" install || return 1
 	sanitize_sysroot_libs libz || return 1
 }
 
 build_glslang() {
-	cmake \
-		"${CMAKE_FLAGS[@]}" \
+	cmake_build \
 		-DALLOW_EXTERNAL_SPIRV_TOOLS=ON || return 1
-	ccache make -j"${JOBS}" || return 1
-	${SUDO_MODIFY} make -j"${JOBS}" install || return 1
-	sanitize_sysroot_libs glslang || return 1
+	sanitize_sysroot_libs libglslang || return 1
 }
 
 build_spirv_tools() {
-	cmake \
-		"${CMAKE_FLAGS[@]}" \
+	cmake_build \
 		-DSPIRV-Headers_SOURCE_DIR="${PREFIX}" \
 		-DSPIRV_WERROR=OFF \
 		-DSPIRV_SKIP_TESTS=ON \
 		-G Ninja || return 1
-	ccache ninja || return 1
-	${SUDO_MODIFY} ninja install || return 1
 }
 
 build_spirv_headers() {
-	cmake \
-		"${CMAKE_FLAGS[@]}" \
+	cmake_build \
 		-G Ninja || return 1
-	ccache ninja || return 1
-	${SUDO_MODIFY} ninja install || return 1
 }
 
 # libx265 does not support cmake >= 4
@@ -712,40 +690,53 @@ build_cmake() {
 }
 
 build_libx265() {
-	PATH="${PREFIX}/bin:$PATH" cmake \
-		"${CMAKE_FLAGS[@]}" \
+	PATH="${PREFIX}/bin:${PATH}" cmake_build \
 		-G "Unix Makefiles" \
 		-DHIGH_BIT_DEPTH=ON \
 		-DENABLE_HDR10_PLUS=OFF \
-		./source || return 1
-	ccache make -j"${JOBS}" || return 1
-	${SUDO_MODIFY} make -j"${JOBS}" install || return 1
+		-S source || return 1
 	sanitize_sysroot_libs libx265 || return 1
 	del_pkgconfig_gcc_s x265.pc || return 1
 }
 
 ### MESON ###
+meson_build() {
+	local addFlags=("$@")
+	meson setup \
+		"${MESON_FLAGS[@]}" \
+		"${addFlags[@]}" \
+		. fb-build || return 1
+	meson compile \
+		-C fb-build \
+		-j "${JOBS}" || return 1
+	${SUDO_MODIFY} meson install \
+		-C fb-build || return 1
+}
+
 build_libdav1d() {
 	local enableAsm=true
 	# arm64 will fail the build at 0 optimization
 	if [[ "${HOSTTYPE}:${OPT}" == "aarch64:0" ]]; then
-		enableAsm="false"
+		enableAsm=false
 	fi
-	meson \
-		setup . build.user \
-		-Denable_asm=${enableAsm} \
-		"${MESON_FLAGS[@]}" || return 1
-	ccache ninja -vC build.user || return 1
-	${SUDO_MODIFY} ninja -vC build.user install || return 1
+	meson_build \
+		-D enable_asm=${enableAsm} || return 1
 	sanitize_sysroot_libs libdav1d || return 1
 }
 
 build_libplacebo() {
-	meson \
-		setup . build.user \
-		"${MESON_FLAGS[@]}" || return 1
-	ccache ninja -vC build.user || return 1
-	${SUDO_MODIFY} ninja -vC build.user install || return 1
+	# copy downloaded glad release as "submodule"
+	(
+		installDir="${PWD}/3rdparty/glad"
+		get_build_conf glad
+		CLEAN=false download_release
+		cd "${extractedDir}" || exit 1
+		cp -r ./* "${installDir}"
+	) || return 1
+
+	meson_build \
+		-D tests=false \
+		-D demos=false || return 1
 	sanitize_sysroot_libs libplacebo || return 1
 }
 
@@ -754,12 +745,8 @@ build_libvmaf() {
 	python3 -m virtualenv .venv
 	(
 		source .venv/bin/activate
-		meson \
-			setup . build.user \
-			"${MESON_FLAGS[@]}" \
-			-Denable_float=true || exit 1
-		ccache ninja -vC build.user || exit 1
-		${SUDO_MODIFY} ninja -vC build.user install || exit 1
+		meson_build \
+			-D enable_float=true || exit 1
 	) || return 1
 	sanitize_sysroot_libs libvmaf || return 1
 
@@ -782,6 +769,11 @@ build_libvmaf() {
 		# overwrite the pkgconfig
 		${SUDO_MODIFY} cp "${newCfg}" "${cfg}"
 	fi
+}
+
+### PYTHON ###
+build_glad() {
+	true
 }
 
 ### AUTOTOOLS ###
