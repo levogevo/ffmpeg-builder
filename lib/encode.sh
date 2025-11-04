@@ -22,7 +22,11 @@ set_audio_params() {
 	videoLang="$(get_stream_lang "${file}" 'v:0')" || return 1
 	for stream in $(get_num_streams "${file}" 'a'); do
 		local numChannels codec lang
-		numChannels="$(get_num_audio_channels "${file}" "a:${stream}")" || return 1
+		numChannels="$(get_num_audio_channels "${file}" "${stream}")" || return 1
+		if [[ ${numChannels} == '' ]]; then
+			echo_fail "could not obtain channel count for stream ${stream}"
+			return 1
+		fi
 		local channelBitrate=$((numChannels * 64))
 		codec="$(get_stream_codec "${file}" "${stream}")" || return 1
 		lang="$(get_stream_lang "${file}" "${stream}")" || return 1
@@ -429,8 +433,8 @@ gen_encode_script() {
 		if [[ ${FILE_EXT} == 'mkv' ]]; then
 			{
 				echo
-				echo "mkvpropedit \"${OUTPUT}\" --add-track-statistics-tags"
-				echo "mkvpropedit \"${OUTPUT}\" --edit info --set \"title=\""
+				echo 'mkvpropedit "${OUTPUT}" --add-track-statistics-tags'
+				echo 'mkvpropedit "${OUTPUT}" --edit info --set "title="'
 			}
 		fi
 
