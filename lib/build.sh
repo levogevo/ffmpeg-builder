@@ -52,6 +52,11 @@ set_compile_opts() {
 	LIBDIR="${PREFIX}/lib"
 	LDFLAGS=("-L${LIBDIR}")
 
+	# HACK rope in libm
+	if is_android; then
+		test -f "${LIBDIR}/libm.so" || ln -s /system/lib64/libm.so "${LIBDIR}/libm.so"
+	fi
+
 	# set prefix flags and basic flags
 	CONFIGURE_FLAGS+=(
 		"--prefix=${PREFIX}"
@@ -812,6 +817,7 @@ build_libmp3lame() {
 build_libnuma() {
 	# darwin does not have numa
 	if is_darwin; then return 0; fi
+	if is_android; then return 0; fi
 
 	./autogen.sh || return 1
 	./configure \

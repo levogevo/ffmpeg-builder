@@ -9,6 +9,7 @@ determine_pkg_mgr() {
 	# pkg-mgr update-cmd upgrade-cmd install-cmd check-cmd
 	# shellcheck disable=SC2016
 	local PKG_MGR_MAP='
+pkg:pkg update:pkg upgrade:pkg install -y:dpkg -l ${pkg}
 brew:brew update:brew upgrade:brew install:brew list --formula ${pkg}
 apt-get:${SUDO}apt-get update:${SUDO}apt-get upgrade -y:${SUDO}apt-get install -y:dpkg -l ${pkg}
 pacman:${SUDO}pacman -Syy:${SUDO}pacman -Syu --noconfirm:${SUDO}pacman -S --noconfirm --needed:pacman -Qi ${pkg}
@@ -82,16 +83,14 @@ print_req_pkgs() {
 		numactl-devel
 	)
 	# shellcheck disable=SC2034
-	local android_pkgs=(
+	local pkg_pkgs=(
 		autoconf automake cmake libtool
 		texinfo nasm yasm python3 wget
 		doxygen jq ccache gawk rust
 		git gnuplot bison rsync ragel
 		zip unzip gperf build-essential
-		binutils
+		binutils ninja
 	)
-	# pip install pipx
-	# pipx install virtualenv
 
 	local req_pkgs_env_name="${pkg_mgr/-/_}_pkgs"
 	declare -n req_pkgs="${req_pkgs_env_name}"
@@ -131,8 +130,10 @@ check_for_req_pkgs() {
 	fi
 
 	echo_pass "packages from ${pkg_mgr} installed"
+	has_cmd pipx || echo_if_fail python3 -m pip install --user pipx || return 1
 	echo_if_fail pipx install virtualenv || return 1
 	echo_if_fail pipx ensurepath || return 1
+	has_cmd meson || echo_if_fail pipx install meson || return 1
 	echo_pass "pipx is installed"
 
 	# shellcheck disable=SC1091
@@ -141,7 +142,7 @@ check_for_req_pkgs() {
 	if missing_cmd cargo; then
 		if missing_cmd rustup; then
 			echo_warn "installing rustup"
-			curl https://sh.rustup.rs -sSf | sh -s -- -y
+			curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 			# shellcheck disable=SC2016
 			grep -q 'source "${HOME}/.cargo/env"' "${HOME}/.bashrc" ||
 				echo 'source "${HOME}/.cargo/env"' >>"${HOME}/.bashrc"
@@ -150,9 +151,6 @@ check_for_req_pkgs() {
 		fi
 	fi
 
-	echo_if_fail rustup default stable || return 1
-	echo_if_fail rustup update stable || return 1
-	echo_pass "rustup is installed"
 	echo_if_fail cargo install cargo-c || return 1
 	echo_pass "cargo-c is installed"
 	echo_pass "all required packages installed"

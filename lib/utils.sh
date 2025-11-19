@@ -222,6 +222,10 @@ is_windows() {
 	line_contains "$(print_os)" windows
 }
 
+is_android() {
+	line_contains "$(print_os)" android
+}
+
 print_os() {
 	# cached response
 	if [[ -n ${FB_OS} ]]; then
