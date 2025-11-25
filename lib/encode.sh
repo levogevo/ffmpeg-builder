@@ -58,6 +58,16 @@ set_subtitle_params() {
 	local file="$1"
 	local convertCodec='eia_608'
 	local keepLang='eng'
+
+	local defaultTextCodec
+	if [[ ${SAME_CONTAINER} == false && ${FILE_EXT} == 'mkv' ]]; then
+		defaultTextCodec='srt'
+		convertCodec+='|mov_text'
+	else
+		defaultTextCodec='mov_text'
+		convertCodec+='|srt'
+	fi
+
 	local subtitleParams=()
 	for stream in $(get_num_streams "${file}" 's'); do
 		local codec lang
@@ -68,8 +78,8 @@ set_subtitle_params() {
 				'-map'
 				"-0:${stream}"
 			)
-		elif [[ ${codec} == "${convertCodec}" ]]; then
-			subtitleParams+=("-c:${stream}" "srt")
+		elif [[ ${codec} =~ ${convertCodec} ]]; then
+			subtitleParams+=("-c:${stream}" "${defaultTextCodec}")
 		fi
 	done
 	echo "${subtitleParams[@]}"
@@ -140,7 +150,7 @@ encode_usage() {
 	echo -e "\t[-c] use cropdetect (default: ${CROP})"
 	echo -e "\t[-d] enable dolby vision (default: ${DV_TOGGLE})"
 	echo -e "\t[-v] Print relevant version info"
-	echo -e "\t[-s] use same container as input, default is mkv"
+	echo -e "\t[-s] use same container as input, default is convert to mkv"
 	echo -e "\n\t[output] if unset, defaults to ${HOME}/"
 	echo -e "\n\t[-u] update script (git pull at ${REPO_DIR})"
 	echo -e "\t[-I] system install at ${ENCODE_INSTALL_PATH}"
@@ -163,7 +173,7 @@ set_encode_opts() {
 	PRINT_OUT=false
 	DV_TOGGLE=false
 	ENCODE_INSTALL_PATH='/usr/local/bin/encode'
-	local sameContainer="false"
+	SAME_CONTAINER="false"
 	# only using -I/U
 	local minOpt=1
 	# using all + output name
@@ -217,7 +227,7 @@ set_encode_opts() {
 			optsUsed=$((optsUsed + 1))
 			;;
 		s)
-			sameContainer=true
+			SAME_CONTAINER=true
 			optsUsed=$((optsUsed + 1))
 			;;
 		g)
@@ -262,7 +272,7 @@ set_encode_opts() {
 	fi
 
 	# use same container for output
-	if [[ $sameContainer == "true" ]]; then
+	if [[ $SAME_CONTAINER == "true" ]]; then
 		local fileFormat
 		fileFormat="$(get_file_format "${INPUT}")" || return 1
 		FILE_EXT=''

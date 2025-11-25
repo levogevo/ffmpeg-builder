@@ -89,7 +89,7 @@ print_req_pkgs() {
 		doxygen jq ccache gawk rust
 		git gnuplot bison rsync ragel
 		zip unzip gperf build-essential
-		binutils ninja
+		binutils ninja ndk-multilib-native-static
 	)
 
 	local req_pkgs_env_name="${pkg_mgr/-/_}_pkgs"
