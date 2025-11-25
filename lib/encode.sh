@@ -1,24 +1,25 @@
 #!/usr/bin/env bash
 
-unmap_streams() {
+# sets unmapStreams
+set_unmap_streams() {
 	local file="$1"
 	local unmapFilter='bin_data|jpeg|png'
-	local unmap=()
 	local streamsStr
+	unmapStreams=()
 	streamsStr="$(get_num_streams "${file}")" || return 1
 	mapfile -t streams <<<"${streamsStr}" || return 1
 	for stream in "${streams[@]}"; do
 		if [[ "$(get_stream_codec "${file}" "${stream}")" =~ ${unmapFilter} ]]; then
-			unmap+=("-map" "-0:${stream}")
+			unmapStreams+=("-map" "-0:${stream}")
 		fi
 	done
-	echo "${unmap[@]}"
 }
 
+# sets audioParams
 set_audio_params() {
 	local file="$1"
-	local audioParams=()
 	local videoLang
+	audioParams=()
 	videoLang="$(get_stream_lang "${file}" 'v:0')" || return 1
 	for stream in $(get_num_streams "${file}" 'a'); do
 		local numChannels codec lang
@@ -37,23 +38,25 @@ set_audio_params() {
 			)
 		elif [[ ${codec} == 'opus' ]]; then
 			audioParams+=(
-				"-c:${stream}"
+				"-c:${OUTPUT_INDEX}"
 				"copy"
 			)
+			OUTPUT_INDEX=$((OUTPUT_INDEX + 1))
 		else
 			audioParams+=(
-				"-filter:${stream}"
+				"-filter:${OUTPUT_INDEX}"
 				"aformat=channel_layouts=7.1|5.1|stereo|mono"
-				"-c:${stream}"
+				"-c:${OUTPUT_INDEX}"
 				"libopus"
-				"-b:${stream}"
+				"-b:${OUTPUT_INDEX}"
 				"${channelBitrate}k"
 			)
+			OUTPUT_INDEX=$((OUTPUT_INDEX + 1))
 		fi
 	done
-	echo "${audioParams[@]}"
 }
 
+# sets subtitleParams
 set_subtitle_params() {
 	local file="$1"
 	local convertCodec='eia_608'
@@ -68,7 +71,7 @@ set_subtitle_params() {
 		convertCodec+='|srt'
 	fi
 
-	local subtitleParams=()
+	subtitleParams=()
 	for stream in $(get_num_streams "${file}" 's'); do
 		local codec lang
 		codec="$(get_stream_codec "${file}" "${stream}")" || return 1
@@ -79,10 +82,10 @@ set_subtitle_params() {
 				"-0:${stream}"
 			)
 		elif [[ ${codec} =~ ${convertCodec} ]]; then
-			subtitleParams+=("-c:${stream}" "${defaultTextCodec}")
+			subtitleParams+=("-c:${OUTPUT_INDEX}" "${defaultTextCodec}")
+			OUTPUT_INDEX=$((OUTPUT_INDEX + 1))
 		fi
 	done
-	echo "${subtitleParams[@]}"
 }
 
 get_encode_versions() {
@@ -309,6 +312,9 @@ set_encode_opts() {
 gen_encode_script() {
 	local genScript="${TMP_DIR}/$(bash_basename "${OUTPUT}").sh"
 
+	# global output index number to increment
+	OUTPUT_INDEX=0
+
 	# single string params
 	local params=(
 		INPUT
@@ -347,7 +353,7 @@ gen_encode_script() {
 
 	# arrays
 	local arrays=(
-		unmap
+		unmapStreams
 		audioParams
 		videoParams
 		metadata
@@ -358,47 +364,48 @@ gen_encode_script() {
 		"-crf" '${CRF}' "-preset" '${PRESET}' "-g" "240"
 	)
 	local ffmpegParams=(
+		'-hide_banner'
 		'-i' '${INPUT}'
-		'-y' '-map' '0'
+		'-y'
+		'-map' '0'
 		'-c:s' 'copy'
 	)
 
+	# set video params
+	local inputVideoCodec="$(get_stream_codec "${INPUT}" 'v:0')"
+	if [[ ${inputVideoCodec} == 'av1' ]]; then
+		ffmpegParams+=(
+			"-c:v:${OUTPUT_INDEX}" 'copy'
+		)
+	else
+		ffmpegParams+=(
+			'-pix_fmt' 'yuv420p10le'
+			"-c:v:${OUTPUT_INDEX}" 'libsvtav1' '${videoParams[@]}'
+			'-svtav1-params' '${svtAv1Params}'
+		)
+	fi
+	OUTPUT_INDEX=$((OUTPUT_INDEX + 1))
+
 	# these values may be empty
 	local unmapStr audioParamsStr subtitleParamsStr
-	unmapStr="$(unmap_streams "${INPUT}")" || return 1
-	audioParamsStr="$(set_audio_params "${INPUT}")" || return 1
-	subtitleParamsStr="$(set_subtitle_params "${INPUT}")" || return 1
+	set_unmap_streams "${INPUT}" || return 1
+	set_audio_params "${INPUT}" || return 1
+	set_subtitle_params "${INPUT}" || return 1
 
-	unmap=(${unmapStr})
-	if [[ ${unmap[*]} != '' ]]; then
-		ffmpegParams+=('${unmap[@]}')
+	if [[ ${unmapStreams[*]} != '' ]]; then
+		ffmpegParams+=('${unmapStreams[@]}')
 	fi
 
-	audioParams=(${audioParamsStr})
 	if [[ ${audioParams[*]} != '' ]]; then
 		ffmpegParams+=('${audioParams[@]}')
 	fi
 
-	subtitleParams=(${subtitleParamsStr})
 	if [[ ${subtitleParams[*]} != '' ]]; then
 		ffmpegParams+=('${subtitleParams[@]}')
 	fi
 
 	if [[ ${crop} != '' ]]; then
 		ffmpegParams+=('-vf' '${crop}')
-	fi
-
-	local inputVideoCodec="$(get_stream_codec "${INPUT}" 'v:0')"
-	if [[ ${inputVideoCodec} == 'av1' ]]; then
-		ffmpegParams+=(
-			'-c:v' 'copy'
-		)
-	else
-		ffmpegParams+=(
-			'-pix_fmt' 'yuv420p10le'
-			'-c:v' 'libsvtav1' '${videoParams[@]}'
-			'-svtav1-params' '${svtAv1Params}'
-		)
 	fi
 
 	get_encode_versions || return 1
