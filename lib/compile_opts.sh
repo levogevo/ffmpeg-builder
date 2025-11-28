@@ -9,7 +9,7 @@ declare -Ag FB_COMP_OPTS_DESC
 
 # default compile options
 FB_COMP_OPTS_DESC['CLEAN']='clean build directories before building'
-DEFAULT_CLEAN=true
+DEFAULT_CLEAN=ON
 
 FB_COMP_OPTS_DESC['LTO']='enable link time optimization'
 DEFAULT_LTO=ON
@@ -37,7 +37,7 @@ libvmaf \
 libx264 \
 libx265 \
 libwebp \
-libmp3lame \
+libmp3lame\
 "
 
 # user-overridable compile option variable names

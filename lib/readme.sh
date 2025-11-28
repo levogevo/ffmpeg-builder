@@ -13,7 +13,8 @@ gen_function_info() {
 
 gen_compile_opts_info() {
 	for opt in "${FB_COMP_OPTS[@]}"; do
-		echo "- \`${opt}\`: ${FB_COMP_OPTS_DESC[${opt}]}"
+		declare -n defOptVal="DEFAULT_${opt}"
+		echo "- \`${opt}\`: ${FB_COMP_OPTS_DESC[${opt}]} (default: ${defOptVal})"
 	done
 }
 

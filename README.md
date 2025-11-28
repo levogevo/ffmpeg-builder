@@ -35,13 +35,13 @@ The default enabled libraries included in the `ffmpeg` build are:
 - libmp3lame
 
 The user-overridable compile options are:
-- `CLEAN`: clean build directories before building
-- `LTO`: enable link time optimization
-- `OPT`: optimization level (0-3)
-- `STATIC`: static or shared build
-- `ARCH`: architecture type (x86-64-v{1,2,3,4}, armv8-a, etc)
-- `PREFIX`: prefix to install to, default is local install in ./gitignore/sysroot
-- `ENABLE`: configure what ffmpeg enables
+- `CLEAN`: clean build directories before building (default: ON)
+- `LTO`: enable link time optimization (default: ON)
+- `OPT`: optimization level (0-3) (default: 3)
+- `STATIC`: static or shared build (default: ON)
+- `ARCH`: architecture type (x86-64-v{1,2,3,4}, armv8-a, etc) (default: native)
+- `PREFIX`: prefix to install to, default is local install in ./gitignore/sysroot (default: local)
+- `ENABLE`: configure what ffmpeg enables (default: libsvtav1_psy libopus libdav1d libaom librav1e libvmaf libx264 libx265 libwebp libmp3lame)
 
 Examples:
 - only build libsvtav1_psy and libopus: `ENABLE='libsvtav1_psy libopus' ./scripts/build.sh`

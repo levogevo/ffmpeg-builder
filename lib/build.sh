@@ -314,7 +314,7 @@ download_release() {
 	done
 
 	# enabling a clean build
-	if [[ ${CLEAN} == true ]]; then
+	if [[ ${CLEAN} == 'ON' ]]; then
 		DO_CLEAN="rm -rf"
 	else
 		DO_CLEAN='void'
@@ -734,7 +734,7 @@ build_libplacebo() {
 	(
 		installDir="${PWD}/3rdparty/glad"
 		get_build_conf glad
-		CLEAN=false download_release
+		CLEAN=OFF download_release
 		cd "${extractedDir}" || exit 1
 		cp -r ./* "${installDir}"
 	) || return 1
