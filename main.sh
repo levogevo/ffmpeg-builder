@@ -69,18 +69,18 @@ FB_FUNC_NAMES+=('print_cmds')
 FB_FUNC_DESCS['print_cmds']='print usable commands'
 print_cmds() {
 	echo -e "~~~ Usable Commands ~~~\n"
-	for funcname in "${FB_FUNC_NAMES[@]}"; do
-		color="${CYAN}" word="${funcname}:" echo_wrapper "\n\t${FB_FUNC_DESCS[${funcname}]}"
+	for funcName in "${FB_FUNC_NAMES[@]}"; do
+		color="${CYAN}" word="${funcName}:" echo_wrapper "\n\t${FB_FUNC_DESCS[${funcName}]}"
 		if [[ $FB_RUNNING_AS_SCRIPT -eq 0 ]]; then
-			(cd "$SCRIPT_DIR" && ln -sf entry.sh "${funcname}.sh")
+			(cd "$SCRIPT_DIR" && ln -sf entry.sh "${funcName}.sh")
 		fi
 	done
 	echo -e "\n"
 }
 
 set_completions() {
-	for funcname in "${FB_FUNC_NAMES[@]}"; do
-		complete -W "${FB_FUNC_COMPLETION[${funcname}]}" "${funcname}"
+	for funcName in "${FB_FUNC_NAMES[@]}"; do
+		complete -W "${FB_FUNC_COMPLETION[${funcName}]}" "${funcName}"
 	done
 }
 
@@ -88,7 +88,7 @@ src_scripts || return 1
 determine_pkg_mgr || return 1
 check_compile_opts_override || return 1
 
-if [[ $FB_RUNNING_AS_SCRIPT -eq 0 ]]; then
+if [[ ${FB_RUNNING_AS_SCRIPT} -eq 0 ]]; then
 	print_cmds || return 1
 fi
 set_completions || return 1

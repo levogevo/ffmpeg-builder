@@ -25,8 +25,8 @@ set_efg_opts() {
 	local minOpt=1
 	# using all
 	local maxOpt=${numOpts}
-	test $# -lt ${minOpt} && echo_fail "not enough arguments" && efg_usage && return 1
-	test $# -gt ${maxOpt} && echo_fail "too many arguments" && efg_usage && return 1
+	test $# -lt ${minOpt} && efg_usage && return 1
+	test $# -gt ${maxOpt} && efg_usage && return 1
 	local OPTARG OPTIND
 	while getopts "${opts}" flag; do
 		case "${flag}" in

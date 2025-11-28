@@ -152,10 +152,10 @@ encode_usage() {
 	echo -e "\t[-p] print the command instead of executing it (default: ${PRINT_OUT})"
 	echo -e "\t[-c] use cropdetect (default: ${CROP})"
 	echo -e "\t[-d] enable dolby vision (default: ${DV_TOGGLE})"
-	echo -e "\t[-v] Print relevant version info"
+	echo -e "\t[-v] print relevant version info"
 	echo -e "\t[-s] use same container as input, default is convert to mkv"
-	echo -e "\n\t[output] if unset, defaults to ${HOME}/"
-	echo -e "\n\t[-u] update script (git pull at ${REPO_DIR})"
+	echo -e "\n\t[output] if unset, defaults to \${HOME}/av1-input-file-name.mkv"
+	echo -e "\n\t[-u] update script (git pull ffmpeg-builder)"
 	echo -e "\t[-I] system install at ${ENCODE_INSTALL_PATH}"
 	echo -e "\t[-U] uninstall from ${ENCODE_INSTALL_PATH}"
 	return 0
@@ -181,8 +181,8 @@ set_encode_opts() {
 	local minOpt=1
 	# using all + output name
 	local maxOpt=$((numOpts + 1))
-	test $# -lt ${minOpt} && echo_fail "not enough arguments" && encode_usage && return 1
-	test $# -gt ${maxOpt} && echo_fail "too many arguments" && encode_usage && return 1
+	test $# -lt ${minOpt} && encode_usage && return 1
+	test $# -gt ${maxOpt} && encode_usage && return 1
 	local optsUsed=0
 	local OPTARG OPTIND
 	while getopts "${opts}" flag; do

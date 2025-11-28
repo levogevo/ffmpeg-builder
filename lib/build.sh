@@ -454,7 +454,7 @@ do_build() {
 
 FB_FUNC_NAMES+=('build')
 # shellcheck disable=SC2034
-FB_FUNC_DESCS['build']='build ffmpeg with desired configuration'
+FB_FUNC_DESCS['build']='build ffmpeg with the desired configuration'
 build() {
 	set_compile_opts || return 1
 

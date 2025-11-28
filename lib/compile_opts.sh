@@ -3,21 +3,30 @@
 # variables used externally
 # shellcheck disable=SC2034
 
-# default compile options
+# compile option descriptions
+unset FB_COMP_OPTS_DESC
+declare -Ag FB_COMP_OPTS_DESC
 
-# clean build directories before building
+# default compile options
+FB_COMP_OPTS_DESC['CLEAN']='clean build directories before building'
 DEFAULT_CLEAN=true
-# enable link time optimization
+
+FB_COMP_OPTS_DESC['LTO']='enable link time optimization'
 DEFAULT_LTO=ON
-# optimization level (0-3)
+
+FB_COMP_OPTS_DESC['OPT']='optimization level (0-3)'
 DEFAULT_OPT=3
-# static or shared build
+
+FB_COMP_OPTS_DESC['STATIC']='static or shared build'
 DEFAULT_STATIC=ON
-# architecture type (x86-64-v{1,2,3,4}, armv8-a, etc)
+
+FB_COMP_OPTS_DESC['ARCH']='architecture type (x86-64-v{1,2,3,4}, armv8-a, etc)'
 DEFAULT_ARCH=native
-# prefix to install to, default is local install
+
+FB_COMP_OPTS_DESC['PREFIX']='prefix to install to, default is local install in ./gitignore/sysroot'
 DEFAULT_PREFIX='local'
-# configure what ffmpeg enables
+
+FB_COMP_OPTS_DESC['ENABLE']='configure what ffmpeg enables'
 DEFAULT_ENABLE="\
 libsvtav1_psy \
 libopus \

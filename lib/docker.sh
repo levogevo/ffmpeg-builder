@@ -100,7 +100,7 @@ docker_login() {
 }
 
 FB_FUNC_NAMES+=('docker_build_image')
-FB_FUNC_DESCS['docker_build_image']='build docker image with required dependencies pre-installed'
+FB_FUNC_DESCS['docker_build_image']='build a docker image with the required dependencies pre-installed'
 FB_FUNC_COMPLETION['docker_build_image']="${VALID_DOCKER_IMAGES[*]}"
 docker_build_image() {
 	local image="$1"
@@ -243,7 +243,7 @@ docker_load_image() {
 }
 
 FB_FUNC_NAMES+=('docker_run_image')
-FB_FUNC_DESCS['docker_run_image']='run docker image with given flags'
+FB_FUNC_DESCS['docker_run_image']='run a docker image with the given arguments'
 FB_FUNC_COMPLETION['docker_run_image']="${VALID_DOCKER_IMAGES[*]}"
 docker_run_image() {
 	local image="$1"
