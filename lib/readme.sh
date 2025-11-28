@@ -58,23 +58,26 @@ Examples:
 Make sure to $(gen_function_info install_deps). Then $(gen_function_info build).
 
 ### Docker build
-1. choose a given distro from: ${VALID_DOCKER_IMAGES[*]}.
+1. choose a given distro from: \`${VALID_DOCKER_IMAGES[*]}\`.
 2. $(gen_function_info docker_build_image) \`<distro>\`.
 3. $(gen_function_info docker_run_image) \`<distro>\` \`./scripts/build.sh\`
 
-Docker builds support the same configuration options as native builds. For example:
-\`ENABLE='libdav1d' ./scripts/docker_run_image.sh ubuntu ./scripts/build.sh\` to build \`ffmpeg\` on ubuntu with only \`libdav1d\` enabled.
+Docker builds support the same configuration options as native builds. For example to build \`ffmpeg\` on ubuntu with only \`libdav1d\` enabled:
+\`\`\`bash
+./scripts/docker_build_image.sh ubuntu
+ENABLE='libdav1d' ./scripts/docker_run_image.sh ubuntu ./scripts/build.sh
+\`\`\`
 
 # Encoding scripts
-The encoding scripts are designed to be installed to system paths for re-use via symbolic links back to this repo.
+The encoding scripts are designed to be installed to system paths for re-use via symbolic links back to this repo using the \`-I\` flag.
 
 ## Encoding with svtav1-psy and opus
 \`\`\`bash
 $(encode)
 \`\`\`
-- Uses svtav1-psy for the video encoder
-- Uses libopus for the audio encoder
-- Skips re-encoding av1/opus content
+- Uses svtav1-psy for the video encoder.
+- Uses libopus for the audio encoder.
+- Skips re-encoding av1/opus streams.
 - Only maps audio streams that match the video stream language if the video stream has a defined language.
 - Only maps english subtitle streams.
 - Adds track statistics to the output mkv file and embeds the encoder versions to the output metadata. For example:

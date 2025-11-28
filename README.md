@@ -52,15 +52,18 @@ Examples:
 Make sure to install required dependencies using `./scripts/install_deps.sh`. Then build ffmpeg with the desired configuration using `./scripts/build.sh`.
 
 ### Docker build
-1. choose a given distro from: ubuntu fedora debian archlinux.
+1. choose a given distro from: `ubuntu fedora debian archlinux`.
 2. build a docker image with the required dependencies pre-installed using `./scripts/docker_build_image.sh` `<distro>`.
 3. run a docker image with the given arguments using `./scripts/docker_run_image.sh` `<distro>` `./scripts/build.sh`
 
-Docker builds support the same configuration options as native builds. For example:
-`ENABLE='libdav1d' ./scripts/docker_run_image.sh ubuntu ./scripts/build.sh` to build `ffmpeg` on ubuntu with only `libdav1d` enabled.
+Docker builds support the same configuration options as native builds. For example to build `ffmpeg` on ubuntu with only `libdav1d` enabled:
+```bash
+./scripts/docker_build_image.sh ubuntu
+ENABLE='libdav1d' ./scripts/docker_run_image.sh ubuntu ./scripts/build.sh
+```
 
 # Encoding scripts
-The encoding scripts are designed to be installed to system paths for re-use via symbolic links back to this repo.
+The encoding scripts are designed to be installed to system paths for re-use via symbolic links back to this repo using the `-I` flag.
 
 ## Encoding with svtav1-psy and opus
 ```bash
@@ -80,9 +83,9 @@ encode -i input [options] output
 	[-I] system install at /usr/local/bin/encode
 	[-U] uninstall from /usr/local/bin/encode
 ```
-- Uses svtav1-psy for the video encoder
-- Uses libopus for the audio encoder
-- Skips re-encoding av1/opus content
+- Uses svtav1-psy for the video encoder.
+- Uses libopus for the audio encoder.
+- Skips re-encoding av1/opus streams.
 - Only maps audio streams that match the video stream language if the video stream has a defined language.
 - Only maps english subtitle streams.
 - Adds track statistics to the output mkv file and embeds the encoder versions to the output metadata. For example:
