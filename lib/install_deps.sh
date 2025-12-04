@@ -91,6 +91,21 @@ print_req_pkgs() {
 		zip unzip gperf build-essential
 		binutils ninja ndk-multilib-native-static
 	)
+	# shellcheck disable=SC2034
+	local winget_pkgs=(
+		Git.Git gerardog.gsudo
+		StrawberryPerl.StrawberryPerl
+		bloodrock.pkg-config-lite
+		Kitware.CMake mesonbuild.meson
+		Microsoft.VisualStudio.2019.BuildTools
+		Microsoft.VisualStudio.2022.BuildTools
+		GnuWin32.DiffUtils GnuWin32.Bison
+		GnuWin32.Gperf GnuWin32.File
+		GnuWin32.Tar GnuWin32.UnZip
+		GnuWin32.Zip GnuWin32.Which
+		Rustlang.Rustup Python.Python.3.12
+		Ccache.Ccache LLVM.LLVM
+	)
 
 	local req_pkgs_env_name="${pkg_mgr/-/_}_pkgs"
 	declare -n req_pkgs="${req_pkgs_env_name}"

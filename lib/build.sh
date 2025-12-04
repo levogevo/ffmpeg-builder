@@ -487,6 +487,9 @@ build() {
 # darwin will always link dynamically if a dylib is present
 # so they must be remove for static builds
 sanitize_sysroot_libs() {
+    # do nothing for windows
+	if is_windows; then return ; fi
+
 	local libs=("$@")
 
 	for lib in "${libs[@]}"; do
@@ -575,6 +578,7 @@ cmake_build() {
 	# build
 	cmake \
 		--build fb-build \
+        --config Release \
 		-j "${JOBS}" || return 1
 	# install
 	${SUDO_MODIFY} cmake \
@@ -599,16 +603,12 @@ build_libsvtav1() {
 }
 
 build_libsvtav1_psy() {
-	local hdr10pluslib="${LIBDIR}/libhdr10plus-rs.${USE_LIB_SUFF}"
-	local dovilib="${LIBDIR}/libdovi.${USE_LIB_SUFF}"
 	cmake_build \
 		-DBUILD_TESTING=OFF \
 		-DENABLE_AVX512=ON \
 		-DCOVERAGE=OFF \
 		-DLIBDOVI_FOUND=1 \
-		-DLIBHDR10PLUS_RS_FOUND=1 \
-		-DLIBHDR10PLUS_RS_LIBRARY="${hdr10pluslib}" \
-		-DLIBDOVI_LIBRARY="${dovilib}" || return 1
+		-DLIBHDR10PLUS_RS_FOUND=1 || return 1
 	sanitize_sysroot_libs libSvtAv1Enc || return 1
 }
 
