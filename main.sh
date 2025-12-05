@@ -88,6 +88,10 @@ src_scripts || return 1
 determine_pkg_mgr || return 1
 check_compile_opts_override || return 1
 
+# set local prefix since some functions need it
+# as opposed to user-defined PREFIX
+LOCAL_PREFIX="${IGN_DIR}/$(print_os)_sysroot"
+
 if [[ ${FB_RUNNING_AS_SCRIPT} -eq 0 ]]; then
 	print_cmds || return 1
 fi

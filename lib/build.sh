@@ -27,7 +27,7 @@ set_compile_opts() {
 	# set job count for all builds
 	JOBS="$(nproc)"
 	# local vs system prefix
-	test "${PREFIX}" == 'local' && PREFIX="${IGN_DIR}/$(print_os)_sysroot"
+	test "${PREFIX}" == 'local' && PREFIX="${LOCAL_PREFIX}"
 
 	# check if we need to handle PREFIX with sudo
 	local testfile=''
@@ -243,9 +243,9 @@ spirv_tools		2025.4		tar.gz		https://github.com/KhronosGroup/SPIRV-Tools/archive
 spirv_headers	1.4.328.1	tar.gz		https://github.com/KhronosGroup/SPIRV-Headers/archive/refs/tags/vulkan-sdk-${ver}.${ext}
 glad			2.0.8		tar.gz		https://github.com/Dav1dde/glad/archive/refs/tags/v${ver}.${ext}
 
-libx265			4.1			tar.gz		https://bitbucket.org/multicoreware/x265_git/downloads/x265_${ver}.${ext} libnuma,cmake
+libx265			4.1			tar.gz		https://bitbucket.org/multicoreware/x265_git/downloads/x265_${ver}.${ext} libnuma,cmake3
 libnuma			2.0.19		tar.gz		https://github.com/numactl/numactl/archive/refs/tags/v${ver}.${ext}
-cmake			3.31.8		tar.gz		https://github.com/Kitware/CMake/archive/refs/tags/v${ver}.${ext}
+cmake3			3.31.8		tar.gz		https://github.com/Kitware/CMake/archive/refs/tags/v${ver}.${ext}
 '
 
 	local supported_builds=()
@@ -487,8 +487,8 @@ build() {
 # darwin will always link dynamically if a dylib is present
 # so they must be remove for static builds
 sanitize_sysroot_libs() {
-    # do nothing for windows
-	if is_windows; then return ; fi
+	# do nothing for windows
+	if is_windows; then return; fi
 
 	local libs=("$@")
 
@@ -506,6 +506,24 @@ sanitize_sysroot_libs() {
 
 	return 0
 }
+
+# cargo cinstall destdir prepends with entire prefix
+# this breaks windows with msys path augmentation
+# so recurse into directories until PREFIX sysroot
+# also windows via msys path resolution breaks sometimes
+# for PREFIX installs (C:/ instead of /c/)
+install_local_destdir() (
+	local destdir="$1"
+	test "${destdir}" == '' && return 1
+	cd "${destdir}" || return 1
+	local sysrootDir="$(bash_basename "${PREFIX}")"
+	while ! test -d "${sysrootDir}"; do
+		cd ./* || return 1
+	done
+	# final cd
+	cd "${sysrootDir}" || return 1
+	${SUDO_MODIFY} cp -r ./* "${PREFIX}/"
+)
 
 del_pkgconfig_gcc_s() {
 	# HACK PATCH
@@ -531,20 +549,14 @@ del_pkgconfig_gcc_s() {
 
 ### RUST ###
 cargo_cbuild() {
+	local destdir="${PWD}/fb-local-install"
 	cargo cinstall \
-		--destdir "${PWD}/local-install" \
+		--destdir "${destdir}" \
 		"${CARGO_CINSTALL_FLAGS[@]}"
 	# cargo cinstall destdir prepends with entire prefix
 	# this breaks windows with msys path augmentation
 	# so recurse into directories until sysroot is there
-	cd ./local-install || return 1
-	local sysrootDir="$(bash_basename "${PREFIX}")"
-	while ! test -d "${sysrootDir}"; do
-		cd ./* || return 1
-	done
-	# final cd
-	cd "${sysrootDir}" || return 1
-	${SUDO_MODIFY} cp -r ./* "${PREFIX}/"
+	install_local_destdir "${destdir}" || return 1
 }
 
 build_hdr10plus_tool() {
@@ -578,7 +590,7 @@ cmake_build() {
 	# build
 	cmake \
 		--build fb-build \
-        --config Release \
+		--config Release \
 		-j "${JOBS}" || return 1
 	# install
 	${SUDO_MODIFY} cmake \
@@ -666,7 +678,7 @@ build_spirv_headers() {
 }
 
 # libx265 does not support cmake >= 4
-build_cmake() {
+build_cmake3() {
 	local cmakeVersion verMajor
 	# don't need to build if system version is below 4
 	IFS=$' \t' read -r _ _ cmakeVersion <<<"$(cmake --version)"
@@ -676,7 +688,7 @@ build_cmake() {
 	fi
 
 	# don't need to rebuild if already built
-	local cmake="${PREFIX}/bin/cmake"
+	local cmake="${LOCAL_PREFIX}/bin/cmake"
 	if [[ -f ${cmake} ]]; then
 		IFS=$' \t' read -r _ _ cmakeVersion <<<"$("${cmake}" --version)"
 		IFS='.' read -r verMajor _ _ <<<"${cmakeVersion}"
@@ -685,17 +697,24 @@ build_cmake() {
 		fi
 	fi
 
-	cmake \
-		-DCMAKE_PREFIX_PATH="${PREFIX}" \
-		-DCMAKE_INSTALL_PREFIX="${PREFIX}" \
-		-DCMAKE_INSTALL_LIBDIR=lib \
-		-DCMAKE_BUILD_TYPE=Release || return 1
-	ccache make -j"${JOBS}" || return 1
-	${SUDO_MODIFY} make -j"${JOBS}" install || return 1
+	local overrideFlags=(
+		"-DCMAKE_BUILD_TYPE=Release"
+		"-DCMAKE_PREFIX_PATH=${LOCAL_PREFIX}"
+		"-DCMAKE_INSTALL_PREFIX=${LOCAL_PREFIX}"
+	)
+	# reuse variables
+	for flag in "${CMAKE_FLAGS[@]}"; do
+		if line_contains "${flag}" 'CMAKE_INSTALL_LIBDIR' ||
+			line_contains "${flag}" 'COMPILER_LAUNCHER'; then
+			overrideFlags+=("${flag}")
+		fi
+	done
+	CMAKE_FLAGS='' cmake_build \
+		"${overrideFlags[@]}" || return 1
 }
 
 build_libx265() {
-	PATH="${PREFIX}/bin:${PATH}" cmake_build \
+	PATH="${LOCAL_PREFIX}/bin:${PATH}" cmake_build \
 		-G "Unix Makefiles" \
 		-DHIGH_BIT_DEPTH=ON \
 		-DENABLE_HDR10_PLUS=OFF \
@@ -782,19 +801,36 @@ build_glad() {
 }
 
 ### AUTOTOOLS ###
-build_libx264() {
-	# libx264 does not support LTO
+configure_build() {
+	local addFlags=("$@")
 	local configureFlags=()
-	for flag in "${CONFIGURE_FLAGS[@]}"; do
-		test "${flag}" == '--enable-lto' && continue
-		configureFlags+=("${flag}")
-	done
 
+	# some builds break with LTO
+	if [[ ${LTO} == 'OFF' ]]; then
+		for flag in "${CONFIGURE_FLAGS[@]}"; do
+			test "${flag}" == '--enable-lto' && continue
+			configureFlags+=("${flag}")
+		done
+	else
+		configureFlags+=("${CONFIGURE_FLAGS[@]}")
+	fi
+
+	# configure
 	./configure \
 		"${configureFlags[@]}" \
-		--disable-cli || return 1
+		"${addFlags[@]}" || return 1
+	# build
 	ccache make -j"${JOBS}" || return 1
-	${SUDO_MODIFY} make -j"${JOBS}" install || return 1
+	# install
+	local destdir="${PWD}/fb-local-install"
+	make -j"${JOBS}" DESTDIR="${destdir}" install || return 1
+	install_local_destdir "${destdir}" || return 1
+}
+
+build_libx264() {
+	# libx264 does not support LTO
+	LTO=OFF configure_build \
+		--disable-cli || return 1
 	sanitize_sysroot_libs libx264 || return 1
 }
 
@@ -806,24 +842,16 @@ build_libmp3lame() {
 			'lame_init_old' || return 1
 	fi
 
-	./configure \
-		"${CONFIGURE_FLAGS[@]}" \
+	configure_build \
 		--enable-nasm || return 1
-	ccache make -j"${JOBS}" || return 1
-	${SUDO_MODIFY} make -j"${JOBS}" install || return 1
 	sanitize_sysroot_libs libmp3lame || return 1
 }
 
 build_libnuma() {
-	# darwin does not have numa
-	if is_darwin; then return 0; fi
-	if is_android; then return 0; fi
+	if is_darwin || is_android; then return 0; fi
 
 	./autogen.sh || return 1
-	./configure \
-		"${CONFIGURE_FLAGS[@]}" || return 1
-	ccache make -j"${JOBS}" || return 1
-	${SUDO_MODIFY} make -j"${JOBS}" install || return 1
+	configure_build || return 1
 	sanitize_sysroot_libs libnuma || return 1
 }
 
@@ -888,34 +916,32 @@ build_ffmpeg() {
 		test "${enable}" == 'libsvtav1_psy' && enable='libsvtav1'
 		CONFIGURE_FLAGS+=("--enable-${enable}")
 	done
+
+	local ffmpegFlags=(
+		"--enable-gpl"
+		"--enable-version3"
+		"--disable-htmlpages"
+		"--disable-podpages"
+		"--disable-txtpages"
+		"--disable-ffplay"
+		"--disable-autodetect"
+		"--extra-version=${ver}"
+		"--enable-runtime-cpudetect"
+	)
+
 	# lto is broken on darwin for ffmpeg only
 	# https://trac.ffmpeg.org/ticket/11479
-	local ffmpegFlags=()
 	if is_darwin; then
-		for flag in "${CONFIGURE_FLAGS[@]}"; do
-			test "${flag}" == '--enable-lto' && continue
-			ffmpegFlags+=("${flag}")
-		done
+		LTO=OFF
 		for flag in "${FFMPEG_EXTRA_FLAGS[@]}"; do
 			ffmpegFlags+=("${flag// ${LTO_FLAG}/}")
 		done
 	else
-		ffmpegFlags=("${CONFIGURE_FLAGS[@]}" "${FFMPEG_EXTRA_FLAGS[@]}")
+		ffmpegFlags+=("${FFMPEG_EXTRA_FLAGS[@]}")
 	fi
 
-	./configure \
-		"${ffmpegFlags[@]}" \
-		--enable-gpl \
-		--enable-version3 \
-		--disable-htmlpages \
-		--disable-podpages \
-		--disable-txtpages \
-		--disable-ffplay \
-		--disable-autodetect \
-		--extra-version="${ver}" \
-		--enable-runtime-cpudetect || return 1
-	ccache make -j"${JOBS}" || return 1
-	${SUDO_MODIFY} make -j"${JOBS}" install || return 1
+	configure_build \
+		"${ffmpegFlags[@]}" || return 1
 	${SUDO_MODIFY} cp ff*_g "${PREFIX}/bin"
 	sanitize_sysroot_libs \
 		libavcodec libavdevice libavfilter libswscale \
