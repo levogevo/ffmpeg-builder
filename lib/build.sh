@@ -340,7 +340,7 @@ download_release() {
 				tar -xf "${wgetOut}" \
 					--strip-components=1 \
 					--no-same-permissions \
-					-C "${extractedDir}"
+					-C "${extractedDir}" || { rm "${wgetOut}" && return 1; }
 			}
 	else
 		# for git downloads
@@ -715,7 +715,6 @@ build_cmake3() {
 
 build_libx265() {
 	PATH="${LOCAL_PREFIX}/bin:${PATH}" cmake_build \
-		-G "Unix Makefiles" \
 		-DHIGH_BIT_DEPTH=ON \
 		-DENABLE_HDR10_PLUS=OFF \
 		-S source || return 1
@@ -848,7 +847,7 @@ build_libmp3lame() {
 }
 
 build_libnuma() {
-	if is_darwin || is_android; then return 0; fi
+	if ! is_linux; then return 0; fi
 
 	./autogen.sh || return 1
 	configure_build || return 1

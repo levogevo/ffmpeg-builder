@@ -58,21 +58,17 @@ echo_if_fail() {
 
 	# parse out relevant part of the trace
 	local cmdEvalLines=()
-	cmd=()
 	while IFS= read -r line; do
+		line="${line//${PS4}/}"
+		test "${line}" == 'set +x' && continue
+		test "${line}" == '' && continue
 		cmdEvalLines+=("${line}")
 	done <"${cmdEvalTrace}"
-	local cmdEvalLineNum=${#cmdEvalLines[@]}
-	for ((i = 1; i < cmdEvalLineNum - 2; i++)); do
-		local trimmedCmd="${cmdEvalLines[${i}]}"
-		trimmedCmd="${trimmedCmd/+ /}"
-		cmd+=("${trimmedCmd}")
-	done
 
 	if ! test ${retval} -eq 0; then
 		echo
 		echo_fail "command failed:"
-		printf "%s\n" "${cmd[@]}"
+		printf "%s\n" "${cmdEvalLines[@]}"
 		echo_warn "command output:"
 		tail -n 20 "${out}"
 		tail -n 20 "${err}"
@@ -212,6 +208,10 @@ line_starts_with() {
 	else
 		return 1
 	fi
+}
+
+is_linux() {
+	line_contains "${OSTYPE}" 'linux'
 }
 
 is_darwin() {
