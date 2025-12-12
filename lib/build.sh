@@ -4,6 +4,8 @@ set_compile_opts() {
 	test "$FB_COMPILE_OPTS_SET" == 1 && return 0
 
 	EXPORTED_ENV_NAMES=(
+		CC
+		CXX
 		LDFLAGS
 		C_FLAGS
 		CXX_FLAGS
@@ -168,6 +170,19 @@ set_compile_opts() {
 		arch_flags+=("-mcpu=${ARCH}")
 	else
 		arch_flags+=("-march=${ARCH}")
+	fi
+
+	# use CLANG/LLVM on windows
+	if is_windows; then
+		CC=clang
+		CXX=clang++
+		CMAKE_FLAGS+=(
+			"-DCMAKE_C_COMPILER=${CC}"
+			"-DCMAKE_CXX_COMPILER=${CXX}"
+			"-DCMAKE_LINKER_TYPE=LLD"
+		)
+	else
+		unset CC CXX
 	fi
 
 	# can fail static builds with -fpic
@@ -352,6 +367,7 @@ download_release() {
 			localHEAD="$(git rev-parse HEAD)"
 			remoteHEAD="$(get_remote_head "$(git config --get remote.origin.url)")"
 			if [[ ${localHEAD} != "${remoteHEAD}" ]]; then
+				git stash
 				git pull --ff-only
 				git submodule update --init --recursive
 			fi

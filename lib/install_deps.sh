@@ -4,7 +4,11 @@
 determine_pkg_mgr() {
 	# sudo used externally
 	# shellcheck disable=SC2034
-	test "$(id -u)" -eq 0 && SUDO='' || SUDO='sudo '
+	if is_windows || test "$(id -u)" -eq 0; then
+		SUDO=''
+	else
+		SUDO='sudo '
+	fi
 
 	# pkg-mgr update-cmd upgrade-cmd install-cmd check-cmd
 	# shellcheck disable=SC2016
@@ -14,7 +18,6 @@ brew:brew update:brew upgrade:brew install:brew list --formula ${pkg}
 apt-get:${SUDO}apt-get update:${SUDO}apt-get upgrade -y:${SUDO}apt-get install -y:dpkg -l ${pkg}
 pacman:${SUDO}pacman -Syy:${SUDO}pacman -Syu --noconfirm:${SUDO}pacman -S --noconfirm --needed:pacman -Qi ${pkg}
 dnf:${SUDO}dnf check-update || true:${SUDO}dnf upgrade --refresh -y:${SUDO}dnf install -y:dnf list -q --installed ${pkg}
-winget:winget update:true:${SUDO}winget install:winget list ${pkg}
 '
 	local supported_pkg_mgr=()
 	unset pkg_mgr pkg_mgr_update pkg_mgr_upgrade pkg_install pkg_check
@@ -92,21 +95,31 @@ print_req_pkgs() {
 		binutils ninja ndk-multilib-native-static
 	)
 	# shellcheck disable=SC2034
-	local winget_pkgs=(
-		Git.Git gerardog.gsudo
-		StrawberryPerl.StrawberryPerl
-		bloodrock.pkg-config-lite
-		Kitware.CMake mesonbuild.meson
-		Microsoft.VisualStudio.2019.BuildTools
-		Microsoft.VisualStudio.2022.BuildTools
-		GnuWin32.DiffUtils GnuWin32.Bison
-		GnuWin32.Gperf GnuWin32.File
-		GnuWin32.Tar GnuWin32.UnZip
-		GnuWin32.Zip GnuWin32.Which
-		Rustlang.Rustup Python.Python.3.12
-		Ccache.Ccache LLVM.LLVM
+	local msys_ucrt_pkgs=(
+		mingw-w64-ucrt-x86_64-toolchain
+		mingw-w64-ucrt-x86_64-autotools
+		mingw-w64-ucrt-x86_64-clang
+		mingw-w64-ucrt-x86_64-clang-libs
+		mingw-w64-ucrt-x86_64-cmake
+		mingw-w64-ucrt-x86_64-compiler-rt
+		mingw-w64-ucrt-x86_64-doxygen
+		mingw-w64-ucrt-x86_64-gcc-libs
+		mingw-w64-ucrt-x86_64-gperf
+		mingw-w64-ucrt-x86_64-itstool
+		mingw-w64-ucrt-x86_64-meson
+		mingw-w64-ucrt-x86_64-bc
+		mingw-w64-ucrt-x86_64-nasm
+		mingw-w64-ucrt-x86_64-yasm
+		mingw-w64-ucrt-x86_64-ccache
+		mingw-w64-ucrt-x86_64-rustup
+		mingw-w64-ucrt-x86_64-cargo-c
+		mingw-w64-ucrt-x86_64-perl
+		mingw-w64-ucrt-x86_64-perl-modules
 	)
 
+	if is_windows; then
+		local pkg_mgr='msys_ucrt'
+	fi
 	local req_pkgs_env_name="${pkg_mgr/-/_}_pkgs"
 	declare -n req_pkgs="${req_pkgs_env_name}"
 	local sorted_req_pkgs=($(printf '%s\n' "${req_pkgs[@]}" | sort -u))
