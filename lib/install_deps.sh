@@ -179,7 +179,7 @@ check_for_req_pkgs() {
 		fi
 	fi
 
-	echo_if_fail cargo install cargo-c || return 1
+	has_cmd cargo-cbuild || echo_if_fail cargo install cargo-c || return 1
 	echo_pass "cargo-c is installed"
 	echo_pass "all required packages installed"
 
