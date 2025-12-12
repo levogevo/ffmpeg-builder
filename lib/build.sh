@@ -842,7 +842,8 @@ build_libmp3lame() {
 	fi
 
 	configure_build \
-		--enable-nasm || return 1
+		--enable-nasm \
+		--disable-frontend || return 1
 	sanitize_sysroot_libs libmp3lame || return 1
 }
 
