@@ -85,9 +85,36 @@ set_compile_opts() {
 	local compilerDir="${LOCAL_PREFIX}/compiler-tools"
 	test -d "${compilerDir}" && rm -rf "${compilerDir}"
 	mkdir "${compilerDir}"
-	echo -e "#!/bin/sh\nexec ${CC} -fuse-ld=${USE_LD} \"\$@\"" >"${compilerDir}"/cc
-	echo -e "#!/bin/sh\nexec ${CXX} -fuse-ld=${USE_LD} \"\$@\"" >"${compilerDir}"/c++
-	echo -e "#!/bin/sh\nexec ld.lld \"\$@\"" >"${compilerDir}"/ld
+	# real:gnu:clang:generic
+	local compilerMap="\
+${CC}:gcc:clang:cc
+${CXX}:g++:clang++:c++
+ld.lld:ld:lld:ld"
+	local realT gnuT clangT genericT addArgs
+	while read -r line; do
+		echo_warn "${line}"
+		IFS=: read -r realT gnuT clangT genericT <<<"${line}"
+		# full path to the real tool
+		realT="$(command -v "${realT}")"
+		# add fuse-ld if not ld itself
+		addArgs=''
+		if line_contains "${clangT}" "clang"; then addArgs="-fuse-ld=${USE_LD}"; fi
+
+		echo_warn "realT:${realT}"
+		echo_warn "gnuT:${gnuT}"
+		echo_warn "clangT:${clangT}"
+		echo_warn "genericT:${genericT}"
+
+		# create generic tool version
+		echo "#!/usr/bin/env bash
+echo \$@ > ${compilerDir}/${genericT}.\${RANDOM}
+exec \"${realT}\" ${addArgs} \"\$@\"" >"${compilerDir}/${genericT}"
+		# copy generic to gnu/clang variants
+		# cp "${compilerDir}/${genericT}" "${compilerDir}/${gnuT}" 2>/dev/null
+		if is_darwin; then
+			cp "${compilerDir}/${genericT}" "${compilerDir}/${clangT}" 2>/dev/null
+		fi
+	done <<<"${compilerMap}"
 	chmod +x "${compilerDir}"/*
 	export PATH="${compilerDir}:${PATH}"
 
@@ -125,10 +152,10 @@ set_compile_opts() {
 	# enabling link-time optimization
 	if [[ ${LTO} == 'ON' ]]; then
 		LTO_FLAG='-flto'
-		CONFIGURE_FLAGS+=('--enable-lto')
+		CONFIGURE_FLAGS+=('--enable-lto ')
 		MESON_FLAGS+=("-Db_lto=true")
 	else
-		LTO_FLAG=' '
+		LTO_FLAG=''
 		MESON_FLAGS+=("-Db_lto=false")
 	fi
 	CFLAGS_ARR+=("${LTO_FLAG}")
@@ -163,13 +190,14 @@ set_compile_opts() {
 			"-DBUILD_SHARED_LIBS=OFF"
 		)
 		# darwin does not support static linkage
-		if ! is_darwin; then
+		if is_darwin; then
+			FFMPEG_EXTRA_FLAGS+=("--extra-ldflags=${LDFLAGS_ARR[*]} -static")
 			CMAKE_FLAGS+=("-DCMAKE_EXE_LINKER_FLAGS=${LDFLAGS_ARR[*]} -static")
+		else
+			FFMPEG_EXTRA_FLAGS+=("--extra-ldflags=${LDFLAGS_ARR[*]}")
+			CMAKE_FLAGS+=("-DCMAKE_EXE_LINKER_FLAGS=${LDFLAGS_ARR[*]}")
 		fi
-		FFMPEG_EXTRA_FLAGS+=(
-			"--pkg-config-flags=--static"
-			"--extra-ldflags=${LDFLAGS_ARR[*]} -static"
-		)
+		FFMPEG_EXTRA_FLAGS+=("--pkg-config-flags=--static")
 		# remove shared libraries for static builds
 		USE_LIB_SUFF="${STATIC_LIB_SUFF}"
 		DEL_LIB_SUFF="${SHARED_LIB_SUFF}"
@@ -899,7 +927,6 @@ build_libx264() {
 }
 
 build_libmp3lame() {
-	autoreconf -i || return 1
 	# https://sourceforge.net/p/lame/mailman/message/36081038/
 	if is_darwin; then
 		remove_line \
