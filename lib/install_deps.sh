@@ -56,34 +56,32 @@ print_req_pkgs() {
 	local brew_pkgs=(
 		"${common_pkgs[@]}" pkgconf
 		mkvtoolnix pipx uutils-coreutils
+		llvm lld
 	)
 	local common_linux_pkgs=(
 		"${common_pkgs[@]}" clang valgrind
-		curl bc lshw xxd pkgconf sudo
+		curl bc lshw xxd pkgconf sudo llvm
 	)
 	# shellcheck disable=SC2034
 	local apt_get_pkgs=(
-		"${common_linux_pkgs[@]}" build-essential
-		git-core libass-dev libfreetype6-dev
-		libsdl2-dev libva-dev libvdpau-dev
-		libvorbis-dev libxcb1-dev pipx
-		libxcb-shm0-dev libxcb-xfixes0-dev
-		zlib1g-dev libssl-dev ninja-build
-		gobjc++ mawk libnuma-dev libc6-dev
-		mediainfo mkvtoolnix libgtest-dev
+		"${common_linux_pkgs[@]}" pipx
+		build-essential libssl-dev gobjc++
+		mawk libc6-dev mediainfo ninja-build
+		mkvtoolnix libgtest-dev
 	)
 	# shellcheck disable=SC2034
 	local pacman_pkgs=(
 		"${common_linux_pkgs[@]}" base-devel
-		python-pipx ninja numactl
+		python-pipx ninja
 	)
 	# shellcheck disable=SC2034
 	local dnf_pkgs=(
 		"${common_linux_pkgs[@]}" openssl-devel
 		pipx ninja-build fontconfig-devel wget2
-		cpuinfo-devel glibc-static glibc-devel
-		libstdc++-static libstdc++-devel patch
-		numactl-devel
+		glibc-static glibc-devel patch
+		libstdc++-static libstdc++-devel
+		llvm-cmake-utils llvm-devel
+		llvm-static compiler-rt lld
 	)
 	# shellcheck disable=SC2034
 	local pkg_pkgs=(

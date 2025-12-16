@@ -1,20 +1,26 @@
 #!/usr/bin/env bash
 
 set_compile_opts() {
-	test "$FB_COMPILE_OPTS_SET" == 1 && return 0
+	test "${FB_COMPILE_OPTS_SET}" == 1 && return 0
 
 	EXPORTED_ENV_NAMES=(
 		CC
+		CFLAGS
 		CXX
+		CXXFLAGS
+		CPPFLAGS
 		LDFLAGS
-		C_FLAGS
-		CXX_FLAGS
-		CPP_FLAGS
 		RUSTFLAGS
 		PKG_CONFIG_PATH
 	)
 	BUILD_ENV_NAMES=(
 		"${EXPORTED_ENV_NAMES[@]}"
+		CFLAGS_ARR
+		CXXFLAGS_ARR
+		CPPFLAGS_ARR
+		LDFLAGS_ARR
+		USE_LD
+		RUSTFLAGS_ARR
 		CONFIGURE_FLAGS
 		MESON_FLAGS
 		CMAKE_FLAGS
@@ -22,6 +28,7 @@ set_compile_opts() {
 		CARGO_CINSTALL_FLAGS
 		LTO_FLAG
 		LIB_SUFF
+		BUILD_TYPE
 	)
 	unset "${BUILD_ENV_NAMES[@]}"
 	export "${EXPORTED_ENV_NAMES[@]}"
@@ -52,12 +59,37 @@ set_compile_opts() {
 
 	# set library/pkgconfig directory
 	LIBDIR="${PREFIX}/lib"
-	LDFLAGS=("-L${LIBDIR}")
+	LDFLAGS_ARR=("-L${LIBDIR}")
 
 	# HACK rope in libm
 	if is_android; then
 		test -f "${LIBDIR}/libm.so" || ln -s /system/lib64/libm.so "${LIBDIR}/libm.so"
 	fi
+
+	# use LLVM toolchain
+	CC=clang
+	CXX=clang++
+	USE_LD=lld
+	LDFLAGS_ARR+=("-fuse-ld=${USE_LD}")
+	CMAKE_FLAGS+=(
+		"-DCMAKE_C_COMPILER=${CC}"
+		"-DCMAKE_CXX_COMPILER=${CXX}"
+		"-DCMAKE_LINKER_TYPE=${USE_LD^^}"
+		"-DCMAKE_LINKER=${USE_LD}"
+	)
+	FFMPEG_EXTRA_FLAGS+=(
+		"--cc=${CC}"
+		"--cxx=${CXX}"
+	)
+	# prepend path with llvm tools
+	local compilerDir="${LOCAL_PREFIX}/compiler-tools"
+	test -d "${compilerDir}" && rm -rf "${compilerDir}"
+	mkdir "${compilerDir}"
+	echo -e "#!/bin/sh\nexec ${CC} -fuse-ld=${USE_LD} \"\$@\"" >"${compilerDir}"/cc
+	echo -e "#!/bin/sh\nexec ${CXX} -fuse-ld=${USE_LD} \"\$@\"" >"${compilerDir}"/c++
+	echo -e "#!/bin/sh\nexec ld.lld \"\$@\"" >"${compilerDir}"/ld
+	chmod +x "${compilerDir}"/*
+	export PATH="${compilerDir}:${PATH}"
 
 	# set prefix flags and basic flags
 	CONFIGURE_FLAGS+=(
@@ -78,6 +110,7 @@ set_compile_opts() {
 		"-DCMAKE_BUILD_TYPE=Release"
 		"-DCMAKE_C_COMPILER_LAUNCHER=ccache"
 		"-DCMAKE_CXX_COMPILER_LAUNCHER=ccache"
+		"-G" "Ninja"
 	)
 	CARGO_CINSTALL_FLAGS=(
 		"--release"
@@ -87,29 +120,25 @@ set_compile_opts() {
 	PKG_CONFIG_PATH="${LIBDIR}/pkgconfig"
 
 	# add prefix include
-	C_FLAGS+=("-I${PREFIX}/include")
+	CPPFLAGS_ARR+=("-I${PREFIX}/include")
 
 	# enabling link-time optimization
 	if [[ ${LTO} == 'ON' ]]; then
 		LTO_FLAG='-flto'
-		C_FLAGS+=("${LTO_FLAG}")
-		if ! is_darwin; then
-			CONFIGURE_FLAGS+=('--enable-lto')
-		fi
+		CONFIGURE_FLAGS+=('--enable-lto')
 		MESON_FLAGS+=("-Db_lto=true")
-		RUSTFLAGS+=("-C lto=yes" "-C inline-threshold=1000" "-C codegen-units=1")
 	else
 		LTO_FLAG=' '
 		MESON_FLAGS+=("-Db_lto=false")
-		RUSTFLAGS+=("-C lto=no")
 	fi
+	CFLAGS_ARR+=("${LTO_FLAG}")
+	LDFLAGS_ARR+=("${LTO_FLAG}")
 
 	# setting optimization level
 	if [[ ${OPT} == '' ]]; then
 		OPT='0'
 	fi
-	C_FLAGS+=("-O${OPT}")
-	RUSTFLAGS+=("-C opt-level=${OPT}")
+	CFLAGS_ARR+=("-O${OPT}")
 	MESON_FLAGS+=("--optimization=${OPT}")
 
 	STATIC_LIB_SUFF='a'
@@ -122,6 +151,7 @@ set_compile_opts() {
 
 	# static/shared linking
 	if [[ ${STATIC} == 'ON' ]]; then
+		BUILD_TYPE=static
 		CONFIGURE_FLAGS+=(
 			'--enable-static'
 			'--disable-shared'
@@ -132,29 +162,34 @@ set_compile_opts() {
 			"-DENABLE_SHARED=OFF"
 			"-DBUILD_SHARED_LIBS=OFF"
 		)
-		RUSTFLAGS+=("-C target-feature=+crt-static")
-		FFMPEG_EXTRA_FLAGS+=("--pkg-config-flags=--static")
 		# darwin does not support static linkage
 		if ! is_darwin; then
-			LDFLAGS+=('-static')
-			CMAKE_FLAGS+=("-DCMAKE_EXE_LINKER_FLAGS=-static")
+			CMAKE_FLAGS+=("-DCMAKE_EXE_LINKER_FLAGS=${LDFLAGS_ARR[*]} -static")
 		fi
-		FFMPEG_EXTRA_FLAGS+=(--extra-ldflags="${LDFLAGS[*]}")
+		FFMPEG_EXTRA_FLAGS+=(
+			"--pkg-config-flags=--static"
+			"--extra-ldflags=${LDFLAGS_ARR[*]} -static"
+		)
 		# remove shared libraries for static builds
 		USE_LIB_SUFF="${STATIC_LIB_SUFF}"
 		DEL_LIB_SUFF="${SHARED_LIB_SUFF}"
 	else
-		FFMPEG_EXTRA_FLAGS+=(--extra-ldflags="${LDFLAGS[*]}")
-		LDFLAGS+=("-Wl,-rpath,${LIBDIR}" "-Wl,-rpath-link,${LIBDIR}")
-		CONFIGURE_FLAGS+=(
-			'--enable-shared'
-			'--disable-static'
-		)
+		BUILD_TYPE=shared
 		CMAKE_FLAGS+=(
 			"-DENABLE_STATIC=${STATIC}"
 			"-DENABLE_SHARED=ON"
 			"-DBUILD_SHARED_LIBS=ON"
 			"-DCMAKE_INSTALL_RPATH=${LIBDIR}"
+			"-DCMAKE_EXE_LINKER_FLAGS=${LDFLAGS_ARR[*]}"
+		)
+		FFMPEG_EXTRA_FLAGS+=("--extra-ldflags=${LDFLAGS_ARR[*]}")
+		LDFLAGS_ARR+=(
+			"-Wl,-rpath,${LIBDIR}"
+			"-Wl,-rpath-link,${LIBDIR}"
+		)
+		CONFIGURE_FLAGS+=(
+			'--enable-shared'
+			'--disable-static'
 		)
 		FFMPEG_EXTRA_FLAGS+=('--enable-rpath')
 		# remove static libraries for shared builds
@@ -172,46 +207,35 @@ set_compile_opts() {
 		arch_flags+=("-march=${ARCH}")
 	fi
 
-	# use CLANG/LLVM on windows
-	if is_windows; then
-		CC=clang
-		CXX=clang++
-		CMAKE_FLAGS+=(
-			"-DCMAKE_C_COMPILER=${CC}"
-			"-DCMAKE_CXX_COMPILER=${CXX}"
-			"-DCMAKE_LINKER_TYPE=LLD"
-		)
-	else
-		unset CC CXX
-	fi
-
 	# can fail static builds with -fpic
 	# warning: too many GOT entries for -fpic, please recompile with -fPIC
-	C_FLAGS+=("${arch_flags[@]}" "-fPIC")
-	CXX_FLAGS=("${C_FLAGS[@]}")
-	CPP_FLAGS=("${C_FLAGS[@]}")
-	RUSTFLAGS+=("-C target-cpu=${ARCH}")
-	CMAKE_FLAGS+=("-DCMAKE_C_FLAGS=${C_FLAGS[*]}")
-	CMAKE_FLAGS+=("-DCMAKE_CXX_FLAGS=${CXX_FLAGS[*]}")
-	MESON_FLAGS+=("-Dc_args=${C_FLAGS[*]}" "-Dcpp_args=${CPP_FLAGS[*]}")
-	dump_arr CONFIGURE_FLAGS
-	dump_arr C_FLAGS
-	dump_arr RUSTFLAGS
-	dump_arr CARGO_CINSTALL_FLAGS
-	dump_arr CMAKE_FLAGS
-	dump_arr MESON_FLAGS
-	echo_info "PKG_CONFIG_PATH=${PKG_CONFIG_PATH}"
+	CFLAGS_ARR+=("${arch_flags[@]}" "-fPIC")
+	RUSTFLAGS_ARR+=("-C target-cpu=${ARCH}")
+
+	# set exported env names to stringified arrays
+	CPPFLAGS="${CPPFLAGS_ARR[*]}"
+	CFLAGS="${CFLAGS_ARR[*]} ${CPPFLAGS}"
+	CXXFLAGS="${CFLAGS}"
+	LDFLAGS="${LDFLAGS_ARR[*]}"
+	RUSTFLAGS="${RUSTFLAGS_ARR[*]}"
+
+	CMAKE_FLAGS+=(
+		"-DCMAKE_CFLAGS=${CFLAGS}"
+		"-DCMAKE_CXX_FLAGS=${CXXFLAGS}"
+	)
+	MESON_FLAGS+=(
+		"-Dc_args=${CFLAGS}"
+		"-Dcpp_args=${CPPFLAGS_ARR[*]}"
+	)
 
 	# extra ffmpeg flags
 	FFMPEG_EXTRA_FLAGS+=(
-		--extra-cflags="${C_FLAGS[*]}"
-		--extra-cxxflags="${CXX_FLAGS[*]}"
-		--pkg-config='pkg-config'
+		"--extra-cflags=${CFLAGS}"
+		"--extra-cxxflags=${CXXFLAGS}"
+		'--pkg-config=pkg-config'
 	)
-	dump_arr FFMPEG_EXTRA_FLAGS
 
-	# shellcheck disable=SC2178
-	RUSTFLAGS="${RUSTFLAGS[*]}"
+	dump_arr "${BUILD_ENV_NAMES[@]}"
 
 	FB_COMPILE_OPTS_SET=1
 	echo
@@ -406,12 +430,20 @@ do_build() {
 	local ffmpegOldMetadataFile="${TMP_DIR}/ffmpeg-old-metadata"
 
 	# add build function, version, url, and top-level env to metadata
-	type "build_${build}" >"${newMetadataFile}"
-	echo "ver: ${ver}" >>"${newMetadataFile}"
-	echo "url: ${url}" >>"${newMetadataFile}"
-	for envName in "${BUILD_ENV_NAMES[@]}"; do
-		COLOR=OFF dump_arr "${envName}" >>"${newMetadataFile}"
-	done
+	{
+		local buildFunction="$(type "build_${build}")"
+		# include meta builds
+		for token in ${buildFunction}; do
+			if [[ ${token} == "meta_"*"_build" ]]; then
+				type "${token}"
+			fi
+		done
+		echo "${buildFunction}"
+		echo "ver: ${ver}"
+		echo "url: ${url}"
+		echo "LOCAL_PREFIX: ${LOCAL_PREFIX}"
+		COLOR=OFF SHOW_SINGLE=true dump_arr "${BUILD_ENV_NAMES[@]}"
+	} >"${newMetadataFile}"
 
 	# only ffmpeg cares about ENABLE and has special function
 	if [[ ${build} == 'ffmpeg' ]]; then
@@ -564,11 +596,11 @@ del_pkgconfig_gcc_s() {
 }
 
 ### RUST ###
-cargo_cbuild() {
+meta_cargoc_build() {
 	local destdir="${PWD}/fb-local-install"
 	cargo cinstall \
 		--destdir "${destdir}" \
-		"${CARGO_CINSTALL_FLAGS[@]}"
+		"${CARGO_CINSTALL_FLAGS[@]}" || return 1
 	# cargo cinstall destdir prepends with entire prefix
 	# this breaks windows with msys path augmentation
 	# so recurse into directories until sysroot is there
@@ -578,25 +610,25 @@ cargo_cbuild() {
 build_hdr10plus_tool() {
 	# build libhdr10plus
 	cd hdr10plus || return 1
-	cargo_cbuild || return 1
+	meta_cargoc_build || return 1
 	sanitize_sysroot_libs libhdr10plus-rs || return 1
 }
 
 build_dovi_tool() {
 	# build libdovi
 	cd dolby_vision || return 1
-	cargo_cbuild || return 1
+	meta_cargoc_build || return 1
 	sanitize_sysroot_libs libdovi || return 1
 }
 
 build_librav1e() {
-	cargo_cbuild || return 1
+	meta_cargoc_build || return 1
 	sanitize_sysroot_libs librav1e || return 1
 	del_pkgconfig_gcc_s rav1e.pc || return 1
 }
 
 ### CMAKE ###
-cmake_build() {
+meta_cmake_build() {
 	local addFlags=("$@")
 	# configure
 	cmake \
@@ -614,7 +646,9 @@ cmake_build() {
 }
 
 build_cpuinfo() {
-	cmake_build \
+	meta_cmake_build \
+		-DCPUINFO_LIBRARY_TYPE="${BUILD_TYPE}" \
+		-DCPUINFO_RUNTIME_TYPE="${BUILD_TYPE}" \
 		-DCPUINFO_BUILD_UNIT_TESTS=OFF \
 		-DCPUINFO_BUILD_MOCK_TESTS=OFF \
 		-DCPUINFO_BUILD_BENCHMARKS=OFF \
@@ -623,7 +657,7 @@ build_cpuinfo() {
 }
 
 build_libsvtav1() {
-	cmake_build \
+	meta_cmake_build \
 		-DENABLE_AVX512=ON \
 		-DBUILD_TESTING=OFF \
 		-DCOVERAGE=OFF || return 1
@@ -631,7 +665,7 @@ build_libsvtav1() {
 }
 
 build_libsvtav1_psy() {
-	cmake_build \
+	meta_cmake_build \
 		-DBUILD_TESTING=OFF \
 		-DENABLE_AVX512=ON \
 		-DCOVERAGE=OFF \
@@ -641,47 +675,47 @@ build_libsvtav1_psy() {
 }
 
 build_libaom() {
-	cmake_build \
+	meta_cmake_build \
 		-DENABLE_TESTS=OFF || return 1
 	sanitize_sysroot_libs libaom || return 1
 }
 
 build_libopus() {
-	cmake_build || return 1
+	meta_cmake_build || return 1
 	sanitize_sysroot_libs libopus || return 1
 }
 
 build_libwebp() {
-	cmake_build || return 1
+	meta_cmake_build || return 1
 	sanitize_sysroot_libs libwebp libsharpyuv || return 1
 }
 
 build_libjpeg() {
-	cmake_build || return 1
+	meta_cmake_build || return 1
 	sanitize_sysroot_libs libjpeg libturbojpeg || return 1
 }
 
 build_libpng() {
-	cmake_build \
+	meta_cmake_build \
 		-DPNG_TESTS=OFF \
 		-DPNG_TOOLS=OFF || return 1
 	sanitize_sysroot_libs libpng || return 1
 }
 
 build_zlib() {
-	cmake_build \
+	meta_cmake_build \
 		-DZLIB_BUILD_EXAMPLES=OFF || return 1
 	sanitize_sysroot_libs libz || return 1
 }
 
 build_glslang() {
-	cmake_build \
+	meta_cmake_build \
 		-DALLOW_EXTERNAL_SPIRV_TOOLS=ON || return 1
 	sanitize_sysroot_libs libglslang || return 1
 }
 
 build_spirv_tools() {
-	cmake_build \
+	meta_cmake_build \
 		-DSPIRV-Headers_SOURCE_DIR="${PREFIX}" \
 		-DSPIRV_WERROR=OFF \
 		-DSPIRV_SKIP_TESTS=ON \
@@ -689,7 +723,7 @@ build_spirv_tools() {
 }
 
 build_spirv_headers() {
-	cmake_build \
+	meta_cmake_build \
 		-G Ninja || return 1
 }
 
@@ -725,12 +759,12 @@ build_cmake3() {
 			overrideFlags+=("${flag}")
 		fi
 	done
-	CMAKE_FLAGS='' cmake_build \
+	CMAKE_FLAGS='' meta_cmake_build \
 		"${overrideFlags[@]}" || return 1
 }
 
 build_libx265() {
-	PATH="${LOCAL_PREFIX}/bin:${PATH}" cmake_build \
+	PATH="${LOCAL_PREFIX}/bin:${PATH}" meta_cmake_build \
 		-DHIGH_BIT_DEPTH=ON \
 		-DENABLE_HDR10_PLUS=OFF \
 		-S source || return 1
@@ -816,9 +850,13 @@ build_glad() {
 }
 
 ### AUTOTOOLS ###
-configure_build() {
+meta_configure_build() {
 	local addFlags=("$@")
 	local configureFlags=()
+	# backup global variable for re-setting
+	# after build is complete
+	local cflagsBackup="${CFLAGS}"
+	local ldflagsBackup="${LDFLAGS}"
 
 	# some builds break with LTO
 	if [[ ${LTO} == 'OFF' ]]; then
@@ -826,6 +864,8 @@ configure_build() {
 			test "${flag}" == '--enable-lto' && continue
 			configureFlags+=("${flag}")
 		done
+		CFLAGS="${CFLAGS//${LTO_FLAG}/}"
+		LDFLAGS="${LDFLAGS//${LTO_FLAG}/}"
 	else
 		configureFlags+=("${CONFIGURE_FLAGS[@]}")
 	fi
@@ -840,16 +880,26 @@ configure_build() {
 	local destdir="${PWD}/fb-local-install"
 	make -j"${JOBS}" DESTDIR="${destdir}" install || return 1
 	install_local_destdir "${destdir}" || return 1
+
+	# reset global variables
+	CFLAGS="${cflagsBackup}"
+	LDFLAGS="${ldflagsBackup}"
 }
 
 build_libx264() {
-	# libx264 does not support LTO
-	LTO=OFF configure_build \
-		--disable-cli || return 1
+	# libx264 breaks with LTO
+	LTO=OFF meta_configure_build \
+		--disable-cli \
+		--disable-avs \
+		--disable-swscale \
+		--disable-lavf \
+		--disable-ffms \
+		--disable-gpac || return 1
 	sanitize_sysroot_libs libx264 || return 1
 }
 
 build_libmp3lame() {
+	autoreconf -i || return 1
 	# https://sourceforge.net/p/lame/mailman/message/36081038/
 	if is_darwin; then
 		remove_line \
@@ -857,7 +907,7 @@ build_libmp3lame() {
 			'lame_init_old' || return 1
 	fi
 
-	configure_build \
+	meta_configure_build \
 		--enable-nasm \
 		--disable-frontend || return 1
 	sanitize_sysroot_libs libmp3lame || return 1
@@ -867,7 +917,7 @@ build_libnuma() {
 	if ! is_linux; then return 0; fi
 
 	./autogen.sh || return 1
-	configure_build || return 1
+	meta_configure_build || return 1
 	sanitize_sysroot_libs libnuma || return 1
 }
 
@@ -956,7 +1006,7 @@ build_ffmpeg() {
 		ffmpegFlags+=("${FFMPEG_EXTRA_FLAGS[@]}")
 	fi
 
-	configure_build \
+	meta_configure_build \
 		"${ffmpegFlags[@]}" || return 1
 	${SUDO_MODIFY} cp ff*_g "${PREFIX}/bin"
 	sanitize_sysroot_libs \

@@ -59,7 +59,7 @@ echo_if_fail() {
 	# parse out relevant part of the trace
 	local cmdEvalLines=()
 	while IFS= read -r line; do
-		line="${line//${PS4}/}"
+		line="${line/${PS4}/}"
 		test "${line}" == 'set +x' && continue
 		test "${line}" == '' && continue
 		cmdEvalLines+=("${line}")
@@ -69,9 +69,10 @@ echo_if_fail() {
 		echo
 		echo_fail "command failed:"
 		printf "%s\n" "${cmdEvalLines[@]}"
-		echo_warn "command output:"
-		tail -n 20 "${out}"
-		tail -n 20 "${err}"
+		echo_warn "command stdout:"
+		tail -n 32 "${out}"
+		echo_warn "command stderr:"
+		tail -n 32 "${err}"
 		echo
 	fi
 	if [[ -z ${LOGNAME} ]]; then
@@ -96,14 +97,25 @@ is_root_owned() {
 }
 
 dump_arr() {
-	arr_name="$1"
-	declare -n arr
-	arr="${arr_name}"
-	arr_exp=("${arr[@]}")
-	test "${#arr_exp}" -gt 0 || return 0
-	echo
-	echo_info "${arr_name}"
-	printf "\t%s\n" "${arr_exp[@]}"
+	local arrayNames=("$@")
+	for arrayName in "${arrayNames[@]}"; do
+		declare -n array="${arrayName}"
+		arrayExpanded=("${array[@]}")
+
+		# skip showing single element arrays by default
+		if [[ ! ${#arrayExpanded[@]} -gt 1 ]]; then
+			if [[ ${SHOW_SINGLE} == true ]]; then
+				echo_info "${arrayName}='${arrayExpanded[*]}'"
+			else
+				continue
+			fi
+		fi
+
+		echo
+		# don't care that the variable has "ARR"
+		echo_info "${arrayName//"_ARR"/}"
+		printf "\t%s\n" "${arrayExpanded[@]}"
+	done
 }
 
 has_cmd() {

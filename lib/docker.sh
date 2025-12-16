@@ -128,19 +128,11 @@ docker_build_image() {
 		echo 'SHELL ["/bin/bash", "-c"]'
 		echo 'RUN ln -sf /bin/bash /bin/sh'
 		echo 'ENV DEBIAN_FRONTEND=noninteractive'
-		# arch is rolling release, so highly likely
-		# an updated is required between pkg changes
-		if line_contains "${dockerDistro}" 'arch'; then
-			local archRuns=''
-			archRuns+="${pkg_mgr_update}"
-			archRuns+=" && ${pkg_mgr_upgrade}"
-			archRuns+=" && ${pkg_install} ${req_pkgs[*]}"
-			echo "RUN ${archRuns}"
-		else
-			echo "RUN ${pkg_mgr_update}"
-			echo "RUN ${pkg_mgr_upgrade}"
-			printf "RUN ${pkg_install} %s\n" "${req_pkgs[@]}"
-		fi
+		local installCmds=''
+		installCmds+="${pkg_mgr_update}"
+		installCmds+=" && ${pkg_mgr_upgrade}"
+		installCmds+=" && ${pkg_install} ${req_pkgs[*]}"
+		echo "RUN ${installCmds}"
 
 		# ENV for pipx/rust
 		echo 'ENV PIPX_HOME=/root/.local'
