@@ -102,10 +102,14 @@ ld.lld:ld:lld:ld"
 			# full path to the real tool
 			realT="$(command -v "${realT}")"
 
+			# add fuse-ld for the compiler
+			local addFlag=''
+			if line_contains "${realT}" clang; then addFlag="-fuse-ld=${USE_LD}"; fi
+
 			# create generic tool version
 			echo "#!/usr/bin/env bash
 echo \$@ > ${compilerDir}/${genericT}.\${RANDOM}
-exec \"${realT}\" \"\$@\"" >"${compilerDir}/${genericT}"
+exec \"${realT}\" ${addFlag} \"\$@\"" >"${compilerDir}/${genericT}"
 
 			# copy generic to gnu/clang variants
 			# cp "${compilerDir}/${genericT}" "${compilerDir}/${gnuT}" 2>/dev/null
