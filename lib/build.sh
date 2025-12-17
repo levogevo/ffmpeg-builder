@@ -16,7 +16,6 @@ set_compile_opts() {
 	BUILD_ENV_NAMES=(
 		"${EXPORTED_ENV_NAMES[@]}"
 		CFLAGS_ARR
-		CXXFLAGS_ARR
 		CPPFLAGS_ARR
 		LDFLAGS_ARR
 		USE_LD
@@ -66,57 +65,55 @@ set_compile_opts() {
 		test -f "${LIBDIR}/libm.so" || ln -s /system/lib64/libm.so "${LIBDIR}/libm.so"
 	fi
 
-	# use LLVM toolchain
+	# use clang
 	CC=clang
 	CXX=clang++
-	USE_LD=lld
-	LDFLAGS_ARR+=("-fuse-ld=${USE_LD}")
 	CMAKE_FLAGS+=(
 		"-DCMAKE_C_COMPILER=${CC}"
 		"-DCMAKE_CXX_COMPILER=${CXX}"
-		"-DCMAKE_LINKER_TYPE=${USE_LD^^}"
-		"-DCMAKE_LINKER=${USE_LD}"
 	)
 	FFMPEG_EXTRA_FLAGS+=(
 		"--cc=${CC}"
 		"--cxx=${CXX}"
 	)
-	# prepend path with llvm tools
-	local compilerDir="${LOCAL_PREFIX}/compiler-tools"
-	test -d "${compilerDir}" && rm -rf "${compilerDir}"
-	mkdir "${compilerDir}"
-	# real:gnu:clang:generic
-	local compilerMap="\
+
+	# hack PATH to inject use of lld as linker
+	# PATH cc/c++ may be hardcoded as gcc
+	# which breaks when trying to use clang/lld
+	# not supported on darwin
+	if ! is_darwin; then
+		USE_LD=lld
+		LDFLAGS_ARR+=("-fuse-ld=${USE_LD}")
+		CMAKE_FLAGS+=(
+			"-DCMAKE_LINKER_TYPE=${USE_LD^^}"
+			"-DCMAKE_LINKER=${USE_LD}"
+		)
+		local compilerDir="${LOCAL_PREFIX}/compiler-tools"
+		test -d "${compilerDir}" && rm -rf "${compilerDir}"
+		mkdir "${compilerDir}"
+		# real:gnu:clang:generic
+		local compilerMap="\
 ${CC}:gcc:clang:cc
 ${CXX}:g++:clang++:c++
 ld.lld:ld:lld:ld"
-	local realT gnuT clangT genericT addArgs
-	while read -r line; do
-		echo_warn "${line}"
-		IFS=: read -r realT gnuT clangT genericT <<<"${line}"
-		# full path to the real tool
-		realT="$(command -v "${realT}")"
-		# add fuse-ld if not ld itself
-		addArgs=''
-		if line_contains "${clangT}" "clang"; then addArgs="-fuse-ld=${USE_LD}"; fi
+		local realT gnuT clangT genericT
+		while read -r line; do
+			IFS=: read -r realT gnuT clangT genericT <<<"${line}"
+			# full path to the real tool
+			realT="$(command -v "${realT}")"
 
-		echo_warn "realT:${realT}"
-		echo_warn "gnuT:${gnuT}"
-		echo_warn "clangT:${clangT}"
-		echo_warn "genericT:${genericT}"
-
-		# create generic tool version
-		echo "#!/usr/bin/env bash
+			# create generic tool version
+			echo "#!/usr/bin/env bash
 echo \$@ > ${compilerDir}/${genericT}.\${RANDOM}
-exec \"${realT}\" ${addArgs} \"\$@\"" >"${compilerDir}/${genericT}"
-		# copy generic to gnu/clang variants
-		# cp "${compilerDir}/${genericT}" "${compilerDir}/${gnuT}" 2>/dev/null
-		if is_darwin; then
-			cp "${compilerDir}/${genericT}" "${compilerDir}/${clangT}" 2>/dev/null
-		fi
-	done <<<"${compilerMap}"
-	chmod +x "${compilerDir}"/*
-	export PATH="${compilerDir}:${PATH}"
+exec \"${realT}\" \"\$@\"" >"${compilerDir}/${genericT}"
+
+			# copy generic to gnu/clang variants
+			# cp "${compilerDir}/${genericT}" "${compilerDir}/${gnuT}" 2>/dev/null
+			# cp "${compilerDir}/${genericT}" "${compilerDir}/${clangT}" 2>/dev/null
+		done <<<"${compilerMap}"
+		chmod +x "${compilerDir}"/*
+		export PATH="${compilerDir}:${PATH}"
+	fi
 
 	# set prefix flags and basic flags
 	CONFIGURE_FLAGS+=(
@@ -137,6 +134,7 @@ exec \"${realT}\" ${addArgs} \"\$@\"" >"${compilerDir}/${genericT}"
 		"-DCMAKE_BUILD_TYPE=Release"
 		"-DCMAKE_C_COMPILER_LAUNCHER=ccache"
 		"-DCMAKE_CXX_COMPILER_LAUNCHER=ccache"
+		"-DCMAKE_VERBOSE_MAKEFILE=ON"
 		"-G" "Ninja"
 	)
 	CARGO_CINSTALL_FLAGS=(
@@ -147,12 +145,13 @@ exec \"${realT}\" ${addArgs} \"\$@\"" >"${compilerDir}/${genericT}"
 	PKG_CONFIG_PATH="${LIBDIR}/pkgconfig"
 
 	# add prefix include
+	# TODO use cygpath for windows
 	CPPFLAGS_ARR+=("-I${PREFIX}/include")
 
 	# enabling link-time optimization
 	if [[ ${LTO} == 'ON' ]]; then
 		LTO_FLAG='-flto'
-		CONFIGURE_FLAGS+=('--enable-lto ')
+		CONFIGURE_FLAGS+=('--enable-lto')
 		MESON_FLAGS+=("-Db_lto=true")
 	else
 		LTO_FLAG=''
@@ -189,13 +188,13 @@ exec \"${realT}\" ${addArgs} \"\$@\"" >"${compilerDir}/${genericT}"
 			"-DENABLE_SHARED=OFF"
 			"-DBUILD_SHARED_LIBS=OFF"
 		)
-		# darwin does not support static linkage
+		# darwin does not support -static
 		if is_darwin; then
-			FFMPEG_EXTRA_FLAGS+=("--extra-ldflags=${LDFLAGS_ARR[*]} -static")
-			CMAKE_FLAGS+=("-DCMAKE_EXE_LINKER_FLAGS=${LDFLAGS_ARR[*]} -static")
-		else
 			FFMPEG_EXTRA_FLAGS+=("--extra-ldflags=${LDFLAGS_ARR[*]}")
 			CMAKE_FLAGS+=("-DCMAKE_EXE_LINKER_FLAGS=${LDFLAGS_ARR[*]}")
+		else
+			FFMPEG_EXTRA_FLAGS+=("--extra-ldflags=${LDFLAGS_ARR[*]} -static")
+			CMAKE_FLAGS+=("-DCMAKE_EXE_LINKER_FLAGS=${LDFLAGS_ARR[*]} -static")
 		fi
 		FFMPEG_EXTRA_FLAGS+=("--pkg-config-flags=--static")
 		# remove shared libraries for static builds
@@ -249,17 +248,19 @@ exec \"${realT}\" ${addArgs} \"\$@\"" >"${compilerDir}/${genericT}"
 
 	CMAKE_FLAGS+=(
 		"-DCMAKE_CFLAGS=${CFLAGS}"
-		"-DCMAKE_CXX_FLAGS=${CXXFLAGS}"
+		"-DCMAKE_CXX_FLAGS=${CFLAGS}"
 	)
 	MESON_FLAGS+=(
 		"-Dc_args=${CFLAGS}"
-		"-Dcpp_args=${CPPFLAGS_ARR[*]}"
+		"-Dcpp_args=${CFLAGS}"
+		"-Dc_link_args=${LDFLAGS}"
+		"-Dcpp_link_args=${LDFLAGS}"
 	)
 
 	# extra ffmpeg flags
 	FFMPEG_EXTRA_FLAGS+=(
 		"--extra-cflags=${CFLAGS}"
-		"--extra-cxxflags=${CXXFLAGS}"
+		"--extra-cxxflags=${CFLAGS}"
 		'--pkg-config=pkg-config'
 	)
 
@@ -801,7 +802,7 @@ build_libx265() {
 }
 
 ### MESON ###
-meson_build() {
+meta_meson_build() {
 	local addFlags=("$@")
 	meson setup \
 		"${MESON_FLAGS[@]}" \
@@ -820,7 +821,7 @@ build_libdav1d() {
 	if [[ "${HOSTTYPE}:${OPT}" == "aarch64:0" ]]; then
 		enableAsm=false
 	fi
-	meson_build \
+	meta_meson_build \
 		-D enable_asm=${enableAsm} || return 1
 	sanitize_sysroot_libs libdav1d || return 1
 }
@@ -835,7 +836,7 @@ build_libplacebo() {
 		cp -r ./* "${installDir}"
 	) || return 1
 
-	meson_build \
+	meta_meson_build \
 		-D tests=false \
 		-D demos=false || return 1
 	sanitize_sysroot_libs libplacebo || return 1
@@ -843,10 +844,10 @@ build_libplacebo() {
 
 build_libvmaf() {
 	cd libvmaf || return 1
-	python3 -m virtualenv .venv
+	virtualenv .venv
 	(
 		source .venv/bin/activate
-		meson_build \
+		meta_meson_build \
 			-D enable_float=true || exit 1
 	) || return 1
 	sanitize_sysroot_libs libvmaf || return 1
