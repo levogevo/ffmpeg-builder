@@ -61,8 +61,11 @@ set_compile_opts() {
 	LDFLAGS_ARR=("-L${LIBDIR}")
 
 	# HACK rope in libm
-	if is_android; then
-		test -f "${LIBDIR}/libm.so" || ln -s /system/lib64/libm.so "${LIBDIR}/libm.so"
+	if is_android && [[ ! -f "${LIBDIR}/libm.so" ]]; then
+		LDFLAGS_ARR+=(
+			"-L/system/lib64"
+			"-lm"
+		)
 	fi
 
 	# use clang
@@ -110,12 +113,13 @@ ld.lld:ld:lld:ld"
 			echo "#!/usr/bin/env bash
 echo \$@ > ${compilerDir}/${genericT}.\${RANDOM}
 exec \"${realT}\" ${addFlag} \"\$@\"" >"${compilerDir}/${genericT}"
+			chmod +x "${compilerDir}/${genericT}"
+			echo_if_fail "${compilerDir}/${genericT}" --version
 
 			# copy generic to gnu/clang variants
 			# cp "${compilerDir}/${genericT}" "${compilerDir}/${gnuT}" 2>/dev/null
 			# cp "${compilerDir}/${genericT}" "${compilerDir}/${clangT}" 2>/dev/null
 		done <<<"${compilerMap}"
-		chmod +x "${compilerDir}"/*
 		export PATH="${compilerDir}:${PATH}"
 	fi
 
@@ -214,10 +218,7 @@ exec \"${realT}\" ${addFlag} \"\$@\"" >"${compilerDir}/${genericT}"
 			"-DCMAKE_EXE_LINKER_FLAGS=${LDFLAGS_ARR[*]}"
 		)
 		FFMPEG_EXTRA_FLAGS+=("--extra-ldflags=${LDFLAGS_ARR[*]}")
-		LDFLAGS_ARR+=(
-			"-Wl,-rpath,${LIBDIR}"
-			"-Wl,-rpath-link,${LIBDIR}"
-		)
+		LDFLAGS_ARR+=("-Wl,-rpath,${LIBDIR}")
 		CONFIGURE_FLAGS+=(
 			'--enable-shared'
 			'--disable-static'

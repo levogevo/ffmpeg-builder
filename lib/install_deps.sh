@@ -67,12 +67,12 @@ print_req_pkgs() {
 		"${common_linux_pkgs[@]}" pipx
 		build-essential libssl-dev gobjc++
 		mawk libc6-dev mediainfo ninja-build
-		mkvtoolnix libgtest-dev
+		mkvtoolnix libgtest-dev lld
 	)
 	# shellcheck disable=SC2034
 	local pacman_pkgs=(
 		"${common_linux_pkgs[@]}" base-devel
-		python-pipx ninja
+		python-pipx ninja lld
 	)
 	# shellcheck disable=SC2034
 	local dnf_pkgs=(
@@ -157,6 +157,7 @@ check_for_req_pkgs() {
 
 	echo_pass "packages from ${pkg_mgr} installed"
 	has_cmd pipx || echo_if_fail python3 -m pip install --user pipx || return 1
+	has_cmd pipx || echo_if_fail python3 -m pipx ensurepath && source ~/.bashrc || return 1
 	echo_if_fail pipx install virtualenv || return 1
 	echo_if_fail pipx ensurepath || return 1
 	has_cmd meson || echo_if_fail pipx install meson || return 1

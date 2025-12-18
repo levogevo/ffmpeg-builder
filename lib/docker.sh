@@ -43,10 +43,10 @@ get_docker_image_tag() {
 	local image="$1"
 	local tag=''
 	case "${image}" in
-	ubuntu) tag='ubuntu:24.04@sha256:9cbed754112939e914291337b5e554b07ad7c392491dba6daf25eef1332a22e8' ;;
-	debian) tag='debian:13@sha256:833c135acfe9521d7a0035a296076f98c182c542a2b6b5a0fd7063d355d696be' ;;
-	fedora) tag='fedora:42@sha256:6af051ad0a294182c3a957961df6203d91f643880aa41c2ffe3d1302e7505890' ;;
-	archlinux) tag='ogarcia/archlinux:latest@sha256:b93f426b23cd0ea0e1befd7d58a26eaf3e6eda3c154c0e8dd75145d11c21304c' ;;
+	ubuntu) tag='ubuntu:24.04@sha256:c35e29c9450151419d9448b0fd75374fec4fff364a27f176fb458d472dfc9e54' ;;
+	debian) tag='debian:13@sha256:0d01188e8dd0ac63bf155900fad49279131a876a1ea7fac917c62e87ccb2732d' ;;
+	fedora) tag='fedora:42@sha256:b3d16134560afa00d7cc2a9e4967eb5b954512805f3fe27d8e70bbed078e22ea' ;;
+	archlinux) tag='ogarcia/archlinux:latest@sha256:1d70273180e43b1f51b41514bdaa73c61f647891a53a9c301100d5c4807bf628' ;;
 	esac
 	echo "${tag}"
 }
@@ -178,10 +178,15 @@ docker_build_image() {
 		# install cargo-c
 		echo "RUN cargo-binstall -y cargo-c"
 
+		# final mods for PS1
+		echo 'USER root'
+		echo "RUN echo \"PS1='id=\\\$(id -u)@${image}:\w\\$ '\" >> /etc/bash.bashrc"
+		echo 'USER 65534:65534'
+
 		echo "WORKDIR ${DOCKER_WORKDIR}"
 
 	} >"${dockerfile}"
-
+	# return 1
 	image_tag="$(set_distro_image_tag "${image}")"
 	docker buildx build \
 		--platform "${PLATFORM}" \
