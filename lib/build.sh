@@ -161,15 +161,14 @@ exec \"${realT}\" ${addFlag} \"\$@\"" >"${compilerDir}/${genericT}"
 	# enabling link-time optimization
 	if [[ ${LTO} == 'ON' ]]; then
 		LTO_FLAG='-flto'
+		CFLAGS_ARR+=("${LTO_FLAG}")
+		LDFLAGS_ARR+=("${LTO_FLAG}")
 		CONFIGURE_FLAGS+=('--enable-lto')
 		MESON_FLAGS+=("-Db_lto=true")
 	else
-		LTO_FLAG=''
+		LTO_FLAG='unreachable-flag'
 		MESON_FLAGS+=("-Db_lto=false")
 	fi
-	CFLAGS_ARR+=("${LTO_FLAG}")
-	LDFLAGS_ARR+=("${LTO_FLAG}")
-
 	# setting optimization level
 	if [[ ${OPT} == '' ]]; then
 		OPT='0'
@@ -1036,7 +1035,10 @@ build_ffmpeg() {
 	if is_darwin; then
 		LTO=OFF
 		for flag in "${FFMPEG_EXTRA_FLAGS[@]}"; do
-			ffmpegFlags+=("${flag// ${LTO_FLAG}/}")
+			if line_contains "${flag}" "${LTO_FLAG}"; then
+				flag="${flag//${LTO_FLAG} /}"
+			fi
+			ffmpegFlags+=("${flag}")
 		done
 	else
 		ffmpegFlags+=("${FFMPEG_EXTRA_FLAGS[@]}")
