@@ -205,9 +205,6 @@ docker_build_image() {
 			-f "${dockerfile}" \
 			"${DOCKER_DIR}" || return 1
 	fi
-
-	# FIXME uncomment
-	# docker system prune -f
 }
 
 FB_FUNC_NAMES+=('docker_save_image')
@@ -272,11 +269,7 @@ docker_run_image() {
 		"${DOCKER_RUN_FLAGS[@]}" \
 		-u "$(id -u):$(id -g)" \
 		"${image_tag}" \
-		"${runCmd[@]}" || return 1
-
-	docker system prune -f
-
-	return 0
+		"${runCmd[@]}"
 }
 
 FB_FUNC_NAMES+=('build_with_docker')
