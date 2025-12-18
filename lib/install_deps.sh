@@ -91,6 +91,10 @@ print_req_pkgs() {
 		git gnuplot bison rsync ragel
 		zip unzip gperf build-essential
 		binutils ninja ndk-multilib-native-static
+		libandroid-posix-semaphore
+		libandroid-posix-semaphore-static
+		libandroid-shmem
+		libandroid-shmem-static
 	)
 	# shellcheck disable=SC2034
 	local msys_ucrt_pkgs=(

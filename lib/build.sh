@@ -510,17 +510,10 @@ do_build() {
 		echo_info -n "building ${build} "
 		# build in background
 		local timeBefore=${EPOCHSECONDS}
-		LOGNAME="${build}" echo_if_fail "build_${build}" &
-		local buildPid=$!
-		# start spinner
-		spinner &
-		local spinPid=$!
-		# get build return code
-		wait ${buildPid}
+		spinner start
+		LOGNAME="${build}" echo_if_fail "build_${build}"
 		local retval=$?
-		# stop spinner
-		kill ${spinPid}
-		spinner reset
+		spinner stop
 
 		popd >/dev/null || return 1
 		test ${retval} -eq 0 || return ${retval}
@@ -693,6 +686,7 @@ build_cpuinfo() {
 		-DCPUINFO_BUILD_UNIT_TESTS=OFF \
 		-DCPUINFO_BUILD_MOCK_TESTS=OFF \
 		-DCPUINFO_BUILD_BENCHMARKS=OFF \
+		-DCPUINFO_LOG_TO_STDIO=ON \
 		-DUSE_SYSTEM_LIBS=ON || return 1
 	sanitize_sysroot_libs libcpuinfo || return 1
 }
@@ -727,6 +721,12 @@ build_libopus() {
 }
 
 build_libwebp() {
+	if is_android; then
+		replace_line CMakeLists.txt \
+			"if(ANDROID)" \
+			"if(FALSE)\n"
+	fi
+
 	meta_cmake_build || return 1
 	sanitize_sysroot_libs libwebp libsharpyuv || return 1
 }
@@ -916,7 +916,7 @@ build_libx264() {
 
 build_libmp3lame() {
 	# https://sourceforge.net/p/lame/mailman/message/36081038/
-	if is_darwin; then
+	if is_darwin || is_android; then
 		remove_line \
 			'include/libmp3lame.sym' \
 			'lame_init_old' || return 1

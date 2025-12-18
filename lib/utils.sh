@@ -324,24 +324,44 @@ bash_sort() {
 	printf '%s\n' "${arr[@]}"
 }
 
-spinner() {
-	if [[ $1 == 'reset' ]]; then
-		echo -ne ' \n'
-		return 0
-	fi
-
+_start_spinner() {
 	local spinChars=(
 		"-"
 		'\'
 		"|"
 		"/"
 	)
+
+	sleep 1
+
 	while true; do
 		for ((ind = 0; ind < "${#spinChars[@]}"; ind++)); do
 			echo -ne "${spinChars[${ind}]}" '\b\b'
 			sleep .25
 		done
 	done
+}
+
+spinner() {
+	local action="$1"
+	local spinPidFile="${TMP_DIR}/.spinner-pid"
+	case "${action}" in
+	start)
+		test -f "${spinPidFile}" &&
+			rm "${spinPidFile}"
+
+		# don't want to clutter logs if running headless
+		test "${HEADLESS}" == '1' &&
+			return
+
+		_start_spinner &
+		echo $! >"${spinPidFile}"
+		;;
+	stop)
+		test -f "${spinPidFile}" && kill "$(<"${spinPidFile}")"
+		echo -ne ' \n'
+		;;
+	esac
 }
 
 get_pkgconfig_version() {

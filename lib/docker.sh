@@ -20,6 +20,7 @@ set_docker_run_flags() {
 		-v "${REPO_DIR}:${REPO_DIR}"
 		-w "${REPO_DIR}"
 		-e "DEBUG=${DEBUG}"
+		-e "HEADLESS=${HEADLESS}"
 	)
 	for opt in "${FB_COMP_OPTS[@]}"; do
 		declare -n defOptVal="DEFAULT_${opt}"
