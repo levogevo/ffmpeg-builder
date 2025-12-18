@@ -60,12 +60,19 @@ set_compile_opts() {
 	LIBDIR="${PREFIX}/lib"
 	LDFLAGS_ARR=("-L${LIBDIR}")
 
-	# android does not find libraries due to different names
-	if is_android && [[ ! -f "${LIBDIR}/libm.so" ]]; then
+	# android has different library location/names
+	# cannot build static due to missing liblog
+	if is_android; then
+		if [[ ${STATIC} == 'ON' ]]; then
+			echo_warn "$(print_os) does not support STATIC=${STATIC}"
+			STATIC=OFF
+			echo_warn "setting STATIC=${STATIC}"
+		fi
 		LDFLAGS_ARR+=(
 			"-L/system/lib64"
 			"-lm"
 			"-landroid-shmem"
+			"-landroid-posix-semaphore"
 		)
 	fi
 
@@ -317,9 +324,8 @@ spirv_tools		2025.4		tar.gz		https://github.com/KhronosGroup/SPIRV-Tools/archive
 spirv_headers	1.4.328.1	tar.gz		https://github.com/KhronosGroup/SPIRV-Headers/archive/refs/tags/vulkan-sdk-${ver}.${ext}
 glad			2.0.8		tar.gz		https://github.com/Dav1dde/glad/archive/refs/tags/v${ver}.${ext}
 
-libx265			4.1			tar.gz		https://bitbucket.org/multicoreware/x265_git/downloads/x265_${ver}.${ext} libnuma,cmake3
+libx265			4.1			tar.gz		https://bitbucket.org/multicoreware/x265_git/downloads/x265_${ver}.${ext} libnuma
 libnuma			2.0.19		tar.gz		https://github.com/numactl/numactl/archive/refs/tags/v${ver}.${ext}
-cmake3			3.31.8		tar.gz		https://github.com/Kitware/CMake/archive/refs/tags/v${ver}.${ext}
 '
 
 	local supported_builds=()
@@ -762,47 +768,21 @@ build_spirv_headers() {
 		-G Ninja || return 1
 }
 
-# libx265 does not support cmake >= 4
-build_cmake3() {
+build_libx265() {
+	# libx265 does not support cmake >= 4
 	local cmakeVersion verMajor
-	# don't need to build if system version is below 4
 	IFS=$' \t' read -r _ _ cmakeVersion <<<"$(cmake --version)"
 	IFS='.' read -r verMajor _ _ <<<"${cmakeVersion}"
-	if [[ ${verMajor} -lt 4 ]]; then
-		return 0
+	local policyFlag=''
+	if [[ ! ${verMajor} -lt 4 ]]; then
+		remove_line "cmake_policy(SET CMP0025 OLD)" "source/CMakeLists.txt" || return 1
+		remove_line "cmake_policy(SET CMP0054 OLD)" "source/CMakeLists.txt" || return 1
+		policyFlag="-DCMAKE_POLICY_VERSION_MINIMUM=3.5"
 	fi
 
-	# don't need to rebuild if already built
-	local cmake="${LOCAL_PREFIX}/bin/cmake"
-	if [[ -f ${cmake} ]]; then
-		IFS=$' \t' read -r _ _ cmakeVersion <<<"$("${cmake}" --version)"
-		IFS='.' read -r verMajor _ _ <<<"${cmakeVersion}"
-		if [[ ${verMajor} -lt 4 ]]; then
-			return 0
-		fi
-	fi
-
-	local overrideFlags=(
-		"-DCMAKE_BUILD_TYPE=Release"
-		"-DCMAKE_PREFIX_PATH=${LOCAL_PREFIX}"
-		"-DCMAKE_INSTALL_PREFIX=${LOCAL_PREFIX}"
-	)
-	# reuse variables
-	for flag in "${CMAKE_FLAGS[@]}"; do
-		if line_contains "${flag}" 'CMAKE_INSTALL_LIBDIR' ||
-			line_contains "${flag}" 'COMPILER_LAUNCHER'; then
-			overrideFlags+=("${flag}")
-		fi
-	done
-	CMAKE_FLAGS='' CFLAGS='' CXXFLAGS='' LDFLAGS='' \
-		meta_cmake_build \
-		"${overrideFlags[@]}" || return 1
-}
-
-build_libx265() {
-	PATH="${LOCAL_PREFIX}/bin:${PATH}" meta_cmake_build \
+	meta_cmake_build \
 		-DHIGH_BIT_DEPTH=ON \
-		-DENABLE_HDR10_PLUS=OFF \
+		-DENABLE_HDR10_PLUS=OFF ${policyFlag} \
 		-S source || return 1
 	sanitize_sysroot_libs libx265 || return 1
 	del_pkgconfig_gcc_s x265.pc || return 1
