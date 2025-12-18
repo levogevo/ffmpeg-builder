@@ -60,11 +60,12 @@ set_compile_opts() {
 	LIBDIR="${PREFIX}/lib"
 	LDFLAGS_ARR=("-L${LIBDIR}")
 
-	# HACK rope in libm
+	# android does not find libraries due to different names
 	if is_android && [[ ! -f "${LIBDIR}/libm.so" ]]; then
 		LDFLAGS_ARR+=(
 			"-L/system/lib64"
 			"-lm"
+			"-landroid-shmem"
 		)
 	fi
 
