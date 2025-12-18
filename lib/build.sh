@@ -775,8 +775,8 @@ build_libx265() {
 	IFS='.' read -r verMajor _ _ <<<"${cmakeVersion}"
 	local policyFlag=''
 	if [[ ! ${verMajor} -lt 4 ]]; then
-		remove_line "cmake_policy(SET CMP0025 OLD)" "source/CMakeLists.txt" || return 1
-		remove_line "cmake_policy(SET CMP0054 OLD)" "source/CMakeLists.txt" || return 1
+		remove_line "source/CMakeLists.txt" "cmake_policy(SET CMP0025 OLD)" || return 1
+		remove_line "source/CMakeLists.txt" "cmake_policy(SET CMP0054 OLD)" || return 1
 		policyFlag="-DCMAKE_POLICY_VERSION_MINIMUM=3.5"
 	fi
 
