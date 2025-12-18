@@ -161,7 +161,7 @@ docker_build_image() {
 		echo "RUN pipx install virtualenv"
 		# rust
 		local rustupVersion='1.28.2'
-		local rustcVersion='1.88.0'
+		local rustcVersion='1.90.0'
 		local rustupTarball="rustup-${rustupVersion}.tar.gz"
 		local rustupTarballPath="${DOCKER_DIR}/${rustupTarball}"
 		if [[ ! -f ${rustupTarballPath} ]]; then

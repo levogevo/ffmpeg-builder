@@ -88,13 +88,14 @@ set_compile_opts() {
 	if ! is_darwin; then
 		USE_LD=lld
 		LDFLAGS_ARR+=("-fuse-ld=${USE_LD}")
-		CMAKE_FLAGS+=(
-			"-DCMAKE_LINKER_TYPE=${USE_LD^^}"
-			"-DCMAKE_LINKER=${USE_LD}"
-		)
+		# android does not like LINKER_TYPE despite only using lld
+		if ! is_android; then
+			CMAKE_FLAGS+=("-DCMAKE_LINKER_TYPE=${USE_LD^^}")
+		fi
+		CMAKE_FLAGS+=("-DCMAKE_LINKER=${USE_LD}")
 		local compilerDir="${LOCAL_PREFIX}/compiler-tools"
 		test -d "${compilerDir}" && rm -rf "${compilerDir}"
-		mkdir "${compilerDir}"
+		mkdir -p "${compilerDir}"
 		# real:gnu:clang:generic
 		local compilerMap="\
 ${CC}:gcc:clang:cc
@@ -115,7 +116,7 @@ ld.lld:ld:lld:ld"
 echo \$@ > ${compilerDir}/${genericT}.\${RANDOM}
 exec \"${realT}\" ${addFlag} \"\$@\"" >"${compilerDir}/${genericT}"
 			chmod +x "${compilerDir}/${genericT}"
-			echo_if_fail "${compilerDir}/${genericT}" --version
+			echo_if_fail "${compilerDir}/${genericT}" --version || return 1
 
 			# copy generic to gnu/clang variants
 			# cp "${compilerDir}/${genericT}" "${compilerDir}/${gnuT}" 2>/dev/null
@@ -794,7 +795,8 @@ build_cmake3() {
 			overrideFlags+=("${flag}")
 		fi
 	done
-	CMAKE_FLAGS='' meta_cmake_build \
+	CMAKE_FLAGS='' CFLAGS='' CXXFLAGS='' LDFLAGS='' \
+		meta_cmake_build \
 		"${overrideFlags[@]}" || return 1
 }
 
