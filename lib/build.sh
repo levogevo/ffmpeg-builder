@@ -1011,7 +1011,9 @@ build_ffmpeg() {
 		LTO=OFF
 		for flag in "${FFMPEG_EXTRA_FLAGS[@]}"; do
 			if line_contains "${flag}" "${LTO_FLAG}"; then
+				# get rid of potential space on either side
 				flag="${flag//${LTO_FLAG} /}"
+				flag="${flag// ${LTO_FLAG}/}"
 			fi
 			ffmpegFlags+=("${flag}")
 		done
