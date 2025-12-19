@@ -168,7 +168,7 @@ exec \"${realT}\" ${addFlag} \"\$@\"" >"${compilerDir}/${genericT}"
 
 	# enabling link-time optimization
 	if [[ ${LTO} == 'ON' ]]; then
-		LTO_FLAG='-flto'
+		LTO_FLAG='-flto=full'
 		CFLAGS_ARR+=("${LTO_FLAG}")
 		LDFLAGS_ARR+=("${LTO_FLAG}")
 		CONFIGURE_FLAGS+=('--enable-lto')
