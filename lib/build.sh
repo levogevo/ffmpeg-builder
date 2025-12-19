@@ -115,12 +115,12 @@ ld.lld:ld:lld:ld"
 			realT="$(command -v "${realT}")"
 
 			# add fuse-ld for the compiler
-			local addFlag=''
-			if line_contains "${realT}" clang; then addFlag="-fuse-ld=${USE_LD}"; fi
+			local addFlag='-v'
+			if line_contains "${realT}" clang; then addFlag+=" -fuse-ld=${USE_LD}"; fi
 
 			# create generic tool version
 			echo "#!/usr/bin/env bash
-echo \$@ > ${compilerDir}/${genericT}.\${RANDOM}
+echo \$@ > ${compilerDir}/${genericT}.last-command
 exec \"${realT}\" ${addFlag} \"\$@\"" >"${compilerDir}/${genericT}"
 			chmod +x "${compilerDir}/${genericT}"
 			echo_if_fail "${compilerDir}/${genericT}" --version || return 1
@@ -156,6 +156,7 @@ exec \"${realT}\" ${addFlag} \"\$@\"" >"${compilerDir}/${genericT}"
 	)
 	CARGO_CINSTALL_FLAGS=(
 		"--release"
+		"--verbose"
 		"--prefix" "${PREFIX}"
 		"--libdir" "${LIBDIR}"
 	)
@@ -632,7 +633,8 @@ del_pkgconfig_gcc_s() {
 ### RUST ###
 meta_cargoc_build() {
 	local destdir="${PWD}/fb-local-install"
-	cargo cinstall \
+	# let rust handle its own lto
+	CFLAGS="${CFLAGS//${LTO_FLAG}/}" cargo cinstall \
 		--destdir "${destdir}" \
 		"${CARGO_CINSTALL_FLAGS[@]}" || return 1
 	# cargo cinstall destdir prepends with entire prefix
@@ -915,13 +917,6 @@ build_libx264() {
 }
 
 build_libmp3lame() {
-	# https://sourceforge.net/p/lame/mailman/message/36081038/
-	if is_darwin || is_android; then
-		remove_line \
-			'include/libmp3lame.sym' \
-			'lame_init_old' || return 1
-	fi
-
 	meta_configure_build \
 		--enable-nasm \
 		--disable-frontend || return 1
