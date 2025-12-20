@@ -174,9 +174,11 @@ docker_build_image() {
 		echo "RUN cargo-binstall -y cargo-c"
 
 		# final mods for PS1
+		echo
 		echo 'USER root'
 		echo "RUN echo \"PS1='id=\\\$(id -u)@${image}:\w\\$ '\" >> /etc/bash.bashrc"
 		echo 'USER 65534:65534'
+		echo
 
 		# embed dockerfile into docker image itself
 		# shellcheck disable=SC2094
@@ -243,8 +245,7 @@ docker_load_image() {
 	echo_info "loading docker image for ${image_tag}"
 	local archive="${DOCKER_DIR}/$(docker_image_archive_name "${image_tag}")"
 	test -f "$archive" || return 1
-	zstdcat -T0 "$archive" |
-		docker load || return 1
+	zstdcat -T0 "$archive" | docker load || return 1
 	docker system prune -f
 }
 
@@ -281,6 +282,10 @@ docker_run_image() {
 		-u "$(id -u):$(id -g)" \
 		"${image_tag}" \
 		"${runCmd[@]}"
+
+	local rv=$?
+	docker image prune -f
+	return ${rv}
 }
 
 FB_FUNC_NAMES+=('build_with_docker')
