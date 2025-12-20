@@ -1007,6 +1007,7 @@ build_ffmpeg() {
 
 	# lto is broken on darwin for ffmpeg only
 	# https://trac.ffmpeg.org/ticket/11479
+	local ltoBackup="${LTO}"
 	if is_darwin; then
 		LTO=OFF
 		for flag in "${FFMPEG_EXTRA_FLAGS[@]}"; do
@@ -1023,6 +1024,7 @@ build_ffmpeg() {
 
 	meta_configure_build \
 		"${ffmpegFlags[@]}" || return 1
+	LTO="${ltoBackup}"
 	${SUDO_MODIFY} cp ff*_g "${PREFIX}/bin"
 	sanitize_sysroot_libs \
 		libavcodec libavdevice libavfilter libswscale \
