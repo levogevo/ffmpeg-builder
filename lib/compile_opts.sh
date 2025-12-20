@@ -14,6 +14,9 @@ DEFAULT_CLEAN=ON
 FB_COMP_OPTS_DESC['LTO']='enable link time optimization'
 DEFAULT_LTO=ON
 
+FB_COMP_OPTS_DESC['PGO']='enable profile guided optimization'
+DEFAULT_PGO=OFF
+
 FB_COMP_OPTS_DESC['OPT']='optimization level (0-3)'
 DEFAULT_OPT=3
 
@@ -41,9 +44,7 @@ libmp3lame\
 "
 
 # user-overridable compile option variable names
-FB_COMP_OPTS=(
-	CLEAN LTO OPT STATIC ARCH PREFIX ENABLE
-)
+FB_COMP_OPTS=("${!FB_COMP_OPTS_DESC[@]}")
 
 # sets FB_COMP_OPTS to allow for user-overriding
 check_compile_opts_override() {

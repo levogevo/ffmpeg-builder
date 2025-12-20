@@ -35,13 +35,14 @@ The default enabled libraries included in the `ffmpeg` build are:
 - libmp3lame
 
 The user-overridable compile options are:
-- `CLEAN`: clean build directories before building (default: ON)
-- `LTO`: enable link time optimization (default: ON)
-- `OPT`: optimization level (0-3) (default: 3)
-- `STATIC`: static or shared build (default: ON)
-- `ARCH`: architecture type (x86-64-v{1,2,3,4}, armv8-a, etc) (default: native)
-- `PREFIX`: prefix to install to, default is local install in ./gitignore/sysroot (default: local)
 - `ENABLE`: configure what ffmpeg enables (default: libsvtav1_psy libopus libdav1d libaom librav1e libvmaf libx264 libx265 libwebp libmp3lame)
+- `PREFIX`: prefix to install to, default is local install in ./gitignore/sysroot (default: local)
+- `STATIC`: static or shared build (default: ON)
+- `LTO`: enable link time optimization (default: ON)
+- `CLEAN`: clean build directories before building (default: ON)
+- `PGO`: enable profile guided optimization (default: OFF)
+- `ARCH`: architecture type (x86-64-v{1,2,3,4}, armv8-a, etc) (default: native)
+- `OPT`: optimization level (0-3) (default: 3)
 
 Examples:
 - only build libsvtav1_psy and libopus: `ENABLE='libsvtav1_psy libopus' ./scripts/build.sh`
@@ -120,33 +121,41 @@ efg -i input [options]
 Example usage:
 - `efg -i input.mkv -p`
 ```
-     1 +------------------------------------------------------------------------------------------------------+
-       |    *****G*****          +                         +                        +                         |
-       |               *****G**                                                       '/tmp/plot.dat' ***G*** |
-  0.95 |-+                     *****                                                                        +-|
-       |                            **G*                                                                      |
-       |                                ***                                                                   |
-       |                                   ****                                                               |
-   0.9 |-+                                     *G*                                                          +-|
-       |                                          ****                                                        |
-       |                                              ****                                                    |
-  0.85 |-+                                                *G*                                               +-|
-       |                                                     ***                                              |
-       |                                                        ****                                          |
-   0.8 |-+                                                          *G*                                     +-|
-       |                                                               ***                                    |
-       |                                                                  ****                                |
-       |                                                                      *G*                             |
-  0.75 |-+                                                                       ***                        +-|
-       |                                                                            ****                      |
-       |                                                                                *G*                   |
-   0.7 |-+                                                                                 ***              +-|
-       |                                                                                      **              |
-       |                                                                                        ***           |
-       |                                                                                           *G*        |
-  0.65 |-+                                                                                            ***   +-|
-       |                                                                                                 **** |
-       |                         +                         +                        +                        *|
-   0.6 +------------------------------------------------------------------------------------------------------+
+  10000 +------------------------------------------------------------------------------------------------------------------------------------------+
+        |      **G*            +                      +                       +                      +                      +                      |
+        |          **                                    /Volumes/External/ffmpeg-builder/gitignore/tmp/efg-matrix-reloaded.mkv/plot.dat ***G*** |
+        |            *G**                                                                                                                          |
+        |                **G                                                                                                                       |
+   9000 |-+                 **                                                                                                                   +-|
+        |                     *G**                                                                                                                 |
+        |                         **G                                                                                                              |
+        |                            **                                                                                                            |
+        |                              *G*                                                                                                         |
+   8000 |-+                               **                                                                                                     +-|
+        |                                   *G**                                                                                                   |
+        |                                       **G                                                                                                |
+        |                                          **                                                                                              |
+        |                                            *G**                                                                                          |
+   7000 |-+                                              **G*                                                                                    +-|
+        |                                                    **                                                                                    |
+        |                                                      *G*                                                                                 |
+        |                                                         **G**                                                                            |
+   6000 |-+                                                            **G*                                                                      +-|
+        |                                                                  **                                                                      |
+        |                                                                    *G*                                                                   |
+        |                                                                       **G**                                                              |
+        |                                                                            **G*                                                          |
+   5000 |-+                                                                              **G**                                                   +-|
+        |                                                                                     **G****G*                                            |
+        |                                                                                              **G**                                       |
+        |                                                                                                   **G****G*                              |
+        |                                                                                                            **G****G*                     |
+   4000 |-+                                                                                                                   **G****G****G*     +-|
+        |                                                                                                                                   **G****|
+        |                                                                                                                                          |
+        |                                                                                                                                          |
+        |                      +                      +                       +                      +                      +                      |
+   3000 +------------------------------------------------------------------------------------------------------------------------------------------+
+        0                      5                      10                      15                     20                     25                     30
 ```
 
