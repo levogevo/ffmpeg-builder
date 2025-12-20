@@ -112,7 +112,7 @@ docker_build_image() {
 	echo_info "sourcing package manager for ${image}"
 	local dockerDistro="$(get_docker_image_tag "${image}")"
 	# specific file for evaluated package manager info
-	distroPkgMgr="${DOCKER_DIR}/$(bash_basename "${image}")-pkg_mgr"
+	local distroPkgMgr="${DOCKER_DIR}/$(bash_basename "${image}")-pkg_mgr"
 	# get package manager info
 	docker run \
 		"${DOCKER_RUN_FLAGS[@]}" \
@@ -123,17 +123,14 @@ docker_build_image() {
 	# shellcheck disable=SC1090
 	source "${distroPkgMgr}"
 
-	dockerfile="${DOCKER_DIR}/Dockerfile_$(bash_basename "${image}")"
+	local dockerfile="${DOCKER_DIR}/Dockerfile_$(bash_basename "${image}")"
+	local embedPath='/Dockerfile'
 	{
 		echo "FROM ${dockerDistro}"
 		echo 'SHELL ["/bin/bash", "-c"]'
 		echo 'RUN ln -sf /bin/bash /bin/sh'
 		echo 'ENV DEBIAN_FRONTEND=noninteractive'
-		local installCmds=''
-		installCmds+="${pkg_mgr_update}"
-		installCmds+=" && ${pkg_mgr_upgrade}"
-		installCmds+=" && ${pkg_install} ${req_pkgs[*]}"
-		echo "RUN ${installCmds}"
+		echo "RUN ${pkg_mgr_update} && ${pkg_mgr_upgrade} && ${pkg_install} ${req_pkgs[*]}"
 
 		# ENV for pipx/rust
 		echo 'ENV PIPX_HOME=/root/.local'
@@ -170,10 +167,7 @@ docker_build_image() {
 		fi
 
 		echo "ADD ${rustupTarball} /tmp/"
-		local cargoInst="\
-		cd /tmp/rustup-${rustupVersion} \
-		&& bash rustup-init.sh -y --default-toolchain=${rustcVersion}"
-		echo "RUN ${cargoInst}"
+		echo "RUN cd /tmp/rustup-${rustupVersion} && bash rustup-init.sh -y --default-toolchain=${rustcVersion}"
 		# install cargo-binstall
 		echo "RUN curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash"
 		# install cargo-c
@@ -184,10 +178,27 @@ docker_build_image() {
 		echo "RUN echo \"PS1='id=\\\$(id -u)@${image}:\w\\$ '\" >> /etc/bash.bashrc"
 		echo 'USER 65534:65534'
 
+		# embed dockerfile into docker image itself
+		# shellcheck disable=SC2094
+		echo "COPY $(bash_basename "${dockerfile}") ${embedPath}"
+
 		echo "WORKDIR ${DOCKER_WORKDIR}"
 
 	} >"${dockerfile}"
-	# return 1
+
+	# docker buildx is too aggressive with invalidating
+	# build layer caches. Instead of relying on docker
+	# to check for when to rebuild, compare the to-build
+	# dockerfile with the embedded dockerfile
+	local oldDockerfile="${dockerfile}.old"
+	docker_run_image "${image}" cp "${embedPath}" "${oldDockerfile}"
+	if diff "${dockerfile}" "${oldDockerfile}"; then
+		echo_pass "no dockerfile changes detected, skipping rebuild"
+		return 0
+	else
+		echo_warn "dockerfile changes detected, proceeding with build"
+	fi
+
 	image_tag="$(set_distro_image_tag "${image}")"
 	docker buildx build \
 		--platform "${PLATFORM}" \
@@ -254,7 +265,7 @@ docker_run_image() {
 		runCmd+=("${cmd[@]}")
 	fi
 
-	image_tag="$(set_distro_image_tag "${image}")"
+	local image_tag="$(set_distro_image_tag "${image}")"
 
 	# if a docker registry is defined, pull from it
 	if [[ ${DOCKER_REGISTRY} != '' ]]; then
@@ -264,7 +275,7 @@ docker_run_image() {
 		docker tag "${DOCKER_REGISTRY}/${image_tag}" "${image_tag}"
 	fi
 
-	echo_info "running ffmpeg build with ${image_tag}"
+	echo_info "running docker image ${image_tag}"
 	docker run \
 		"${DOCKER_RUN_FLAGS[@]}" \
 		-u "$(id -u):$(id -g)" \
