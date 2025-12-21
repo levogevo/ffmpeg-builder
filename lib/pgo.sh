@@ -13,8 +13,9 @@ gen_profdata() {
 		# make fhd preset 2
 		line_contains "${vid}" 'fhd' && args+=(-P 2)
 
+		echo_info "encoding pgo vid: ${vid}"
 		LLVM_PROFILE_FILE="${PGO_DIR}/default_%p.profraw" \
-			encode -i "${vid}" "${args[@]}" "encoded-${vid}" || return 1
+			echo_if_fail encode -i "${vid}" "${args[@]}" "encoded-${vid}" || return 1
 	done
 
 	# merge profraw into profdata

@@ -26,6 +26,7 @@ set_compile_opts() {
 		FFMPEG_EXTRA_FLAGS
 		CARGO_CINSTALL_FLAGS
 		LTO_FLAG
+		PGO_FLAG
 		LIB_SUFF
 		BUILD_TYPE
 	)
@@ -169,13 +170,13 @@ exec \"${realT}\" ${addFlag} \"\$@\"" >"${compilerDir}/${genericT}"
 	# second run will be to use generated profdata
 	if [[ ${PGO} == 'ON' ]]; then
 		if [[ ${PGO_RUN} == 'generate' ]]; then
-			local pgoFlag="-fprofile-generate"
-			CFLAGS_ARR+=("${pgoFlag}")
-			LDFLAGS_ARR+=("${pgoFlag}")
+			PGO_FLAG="-fprofile-generate"
+			CFLAGS_ARR+=("${PGO_FLAG}")
+			LDFLAGS_ARR+=("${PGO_FLAG}")
 		else
-			local pgoFlag="-fprofile-use=${PGO_PROFDATA}"
-			CFLAGS_ARR+=("${pgoFlag}")
-			LDFLAGS_ARR+=("${pgoFlag}")
+			PGO_FLAG="-fprofile-use=${PGO_PROFDATA}"
+			CFLAGS_ARR+=("${PGO_FLAG}")
+			LDFLAGS_ARR+=("${PGO_FLAG}")
 		fi
 	fi
 
@@ -661,8 +662,11 @@ del_pkgconfig_gcc_s() {
 ### RUST ###
 meta_cargoc_build() {
 	local destdir="${PWD}/fb-local-install"
-	# let rust handle its own lto
-	CFLAGS="${CFLAGS//${LTO_FLAG}/}" cargo cinstall \
+	# let rust handle its own lto/pgo
+	local newCflags="${CFLAGS//${LTO_FLAG}/}"
+	newCflags="${newCflags//${PGO_FLAG}/}"
+
+	CFLAGS="${newCflags}" cargo cinstall \
 		--destdir "${destdir}" \
 		"${CARGO_CINSTALL_FLAGS[@]}" || return 1
 	# cargo cinstall destdir prepends with entire prefix
