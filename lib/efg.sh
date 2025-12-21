@@ -35,13 +35,13 @@ set_efg_opts() {
 			sudo ln -sf "${SCRIPT_DIR}/efg.sh" \
 				"${EFG_INSTALL_PATH}" || return 1
 			echo_pass "succesfull install"
-			exit 0
+			return ${FUNC_EXIT_SUCCESS}
 			;;
 		U)
 			echo_warn "attempting uninstall"
 			sudo rm "${EFG_INSTALL_PATH}" || return 1
 			echo_pass "succesfull uninstall"
-			exit 0
+			return ${FUNC_EXIT_SUCCESS}
 			;;
 		i)
 			if [[ $# -lt 2 ]]; then
@@ -126,8 +126,7 @@ efg_segment() {
 	local segmentBitrates=()
 
 	# clean workspace
-	test -d "${EFG_DIR}" && rm -rf "${EFG_DIR}"
-	mkdir -p "${EFG_DIR}"
+	recreate_dir "${EFG_DIR}" || return 1
 
 	# split up video into segments based on start times
 	for ((time = 0; time < duration; time += timeBetweenSegments)); do
@@ -245,8 +244,14 @@ efg() {
 	# encode N highest-bitrate segments
 	ENCODE_SEGMENTS=5
 
-	set_efg_opts "$@" || return 1
-	test -d "${EFG_DIR}" || mkdir "${EFG_DIR}"
+	set_efg_opts "$@"
+	local ret=$?
+	if [[ ${ret} -eq ${FUNC_EXIT_SUCCESS} ]]; then
+		return 0
+	elif [[ ${ret} -ne 0 ]]; then
+		return ${ret}
+	fi
+	ensure_dir "${EFG_DIR}"
 
 	GRAIN_LOG="${EFG_DIR}/${LOW}-${STEP}-${HIGH}-grains.txt"
 

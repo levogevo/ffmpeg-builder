@@ -99,11 +99,11 @@ get_encode_versions() {
 	# shellcheck disable=SC2155
 	local output="$(ffmpeg -version 2>&1)"
 	while read -r line; do
-		if line_contains "${line}" 'ffmpeg='; then
+		if line_starts_with "${line}" 'ffmpeg='; then
 			ffmpegVersion="${line}"
-		elif line_contains "${line}" 'libsvtav1_psy=' || line_contains "${line}" 'libsvtav1='; then
+		elif line_starts_with "${line}" 'libsvtav1'; then
 			videoEncVersion="${line}"
-		elif line_contains "${line}" 'libopus='; then
+		elif line_starts_with "${line}" 'libopus='; then
 			audioEncVersion="${line}"
 		fi
 	done <<<"${output}"
@@ -188,25 +188,25 @@ set_encode_opts() {
 	while getopts "${opts}" flag; do
 		case "${flag}" in
 		u)
-			encode_update
-			exit $?
+			encode_update || return 1
+			return ${FUNC_EXIT_SUCCESS}
 			;;
 		I)
 			echo_warn "attempting install"
 			sudo ln -sf "${SCRIPT_DIR}/encode.sh" \
 				"${ENCODE_INSTALL_PATH}" || return 1
 			echo_pass "succesfull install"
-			exit 0
+			return ${FUNC_EXIT_SUCCESS}
 			;;
 		U)
 			echo_warn "attempting uninstall"
 			sudo rm "${ENCODE_INSTALL_PATH}" || return 1
 			echo_pass "succesfull uninstall"
-			exit 0
+			return ${FUNC_EXIT_SUCCESS}
 			;;
 		v)
-			get_encode_versions print
-			exit $?
+			get_encode_versions print || return 1
+			return ${FUNC_EXIT_SUCCESS}
 			;;
 		i)
 			if [[ $# -lt 2 ]]; then
@@ -253,7 +253,7 @@ set_encode_opts() {
 			if ! is_positive_integer "${OPTARG}" || test ${OPTARG} -gt 63; then
 				echo_fail "${OPTARG} is not a valid CRF value (0-63)"
 				encode_usage
-				exit 1
+				return 1
 			fi
 			CRF="${OPTARG}"
 			OPTS_USED=$((OPTS_USED + 2))
@@ -471,6 +471,12 @@ FB_FUNC_NAMES+=('encode')
 # shellcheck disable=SC2034
 FB_FUNC_DESCS['encode']='encode a file using libsvtav1_psy and libopus'
 encode() {
-	set_encode_opts "$@" || return 1
+	set_encode_opts "$@"
+	local ret=$?
+	if [[ ${ret} -eq ${FUNC_EXIT_SUCCESS} ]]; then
+		return 0
+	elif [[ ${ret} -ne 0 ]]; then
+		return ${ret}
+	fi
 	gen_encode_script || return 1
 }

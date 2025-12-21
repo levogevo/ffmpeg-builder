@@ -366,3 +366,18 @@ get_pkgconfig_version() {
 	local pkg="$1"
 	pkg-config --modversion "${pkg}"
 }
+
+recreate_dir() {
+	local dirs=("$@")
+	for dir in "${dirs[@]}"; do
+		test -d "${dir}" && rm -rf "${dir}"
+		mkdir -p "${dir}" || return 1
+	done
+}
+
+ensure_dir() {
+	local dirs=("$@")
+	for dir in "${dirs[@]}"; do
+		test -d "${dir}" || mkdir -p "${dir}" || return 1
+	done
+}

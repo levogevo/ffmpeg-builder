@@ -39,14 +39,16 @@ pipeline {
         stage('build ffmpeg on darwin') {
             matrix {
                 axes {
-                    axis { name 'OPT_LTO'; values 'OPT=0 LTO=OFF', 'OPT=3 LTO=ON' }
-                    axis { name 'STATIC'; values 'ON', 'OFF' }
+                    axis { name 'COMP_OPTS'; values
+                        'OPT=0 LTO=OFF STATIC=OFF',
+                        'OPT=2 LTO=OFF STATIC=ON',
+                        'OPT=3 LTO=ON STATIC=ON PGO=ON' }
                 }
                 stages {
                     stage('build on darwin ') {
                         agent { label "darwin" }
                         steps {
-                            sh "${OPT_LTO} ./scripts/build.sh"
+                            sh "${COMP_OPTS} ./scripts/build.sh"
                             archiveArtifacts allowEmptyArchive: true, artifacts: 'gitignore/package/*.tar.xz', defaultExcludes: false
                         }
                     }
@@ -58,15 +60,17 @@ pipeline {
                 axes {
                     axis { name 'ARCH'; values 'armv8-a', 'x86-64-v3' }
                     axis { name 'DISTRO'; values 'ubuntu', 'fedora', 'debian', 'archlinux' }
-                    axis { name 'OPT_LTO'; values 'OPT=0 LTO=OFF', 'OPT=3 LTO=ON' }
-                    axis { name 'STATIC'; values 'ON', 'OFF' }
+                    axis { name 'COMP_OPTS'; values
+                        'OPT=0 LTO=OFF STATIC=OFF',
+                        'OPT=2 LTO=OFF STATIC=ON',
+                        'OPT=3 LTO=ON STATIC=ON PGO=ON' }
                 }
                 stages {
                     stage('build ffmpeg on linux using docker') {
                         agent { label "linux && ${ARCH}" }
                         steps {
                             withDockerCreds {
-                                sh "${OPT_LTO} ./scripts/build_with_docker.sh ${DISTRO}"
+                                sh "${COMP_OPTS} ./scripts/build_with_docker.sh ${DISTRO}"
                                 archiveArtifacts allowEmptyArchive: true, artifacts: 'gitignore/package/*.tar.xz', defaultExcludes: false
                             }
                         }

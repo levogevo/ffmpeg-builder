@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 
 check_for_package_cfg() {
-	local requiredCfg='ON:ON:3'
-	local currentCfg="${STATIC}:${LTO}:${OPT}"
+	local requiredCfg='ON:ON:ON:3'
+	local currentCfg="${STATIC}:${LTO}:${PGO}:${OPT}"
 	if [[ ${currentCfg} == "${requiredCfg}" ]]; then
 		return 0
 	else
@@ -14,12 +14,10 @@ FB_FUNC_NAMES+=('package')
 FB_FUNC_DESCS['package']='package ffmpeg build'
 package() {
 	local pkgDir="${IGN_DIR}/package"
-	test -d "${pkgDir}" && rm -rf "${pkgDir}"
+	recreate_dir "${pkgDir}" || return 1
 	check_for_package_cfg || return 0
 
 	echo_info "packaging"
-	mkdir "${pkgDir}" || return 1
-
 	set_compile_opts || return 1
 	cp "${PREFIX}/bin/ff"* "${pkgDir}/"
 

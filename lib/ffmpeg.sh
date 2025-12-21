@@ -126,3 +126,41 @@ get_stream_lang() {
 		-of default=noprint_wrappers=1:nokey=1 \
 		"${file}"
 }
+
+gen_video() {
+	local outFile="$1"
+	local addFlags=()
+	shift
+
+	local vf="format=yuv420p10le"
+	for arg in "$@"; do
+		case "${arg}" in
+		'1080p') resolution='1920x1080' ;;
+		'2160p') resolution='3840x2160' ;;
+		'grain=yes') vf+=",noise=alls=15:allf=t+u" ;;
+		'hdr=yes')
+			vf+=",setparams=color_primaries=bt2020:color_trc=smpte2084:colorspace=bt2020nc"
+			addFlags+=(
+				-color_primaries bt2020
+				-color_trc smpte2084
+				-colorspace bt2020nc
+				-metadata:s:v:0 "mastering_display_metadata=G(13250,34500)B(7500,3000)R(34000,16000)WP(15635,16450)L(10000000,1)"
+				-metadata:s:v:0 "content_light_level=1000,400"
+			)
+			;;
+		*) echo_fail "bad arg ${arg}" && return 1 ;;
+		esac
+	done
+
+	ffmpeg -y \
+		-hide_banner \
+		-f lavfi \
+		-i "testsrc2=size=${resolution}:rate=24:duration=5" \
+		-vf "${vf}" \
+		-c:v ffv1 \
+		-level 3 \
+		-g 1 \
+		-color_range tv \
+		"${addFlags[@]}" \
+		"${outFile}"
+}

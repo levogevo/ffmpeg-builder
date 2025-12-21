@@ -11,8 +11,7 @@ DOCKER_WORKDIR='/workdir'
 set_docker_run_flags() {
 	local cargo_git="${IGN_DIR}/cargo/git"
 	local cargo_registry="${IGN_DIR}/cargo/registry"
-	test -d "${cargo_git}" || mkdir -p "${cargo_git}"
-	test -d "${cargo_registry}" || mkdir -p "${cargo_registry}"
+	ensure_dir "${cargo_git}" "${cargo_registry}"
 	DOCKER_RUN_FLAGS=(
 		--rm
 		-v "${cargo_git}:/root/.cargo/git"

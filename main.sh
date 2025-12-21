@@ -15,6 +15,11 @@ DOCKER_DIR="${IGN_DIR}/docker"
 PATCHES_DIR="${REPO_DIR}/patches"
 export REPO_DIR IGN_DIR TMP_DIR DL_DIR BUILD_DIR CCACHE_DIR DOCKER_DIR PATCHES_DIR
 
+# some functions need a way to signal early
+# returns instead of failures, so if a function
+# returns ${FUNC_EXIT_SUCCESS}, stop processing
+test -v FUNC_EXIT_SUCCESS || readonly FUNC_EXIT_SUCCESS=9
+
 # make paths if needed
 IGN_DIRS=(
 	"${TMP_DIR}"

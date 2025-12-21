@@ -101,8 +101,7 @@ set_compile_opts() {
 		fi
 		CMAKE_FLAGS+=("-DCMAKE_LINKER=${USE_LD}")
 		local compilerDir="${LOCAL_PREFIX}/compiler-tools"
-		test -d "${compilerDir}" && rm -rf "${compilerDir}"
-		mkdir -p "${compilerDir}"
+		recreate_dir "${compilerDir}" || return 1
 		# real:gnu:clang:generic
 		local compilerMap="\
 ${CC}:gcc:clang:cc
@@ -165,6 +164,20 @@ exec \"${realT}\" ${addFlag} \"\$@\"" >"${compilerDir}/${genericT}"
 	# add prefix include
 	# TODO use cygpath for windows
 	CPPFLAGS_ARR+=("-I${PREFIX}/include")
+
+	# if PGO is enabled, first build run will be to generate
+	# second run will be to use generated profdata
+	if [[ ${PGO} == 'ON' ]]; then
+		if [[ ${PGO_RUN} == 'generate' ]]; then
+			local pgoFlag="-fprofile-generate"
+			CFLAGS_ARR+=("${pgoFlag}")
+			LDFLAGS_ARR+=("${pgoFlag}")
+		else
+			local pgoFlag="-fprofile-use=${PGO_PROFDATA}"
+			CFLAGS_ARR+=("${pgoFlag}")
+			LDFLAGS_ARR+=("${pgoFlag}")
+		fi
+	fi
 
 	# enabling link-time optimization
 	if [[ ${LTO} == 'ON' ]]; then
@@ -539,6 +552,14 @@ FB_FUNC_NAMES+=('build')
 # shellcheck disable=SC2034
 FB_FUNC_DESCS['build']='build ffmpeg with the desired configuration'
 build() {
+	# if PGO is enabled, build will call build
+	# only want to recursively build on the first run
+	if [[ ${PGO} == 'ON' && ${PGO_RUN} != 'generate' ]]; then
+		PGO_RUN='generate' build || return 1
+		# will need to reset compile opts
+		unset FB_COMPILE_OPTS_SET
+	fi
+
 	set_compile_opts || return 1
 
 	for build in ${ENABLE}; do
@@ -547,9 +568,16 @@ build() {
 		unset REQUIRES_REBUILD
 	done
 	do_build ffmpeg || return 1
+
+	# skip packaging on PGO generate run
+	if [[ ${PGO} == 'ON' && ${PGO_RUN} == 'generate' ]]; then
+		PATH="${PREFIX}/bin:${PATH}" gen_profdata
+		return $?
+	fi
+
 	local ffmpegBin="${PREFIX}/bin/ffmpeg"
 	# run ffmpeg to show completion
-	"${ffmpegBin}" -version
+	"${ffmpegBin}" -version || return 1
 
 	# suggestion for path
 	hash -r
