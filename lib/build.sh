@@ -925,7 +925,9 @@ meta_configure_build() {
 		"${configureFlags[@]}" \
 		"${addFlags[@]}" || return 1
 	# build
-	ccache make -j"${JOBS}" || return 1
+	# attempt to build twice since build can fail due to OOM
+	ccache make -j"${JOBS}" ||
+		ccache make -j"${JOBS}" || return 1
 	# install
 	local destdir="${PWD}/fb-local-install"
 	make -j"${JOBS}" DESTDIR="${destdir}" install || return 1

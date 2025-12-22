@@ -139,11 +139,14 @@ gen_video() {
 		'2160p') resolution='3840x2160' ;;
 		'grain=yes') vf+=",noise=alls=15:allf=t+u" ;;
 		'hdr=yes')
-			vf+=",setparams=color_primaries=bt2020:color_trc=smpte2084:colorspace=bt2020nc"
+			local colorPrimaries='bt2020'
+			local colorTrc='smpte2084'
+			local colorspace='bt2020nc'
+			vf+=",setparams=color_primaries=${colorPrimaries}:color_trc=${colorTrc}:colorspace=${colorspace}"
 			addFlags+=(
-				-color_primaries bt2020
-				-color_trc smpte2084
-				-colorspace bt2020nc
+				-color_primaries "${colorPrimaries}"
+				-color_trc "${colorTrc}"
+				-colorspace "${colorspace}"
 				-metadata:s:v:0 "mastering_display_metadata=G(13250,34500)B(7500,3000)R(34000,16000)WP(15635,16450)L(10000000,1)"
 				-metadata:s:v:0 "content_light_level=1000,400"
 			)
@@ -152,7 +155,7 @@ gen_video() {
 		esac
 	done
 
-	ffmpeg -y \
+	echo_if_fail ffmpeg -y \
 		-hide_banner \
 		-f lavfi \
 		-i "testsrc2=size=${resolution}:rate=24:duration=5" \

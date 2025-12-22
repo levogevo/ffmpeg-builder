@@ -67,7 +67,7 @@ echo_if_fail() {
 
 	if ! test ${retval} -eq 0; then
 		echo
-		echo_fail "command failed:"
+		echo_fail "command failed with ${retval}:"
 		printf "%s\n" "${cmdEvalLines[@]}"
 		echo_warn "command stdout:"
 		tail -n 32 "${out}"

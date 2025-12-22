@@ -72,7 +72,7 @@ print_req_pkgs() {
 	# shellcheck disable=SC2034
 	local pacman_pkgs=(
 		"${common_linux_pkgs[@]}" base-devel
-		python-pipx ninja lld
+		python-pipx ninja lld mkvtoolnix-cli
 	)
 	# shellcheck disable=SC2034
 	local dnf_pkgs=(
@@ -82,6 +82,7 @@ print_req_pkgs() {
 		libstdc++-static libstdc++-devel
 		llvm-cmake-utils llvm-devel
 		llvm-static compiler-rt lld
+		mkvtoolnix
 	)
 	# shellcheck disable=SC2034
 	local pkg_pkgs=(
