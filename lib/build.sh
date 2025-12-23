@@ -608,10 +608,21 @@ sanitize_sysroot_libs() {
 
 	for lib in "${libs[@]}"; do
 		local libPath="${LIBDIR}/${lib}"
-		local useLib="${libPath}.${USE_LIB_SUFF}"
+		local foundLib=false
 
-		if [[ ! -f ${useLib} ]]; then
-			echo_fail "could not find ${useLib}, something is wrong"
+		for useLib in "${libPath}"*"${USE_LIB_SUFF}"; do
+			test -f "${useLib}" || continue
+			foundLib=true
+			# darwin sometimes fails to set rpath correctly
+			if is_darwin && [[ ${STATIC} == 'OFF' ]]; then
+				install_name_tool \
+					-id "${useLib}" \
+					"${useLib}" || return 1
+			fi
+		done
+
+		if [[ ${foundLib} == false ]]; then
+			echo_fail "could not find ${libPath}*${USE_LIB_SUFF}, something is wrong"
 			return 1
 		fi
 
@@ -957,7 +968,7 @@ build_libvpx() {
 		--enable-vp8 \
 		--enable-vp9 \
 		--enable-vp9-highbitdepth \
-		--enable-better-hw-compatability \
+		--enable-better-hw-compatibility \
 		--enable-webm-io \
 		--enable-libyuv || return 1
 	sanitize_sysroot_libs libvpx || return 1

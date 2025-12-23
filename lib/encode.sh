@@ -447,7 +447,7 @@ gen_encode_script() {
 		echo 'ffmpeg "${ffmpegParams[@]}" -dolbyvision 0 "${OUTPUT}" || exit 1'
 
 		# track-stats and clear title
-		if [[ ${FILE_EXT} == 'mkv' ]]; then
+		if [[ ${FILE_EXT} == 'mkv' ]] && has_cmd mkvpropedit; then
 			{
 				echo
 				echo 'mkvpropedit "${OUTPUT}" --add-track-statistics-tags'
