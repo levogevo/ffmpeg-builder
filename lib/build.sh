@@ -327,6 +327,8 @@ libopus			1.5.2		tar.gz		https://github.com/xiph/opus/releases/download/v${ver}/
 libdav1d		1.5.1		tar.xz		http://downloads.videolan.org/videolan/dav1d/${ver}/dav1d-${ver}.${ext}
 libx264			latest   	git   		https://code.videolan.org/videolan/x264.git
 libmp3lame		3.100		tar.gz		https://pilotfiber.dl.sourceforge.net/project/lame/lame/${ver}/lame-${ver}.${ext}
+libvpx			1.15.2		tar.gz		https://github.com/webmproject/libvpx/archive/refs/tags/v${ver}.${ext}
+libvorbis		1.3.7		tar.xz		https://github.com/xiph/vorbis/releases/download/v1.3.7/libvorbis-${ver}.${ext}
 
 libwebp			1.6.0		tar.gz		https://github.com/webmproject/libwebp/archive/refs/tags/v${ver}.${ext} libpng,libjpeg
 libjpeg			3.0.3		tar.gz		https://github.com/winlibs/libjpeg/archive/refs/tags/libjpeg-turbo-${ver}.${ext}
@@ -754,6 +756,12 @@ build_libopus() {
 	sanitize_sysroot_libs libopus || return 1
 }
 
+build_libvorbis() {
+	meta_cmake_build || return 1
+	sanitize_sysroot_libs \
+		libvorbis libvorbisenc libvorbisfile || return 1
+}
+
 build_libwebp() {
 	if is_android; then
 		replace_line CMakeLists.txt \
@@ -936,6 +944,23 @@ meta_configure_build() {
 	# reset global variables
 	CFLAGS="${cflagsBackup}"
 	LDFLAGS="${ldflagsBackup}"
+}
+
+build_libvpx() {
+	meta_configure_build \
+		--disable-examples \
+		--disable-tools \
+		--disable-docs \
+		--disable-unit-tests \
+		--disable-decode-perf-tests \
+		--disable-encode-perf-tests \
+		--enable-vp8 \
+		--enable-vp9 \
+		--enable-vp9-highbitdepth \
+		--enable-better-hw-compatability \
+		--enable-webm-io \
+		--enable-libyuv || return 1
+	sanitize_sysroot_libs libvpx || return 1
 }
 
 build_libx264() {

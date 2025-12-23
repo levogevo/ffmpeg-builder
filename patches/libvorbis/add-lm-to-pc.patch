@@ -1,0 +1,24 @@
+diff --git a/vorbis.pc.in b/vorbis.pc.in
+index f5ca77d..50cad9e 100644
+--- a/vorbis.pc.in
++++ b/vorbis.pc.in
+@@ -10,6 +10,6 @@ Description: vorbis is the primary Ogg Vorbis library
+ Version: @VERSION@
+ Requires.private: ogg
+ Conflicts:
+-Libs: -L${libdir} -lvorbis 
+-Libs.private: @VORBIS_LIBS@
++Libs: -L${libdir} -lvorbis
++Libs.private: @VORBIS_LIBS@ -lm
+ Cflags: -I${includedir}
+diff --git a/vorbisenc.pc.in b/vorbisenc.pc.in
+index a412b7a..4222daf 100644
+--- a/vorbisenc.pc.in
++++ b/vorbisenc.pc.in
+@@ -10,5 +10,5 @@ Description: vorbisenc is a library that provides a convenient API for setting u
+ Version: @VERSION@
+ Requires.private: vorbis
+ Conflicts:
+-Libs: -L${libdir} -lvorbisenc
++Libs: -L${libdir} -lvorbisenc -lm
+ Cflags: -I${includedir}
