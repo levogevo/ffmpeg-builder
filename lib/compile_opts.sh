@@ -40,6 +40,8 @@ libvmaf \
 libx264 \
 libx265 \
 libwebp \
+libvpx \
+libvorbis \
 libmp3lame\
 "
 
