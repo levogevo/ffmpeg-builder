@@ -162,6 +162,11 @@ exec \"${realT}\" ${addFlag} \"\$@\"" >"${compilerDir}/${genericT}"
 	)
 	PKG_CONFIG_PATH="${LIBDIR}/pkgconfig"
 
+	# cmake version 4 breaks some builds
+	if using_cmake_4; then
+		CMAKE_FLAGS+=("-DCMAKE_POLICY_VERSION_MINIMUM=3.5")
+	fi
+
 	# add prefix include
 	# TODO use cygpath for windows
 	CPPFLAGS_ARR+=("-I${PREFIX}/include")
@@ -238,8 +243,15 @@ exec \"${realT}\" ${addFlag} \"\$@\"" >"${compilerDir}/${genericT}"
 			"-DENABLE_SHARED=ON"
 			"-DBUILD_SHARED_LIBS=ON"
 			"-DCMAKE_INSTALL_RPATH=${LIBDIR}"
+			"-DCMAKE_BUILD_WITH_INSTALL_RPATH=ON"
 			"-DCMAKE_EXE_LINKER_FLAGS=${LDFLAGS_ARR[*]}"
 		)
+		if is_darwin; then
+			CMAKE_FLAGS+=(
+				"-DCMAKE_MACOSX_RPATH=ON"
+				"-DCMAKE_INSTALL_NAME_DIR=@rpath"
+			)
+		fi
 		FFMPEG_EXTRA_FLAGS+=("--extra-ldflags=${LDFLAGS_ARR[*]}")
 		LDFLAGS_ARR+=("-Wl,-rpath,${LIBDIR}")
 		CONFIGURE_FLAGS+=(
@@ -328,7 +340,9 @@ libdav1d		1.5.1		tar.xz		http://downloads.videolan.org/videolan/dav1d/${ver}/dav
 libx264			latest   	git   		https://code.videolan.org/videolan/x264.git
 libmp3lame		3.100		tar.gz		https://pilotfiber.dl.sourceforge.net/project/lame/lame/${ver}/lame-${ver}.${ext}
 libvpx			1.15.2		tar.gz		https://github.com/webmproject/libvpx/archive/refs/tags/v${ver}.${ext}
-libvorbis		1.3.7		tar.xz		https://github.com/xiph/vorbis/releases/download/v1.3.7/libvorbis-${ver}.${ext}
+
+libvorbis		1.3.7		tar.xz		https://github.com/xiph/vorbis/releases/download/v${ver}/libvorbis-${ver}.${ext} libogg
+libogg			1.3.6		tar.xz		https://github.com/xiph/ogg/releases/download/v${ver}/libogg-${ver}.${ext}
 
 libwebp			1.6.0		tar.gz		https://github.com/webmproject/libwebp/archive/refs/tags/v${ver}.${ext} libpng,libjpeg
 libjpeg			3.0.3		tar.gz		https://github.com/winlibs/libjpeg/archive/refs/tags/libjpeg-turbo-${ver}.${ext}
@@ -613,12 +627,6 @@ sanitize_sysroot_libs() {
 		for useLib in "${libPath}"*"${USE_LIB_SUFF}"; do
 			test -f "${useLib}" || continue
 			foundLib=true
-			# darwin sometimes fails to set rpath correctly
-			if is_darwin && [[ ${STATIC} == 'OFF' ]]; then
-				install_name_tool \
-					-id "${useLib}" \
-					"${useLib}" || return 1
-			fi
 		done
 
 		if [[ ${foundLib} == false ]]; then
@@ -773,6 +781,11 @@ build_libvorbis() {
 		libvorbis libvorbisenc libvorbisfile || return 1
 }
 
+build_libogg() {
+	meta_cmake_build || return 1
+	sanitize_sysroot_libs libogg || return 1
+}
+
 build_libwebp() {
 	if is_android; then
 		replace_line CMakeLists.txt \
@@ -823,19 +836,14 @@ build_spirv_headers() {
 
 build_libx265() {
 	# libx265 does not support cmake >= 4
-	local cmakeVersion verMajor
-	IFS=$' \t' read -r _ _ cmakeVersion <<<"$(cmake --version)"
-	IFS='.' read -r verMajor _ _ <<<"${cmakeVersion}"
-	local policyFlag=''
-	if [[ ! ${verMajor} -lt 4 ]]; then
+	if using_cmake_4; then
 		remove_line "source/CMakeLists.txt" "cmake_policy(SET CMP0025 OLD)" || return 1
 		remove_line "source/CMakeLists.txt" "cmake_policy(SET CMP0054 OLD)" || return 1
-		policyFlag="-DCMAKE_POLICY_VERSION_MINIMUM=3.5"
 	fi
 
 	meta_cmake_build \
 		-DHIGH_BIT_DEPTH=ON \
-		-DENABLE_HDR10_PLUS=OFF ${policyFlag} \
+		-DENABLE_HDR10_PLUS=OFF \
 		-S source || return 1
 	sanitize_sysroot_libs libx265 || return 1
 	del_pkgconfig_gcc_s x265.pc || return 1

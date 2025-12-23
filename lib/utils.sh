@@ -367,6 +367,12 @@ get_pkgconfig_version() {
 	pkg-config --modversion "${pkg}"
 }
 
+using_cmake_4() {
+	local cmakeVersion
+	IFS=$' \t' read -r _ _ cmakeVersion <<<"$(command cmake --version)"
+	line_starts_with "${cmakeVersion}" 4
+}
+
 recreate_dir() {
 	local dirs=("$@")
 	for dir in "${dirs[@]}"; do
