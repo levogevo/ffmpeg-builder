@@ -129,6 +129,19 @@ exec \"${realT}\" ${addFlag} \"\$@\"" >"${compilerDir}/${genericT}"
 			# cp "${compilerDir}/${genericT}" "${compilerDir}/${gnuT}" 2>/dev/null
 			# cp "${compilerDir}/${genericT}" "${compilerDir}/${clangT}" 2>/dev/null
 		done <<<"${compilerMap}"
+
+		# also add fake which command in case one does not exist
+		# shellcheck disable=SC2016
+		echo '#!/usr/bin/env bash
+which=""
+test -f /bin/which && which=/bin/which
+test -f /usr/bin/which && which=/usr/bin/which
+if [[ ${which} == "" ]]; then
+	command -v "$@"
+else
+	${which} "$@"
+fi' >"${compilerDir}/which"
+		chmod +x "${compilerDir}/which"
 		export PATH="${compilerDir}:${PATH}"
 	fi
 
@@ -627,6 +640,12 @@ sanitize_sysroot_libs() {
 		for useLib in "${libPath}"*"${USE_LIB_SUFF}"; do
 			test -f "${useLib}" || continue
 			foundLib=true
+			# darwin sometimes fails to set rpath correctly
+			if is_darwin && [[ ${STATIC} == 'OFF' ]]; then
+				install_name_tool \
+					-id "${useLib}" \
+					"${useLib}" || return 1
+			fi
 		done
 
 		if [[ ${foundLib} == false ]]; then
