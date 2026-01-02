@@ -50,15 +50,15 @@ FB_COMP_OPTS=("${!FB_COMP_OPTS_DESC[@]}")
 
 # sets FB_COMP_OPTS to allow for user-overriding
 check_compile_opts_override() {
-	for opt in "${FB_COMP_OPTS[@]}"; do
-		declare -n defOptVal="DEFAULT_${opt}"
-		declare -n optVal="${opt}"
-		# use given value if not overridden
-		if [[ -v optVal && ${optVal} != "${defOptVal}" ]]; then
-			echo_info "setting given value for ${opt}=${optVal}"
-			declare -g "${opt}=${optVal}"
-		else
-			declare -g "${opt}=${defOptVal}"
-		fi
-	done
+    for opt in "${FB_COMP_OPTS[@]}"; do
+        declare -n defOptVal="DEFAULT_${opt}"
+        declare -n optVal="${opt}"
+        # use given value if not overridden
+        if [[ -v optVal && ${optVal} != "${defOptVal}" ]]; then
+            echo_info "setting given value for ${opt}=${optVal}"
+            declare -g "${opt}=${optVal}"
+        else
+            declare -g "${opt}=${defOptVal}"
+        fi
+    done
 }

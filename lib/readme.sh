@@ -1,29 +1,29 @@
 #!/usr/bin/env bash
 
 make_bullet_points() {
-	for arg in "$@"; do
-		echo "- ${arg}"
-	done
+    for arg in "$@"; do
+        echo "- ${arg}"
+    done
 }
 
 gen_function_info() {
-	local funcName="$1"
-	echo "${FB_FUNC_DESCS[${funcName}]} using \`./scripts/${funcName}.sh\`"
+    local funcName="$1"
+    echo "${FB_FUNC_DESCS[${funcName}]} using \`./scripts/${funcName}.sh\`"
 }
 
 gen_compile_opts_info() {
-	for opt in "${FB_COMP_OPTS[@]}"; do
-		declare -n defOptVal="DEFAULT_${opt}"
-		echo "- \`${opt}\`: ${FB_COMP_OPTS_DESC[${opt}]} (default: ${defOptVal})"
-	done
+    for opt in "${FB_COMP_OPTS[@]}"; do
+        declare -n defOptVal="DEFAULT_${opt}"
+        echo "- \`${opt}\`: ${FB_COMP_OPTS_DESC[${opt}]} (default: ${defOptVal})"
+    done
 }
 
 FB_FUNC_NAMES+=('gen_readme')
 FB_FUNC_DESCS['gen_readme']='generate project README.md'
 gen_readme() {
-	local readme="${REPO_DIR}/README.md"
+    local readme="${REPO_DIR}/README.md"
 
-	echo "
+    echo "
 # ffmpeg-builder
 A collection of scripts for building \`ffmpeg\` and encoding content with the built \`ffmpeg\`.
 

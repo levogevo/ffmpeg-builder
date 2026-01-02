@@ -32,10 +32,12 @@ The default enabled libraries included in the `ffmpeg` build are:
 - libx264
 - libx265
 - libwebp
+- libvpx
+- libvorbis
 - libmp3lame
 
 The user-overridable compile options are:
-- `ENABLE`: configure what ffmpeg enables (default: libsvtav1_psy libopus libdav1d libaom librav1e libvmaf libx264 libx265 libwebp libmp3lame)
+- `ENABLE`: configure what ffmpeg enables (default: libsvtav1_psy libopus libdav1d libaom librav1e libvmaf libx264 libx265 libwebp libvpx libvorbis libmp3lame)
 - `PREFIX`: prefix to install to, default is local install in ./gitignore/sysroot (default: local)
 - `STATIC`: static or shared build (default: ON)
 - `LTO`: enable link time optimization (default: ON)
