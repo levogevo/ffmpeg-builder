@@ -2,6 +2,7 @@
 
 efg_usage() {
     echo "efg -i input [options]"
+    echo -e "\t[-P NUM] set preset (default: ${PRESET})"
     echo -e "\t[-l NUM] low value (default: ${LOW})"
     echo -e "\t[-s NUM] step value (default: ${STEP})"
     echo -e "\t[-h NUM] high value (default: ${HIGH})"
@@ -12,10 +13,11 @@ efg_usage() {
 }
 
 set_efg_opts() {
-    local opts='pl:s:h:i:IU'
+    local opts='P:pl:s:h:i:IU'
     local numOpts=${#opts}
     # default values
     unset INPUT
+    PRESET=10
     LOW=0
     STEP=1
     HIGH=30
@@ -30,6 +32,13 @@ set_efg_opts() {
     local OPTARG OPTIND
     while getopts "${opts}" flag; do
         case "${flag}" in
+        P)
+            if ! is_positive_integer "${OPTARG}"; then
+                efg_usage
+                return 1
+            fi
+            PRESET="${OPTARG}"
+            ;;
         I)
             echo_warn "attempting install"
             sudo ln -sf "${SCRIPT_DIR}/efg.sh" \
@@ -169,18 +178,24 @@ efg_segment() {
 }
 
 efg_encode() {
-    echo -n >"${GRAIN_LOG}"
+    local grainLogWIP="${GRAIN_LOG}.wip"
+    echo -n >"${grainLogWIP}"
     for vid in "${EFG_DIR}/"*.mkv; do
-        echo "file: ${vid}" >>"${GRAIN_LOG}"
+        echo "file: ${vid}" >>"${grainLogWIP}"
         for ((grain = LOW; grain <= HIGH; grain += STEP)); do
             local file="$(bash_basename "${vid}")"
             local out="${EFG_DIR}/grain-${grain}-${file}"
             echo_info "encoding ${file} with grain ${grain}"
-            echo_if_fail encode -P 10 -g ${grain} -i "${vid}" "${out}"
-            echo -e "\tgrain: ${grain}, bitrate: $(get_avg_bitrate "${out}")" >>"${GRAIN_LOG}"
-            rm "${out}"
+            echo_if_fail encode -P "${PRESET}" -g ${grain} -i "${vid}" "${out}" || return 1
+            echo -e "\tgrain: ${grain}, bitrate: $(get_avg_bitrate "${out}")" >>"${grainLogWIP}"
+            rm "${out}" || return 1
         done
+        # remove segment once complete
+        rm "${vid}" || return 1
     done
+
+    # atomic move of grain log
+    mv "${grainLogWIP}" "${GRAIN_LOG}" || return 1
 
     echo "$(<"${GRAIN_LOG}")"
 }
