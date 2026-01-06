@@ -33,11 +33,12 @@ The default enabled libraries included in the `ffmpeg` build are:
 - libx265
 - libwebp
 - libvpx
+- libass
 - libvorbis
 - libmp3lame
 
 The user-overridable compile options are:
-- `ENABLE`: configure what ffmpeg enables (default: libsvtav1_psy libopus libdav1d libaom librav1e libvmaf libx264 libx265 libwebp libvpx libvorbis libmp3lame)
+- `ENABLE`: configure what ffmpeg enables (default: libsvtav1_psy libopus libdav1d libaom librav1e libvmaf libx264 libx265 libwebp libvpx libass libvorbis libmp3lame)
 - `PREFIX`: prefix to install to, default is local install in ./gitignore/sysroot (default: local)
 - `STATIC`: static or shared build (default: ON)
 - `LTO`: enable link time optimization (default: ON)
@@ -80,7 +81,7 @@ encode -i input [options] output
 	[-v] print relevant version info
 	[-s] use same container as input, default is convert to mkv
 
-	[output] if unset, defaults to ${HOME}/av1-input-file-name.mkv
+	[output] if unset, defaults to ${PWD}/av1-input-file-name.mkv
 
 	[-u] update script (git pull ffmpeg-builder)
 	[-I] system install at /usr/local/bin/encode
@@ -109,6 +110,7 @@ Example usage:
 ## Estimate film-grain
 ```bash
 efg -i input [options]
+	[-P NUM] set preset (default: 10)
 	[-l NUM] low value (default: 0)
 	[-s NUM] step value (default: 1)
 	[-h NUM] high value (default: 30)

@@ -68,11 +68,13 @@ print_req_pkgs() {
         build-essential libssl-dev gobjc++
         mawk libc6-dev mediainfo ninja-build
         mkvtoolnix libgtest-dev lld
+        libfontconfig-dev libglib2.0-dev
     )
     # shellcheck disable=SC2034
     local pacman_pkgs=(
         "${common_linux_pkgs[@]}" base-devel
         python-pipx ninja lld mkvtoolnix-cli
+        glib2-devel
     )
     # shellcheck disable=SC2034
     local dnf_pkgs=(
@@ -82,7 +84,7 @@ print_req_pkgs() {
         libstdc++-static libstdc++-devel
         llvm-cmake-utils llvm-devel
         llvm-static compiler-rt lld
-        mkvtoolnix
+        mkvtoolnix glib2-static
     )
     # shellcheck disable=SC2034
     local pkg_pkgs=(

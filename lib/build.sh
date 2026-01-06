@@ -367,8 +367,13 @@ glad              2.0.8        tar.gz    https://github.com/Dav1dde/glad/archive
 
 libx265           4.1          tar.gz    https://bitbucket.org/multicoreware/x265_git/downloads/x265_${ver}.${ext} libnuma
 libnuma           2.0.19       tar.gz    https://github.com/numactl/numactl/archive/refs/tags/v${ver}.${ext}
-'
 
+libass            0.17.4       tar.xz    https://github.com/libass/libass/releases/download/${ver}/libass-${ver}.${ext} freetype,fribidi,libunibreak
+freetype          2.14.1       tar.xz    https://downloads.sourceforge.net/freetype/freetype-${ver}.${ext} libpng,harfbuzz
+harfbuzz          12.3.0       tar.xz    https://github.com/harfbuzz/harfbuzz/releases/download/${ver}/harfbuzz-${ver}.${ext}
+fribidi           1.0.16       tar.xz    https://github.com/fribidi/fribidi/releases/download/v${ver}/fribidi-${ver}.${ext}
+libunibreak       6.1          tar.gz    https://github.com/adah1972/libunibreak/releases/download/libunibreak_${ver//./_}/libunibreak-${ver}.${ext}
+'
     local supported_builds=()
     unset ver ext url deps extractedDir
     while read -r line; do
@@ -452,7 +457,7 @@ download_release() {
             continue
         fi
         test -d "${alreadyBuilt}" || continue
-        echo_warn "removing wrong version: ${extractedDir}"
+        echo_warn "removing wrong version: ${alreadyBuilt}"
         rm -rf "${alreadyBuilt}"
     done
 
@@ -916,8 +921,8 @@ build_libplacebo() {
     # copy downloaded glad release as "submodule"
     (
         installDir="${PWD}/3rdparty/glad"
-        get_build_conf glad
-        CLEAN=OFF download_release
+        get_build_conf glad || exit 1
+        CLEAN=OFF download_release || exit 1
         cd "${extractedDir}" || exit 1
         cp -r ./* "${installDir}"
     ) || return 1
@@ -957,6 +962,31 @@ build_libvmaf() {
         # overwrite the pkgconfig
         ${SUDO_MODIFY} cp "${newCfg}" "${cfg}"
     fi
+}
+
+build_libass() {
+    meta_meson_build || return 1
+    sanitize_sysroot_libs libass || return 1
+}
+
+build_freetype() {
+    meta_meson_build \
+        -D tests=disabled || return 1
+    sanitize_sysroot_libs libfreetype || return 1
+}
+
+build_harfbuzz() {
+    meta_meson_build \
+        -D tests=disabled \
+        -D docs=disabled \
+        -D doc_tests=false || return 1
+    sanitize_sysroot_libs libharfbuzz || return 1
+}
+
+build_fribidi() {
+    meta_meson_build \
+        -D tests=false || return 1
+    sanitize_sysroot_libs libfribidi || return 1
 }
 
 ### PYTHON ###
@@ -1045,6 +1075,11 @@ build_libnuma() {
     ./autogen.sh || return 1
     meta_configure_build || return 1
     sanitize_sysroot_libs libnuma || return 1
+}
+
+build_libunibreak() {
+    meta_configure_build || return 1
+    sanitize_sysroot_libs libunibreak || return 1
 }
 
 add_project_versioning_to_ffmpeg() {

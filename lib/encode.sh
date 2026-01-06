@@ -154,7 +154,7 @@ encode_usage() {
     echo -e "\t[-d] enable dolby vision (default: ${DV_TOGGLE})"
     echo -e "\t[-v] print relevant version info"
     echo -e "\t[-s] use same container as input, default is convert to mkv"
-    echo -e "\n\t[output] if unset, defaults to \${HOME}/av1-input-file-name.mkv"
+    echo -e "\n\t[output] if unset, defaults to \${PWD}/av1-input-file-name.mkv"
     echo -e "\n\t[-u] update script (git pull ffmpeg-builder)"
     echo -e "\t[-I] system install at ${ENCODE_INSTALL_PATH}"
     echo -e "\t[-U] uninstall from ${ENCODE_INSTALL_PATH}"
@@ -271,7 +271,7 @@ set_encode_opts() {
         OUTPUT="${*: -1}"
     else
         local basename="$(bash_basename "${INPUT}")"
-        OUTPUT="${HOME}/av1-${basename}"
+        OUTPUT="${PWD}/av1-${basename}"
     fi
 
     # use same container for output
