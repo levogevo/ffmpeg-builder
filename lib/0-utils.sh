@@ -279,6 +279,13 @@ is_positive_integer() {
     return 0
 }
 
+print_line_indent() {
+    local line="$1"
+    if [[ ${line} =~ ^( +) ]]; then
+        echo -n "${BASH_REMATCH[1]}"
+    fi
+}
+
 replace_line() {
     local file="$1"
     local search="$2"
@@ -286,8 +293,9 @@ replace_line() {
     local newFile="${TMP_DIR}/$(bash_basename "${file}")"
 
     test -f "${newFile}" && rm "${newFile}"
-    while read -r line; do
+    while IFS= read -r line; do
         if line_contains "${line}" "${search}"; then
+            print_line_indent "${line}" >>"${newFile}"
             echo -en "${newLine}" >>"${newFile}"
             continue
         fi
@@ -348,9 +356,6 @@ spinner() {
     case "${action}" in
     start)
         test -f "${spinPidFile}" && rm "${spinPidFile}"
-
-        # don't want to clutter logs if running headless
-        test "${HEADLESS}" == '1' && return
 
         _start_spinner &
         echo $! >"${spinPidFile}"

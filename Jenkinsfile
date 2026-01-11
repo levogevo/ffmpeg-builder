@@ -15,7 +15,6 @@ pipeline {
     agent none
     environment {
         DEBUG = "1"
-        HEADLESS = "1"    
     }
     options { buildDiscarder logRotator(numToKeepStr: '4') }
     stages {

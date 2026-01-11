@@ -964,11 +964,6 @@ build_libvmaf() {
     fi
 }
 
-build_libass() {
-    meta_meson_build || return 1
-    sanitize_sysroot_libs libass || return 1
-}
-
 build_freetype() {
     meta_meson_build \
         -D tests=disabled || return 1
@@ -1082,6 +1077,11 @@ build_libunibreak() {
     sanitize_sysroot_libs libunibreak || return 1
 }
 
+build_libass() {
+    meta_configure_build || return 1
+    sanitize_sysroot_libs libass || return 1
+}
+
 add_project_versioning_to_ffmpeg() {
     # embed this project's enables/versions
     # into ffmpeg with FFMPEG_BUILDER_INFO
@@ -1104,34 +1104,10 @@ add_project_versioning_to_ffmpeg() {
         echo_fail "could not find ${fname} to add project versioning"
     fi
 
-    local searchFor='static void print_all_libs_info'
-    local foundUsageStart=0
-    local newOptFile="${TMP_DIR}/${fname}"
-    test -f "${newOptFile}" && rm "${newOptFile}"
-    while read -r line; do
-        # if we found the line previously, add the versioning
-        if [[ ${foundUsageStart} -eq 1 ]]; then
-            if line_starts_with "${line}" '}'; then
-                echo_info "found ${line} on ${lineNum}"
-                for info in "${FFMPEG_BUILDER_INFO[@]}"; do
-                    local newline="av_log(NULL, AV_LOG_INFO, \"${info}\n\");"
-                    echo "${newline}" >>"${newOptFile}"
-                    lineNum=$((lineNum + 1))
-                done
-                newline="av_log(NULL, AV_LOG_INFO, \"\n\");"
-                echo "${newline}" >>"${newOptFile}"
-                foundUsageStart=0
-            fi
-        fi
-        # find the line we are searching for
-        if line_contains "${line}" "${searchFor}"; then
-            foundUsageStart=1
-        fi
-        # start building the new file
-        echo "${line}" >>"${newOptFile}"
-    done <"${optFile}"
-
-    cp "${newOptFile}" "${optFile}" || return 1
+    local printLibLine='print_all_libs_info(SHOW_VERSION, AV_LOG_INFO);'
+    local newPrintLibLine="${printLibLine} "
+    newPrintLibLine+="$(printf 'av_log(NULL, AV_LOG_INFO, "%s\\\\n"); ' "${FFMPEG_BUILDER_INFO[@]}")"
+    replace_line "${optFile}" "${printLibLine}" "${newPrintLibLine}" || return 1
 
     return 0
 }
