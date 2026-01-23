@@ -116,7 +116,7 @@ docker_build_image() {
     docker run \
         "${DOCKER_RUN_FLAGS[@]}" \
         "${dockerDistro}" \
-        bash -c "./scripts/print_pkg_mgr.sh" | tr -d '\r' >"${distroPkgMgr}"
+        bash -c "DEBUG=0 ./scripts/print_pkg_mgr.sh" | tr -d '\r' >"${distroPkgMgr}"
     # shellcheck disable=SC1090
     cat "${distroPkgMgr}"
     # shellcheck disable=SC1090
@@ -269,8 +269,8 @@ docker_run_image() {
 
     # if a docker registry is defined, pull from it
     if [[ ${DOCKER_REGISTRY} != '' ]]; then
-        docker_login || return 1
-        docker pull \
+        echo_if_fail docker_login || return 1
+        echo_if_fail docker pull \
             "${DOCKER_REGISTRY}/${image_tag}" || return 1
         docker tag "${DOCKER_REGISTRY}/${image_tag}" "${image_tag}"
     fi
@@ -283,7 +283,7 @@ docker_run_image() {
         "${runCmd[@]}"
 
     local rv=$?
-    docker image prune -f
+    echo_if_fail docker image prune -f
     return ${rv}
 }
 
