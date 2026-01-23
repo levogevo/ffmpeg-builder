@@ -41,7 +41,6 @@ libx264 \
 libx265 \
 libwebp \
 libvpx \
-libass \
 libvorbis \
 libmp3lame\
 "

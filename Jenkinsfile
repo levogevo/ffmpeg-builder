@@ -15,6 +15,7 @@ pipeline {
     agent none
     environment {
         DEBUG = "1"
+        HEADLESS = "1"
     }
     options { buildDiscarder logRotator(numToKeepStr: '4') }
     stages {
@@ -40,7 +41,7 @@ pipeline {
                 axes {
                     axis { 
                         name 'COMP_OPTS'; 
-                        values 'OPT=0 LTO=OFF STATIC=OFF', 'OPT=2 LTO=OFF STATIC=ON', 'OPT=3 LTO=ON STATIC=ON PGO=ON'
+                        values 'OPT=0 LTO=OFF STATIC=OFF', 'OPT=2 LTO=OFF', 'PGO=ON'
                     }
                 }
                 stages {
@@ -61,7 +62,7 @@ pipeline {
                     axis { name 'DISTRO'; values 'ubuntu', 'fedora', 'debian', 'archlinux' }
                     axis { 
                         name 'COMP_OPTS'; 
-                        values 'OPT=0 LTO=OFF STATIC=OFF', 'OPT=2 LTO=OFF STATIC=ON', 'OPT=3 LTO=ON STATIC=ON PGO=ON'
+                        values 'OPT=0 LTO=OFF STATIC=OFF', 'OPT=2 LTO=OFF', 'PGO=ON'
                     }
                 }
                 stages {

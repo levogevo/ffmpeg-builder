@@ -357,6 +357,9 @@ spinner() {
     start)
         test -f "${spinPidFile}" && rm "${spinPidFile}"
 
+        # don't want to clutter logs if running headless
+        test "${HEADLESS}" == '1' && return
+
         _start_spinner &
         echo $! >"${spinPidFile}"
         ;;
