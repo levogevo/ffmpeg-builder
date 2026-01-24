@@ -21,6 +21,7 @@ set_docker_run_flags() {
         -e "DEBUG=${DEBUG}"
         -e "HEADLESS=${HEADLESS}"
         -t
+        "--memory-swap=-1"
     )
     for opt in "${FB_COMP_OPTS[@]}"; do
         declare -n defOptVal="DEFAULT_${opt}"
