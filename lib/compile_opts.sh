@@ -31,18 +31,24 @@ DEFAULT_PREFIX='local'
 
 FB_COMP_OPTS_DESC['ENABLE']='configure what ffmpeg enables'
 DEFAULT_ENABLE="\
-libsvtav1_psy \
-libopus \
-libdav1d \
 libaom \
-librav1e \
+libass \
+libvpx \
+libxml2 \
 libvmaf \
 libx264 \
 libx265 \
 libwebp \
-libvpx \
+libopus \
+librav1e \
+libdav1d \
 libvorbis \
-libmp3lame\
+libmp3lame \
+libfribidi \
+libfreetype \
+libharfbuzz \
+libsvtav1_psy \
+libfontconfig \
 "
 
 # user-overridable compile option variable names

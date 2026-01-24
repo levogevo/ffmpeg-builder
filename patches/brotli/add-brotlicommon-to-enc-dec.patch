@@ -1,0 +1,24 @@
+diff --git a/scripts/libbrotlidec.pc.in b/scripts/libbrotlidec.pc.in
+index 419a608..bae9f81 100644
+--- a/scripts/libbrotlidec.pc.in
++++ b/scripts/libbrotlidec.pc.in
+@@ -7,6 +7,6 @@ Name: libbrotlidec
+ URL: https://github.com/google/brotli
+ Description: Brotli decoder library
+ Version: @PACKAGE_VERSION@
+-Libs: -L${libdir} -lbrotlidec
++Libs: -L${libdir} -lbrotlidec -lbrotlicommon
+ Requires.private: libbrotlicommon >= 1.2.0
+ Cflags: -I${includedir}
+diff --git a/scripts/libbrotlienc.pc.in b/scripts/libbrotlienc.pc.in
+index effa6ce..b7a9857 100644
+--- a/scripts/libbrotlienc.pc.in
++++ b/scripts/libbrotlienc.pc.in
+@@ -7,6 +7,6 @@ Name: libbrotlienc
+ URL: https://github.com/google/brotli
+ Description: Brotli encoder library
+ Version: @PACKAGE_VERSION@
+-Libs: -L${libdir} -lbrotlienc
++Libs: -L${libdir} -lbrotlienc -lbrotlicommon
+ Requires.private: libbrotlicommon >= 1.2.0
+ Cflags: -I${includedir}

@@ -44,8 +44,6 @@ This project supports multiple ways to build.
 ## Configuration
 Configuration is done through environment variables.
 By default, this project will build a static \`ffmpeg\` binary in \`./gitignore/sysroot/bin/ffmpeg\`.
-The default enabled libraries included in the \`ffmpeg\` build are:
-$(make_bullet_points ${DEFAULT_ENABLE})
 
 The user-overridable compile options are:
 $(gen_compile_opts_info)

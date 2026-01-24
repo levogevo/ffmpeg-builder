@@ -68,7 +68,7 @@ print_req_pkgs() {
         build-essential libssl-dev gobjc++
         mawk libc6-dev mediainfo ninja-build
         mkvtoolnix libgtest-dev lld
-        libfontconfig-dev libglib2.0-dev
+        libglib2.0-dev
     )
     # shellcheck disable=SC2034
     local pacman_pkgs=(
@@ -78,8 +78,8 @@ print_req_pkgs() {
     )
     # shellcheck disable=SC2034
     local dnf_pkgs=(
-        "${common_linux_pkgs[@]}" openssl-devel
-        pipx ninja-build fontconfig-devel wget2
+        "${common_linux_pkgs[@]}" pipx
+        openssl-devel ninja-build wget2
         glibc-static glibc-devel patch
         libstdc++-static libstdc++-devel
         llvm-cmake-utils llvm-devel
