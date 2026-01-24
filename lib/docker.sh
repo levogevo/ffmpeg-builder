@@ -158,6 +158,7 @@ docker_build_image() {
         echo 'USER 65534:65534'
         # pipx
         echo "RUN pipx install virtualenv"
+        echo "RUN pipx install meson"
         # rust
         local rustupVersion='1.28.2'
         local rustcVersion='1.90.0'

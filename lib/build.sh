@@ -368,16 +368,16 @@ glad              2.0.8        tar.gz    https://github.com/Dav1dde/glad/archive
 libx265           4.1          tar.gz    https://bitbucket.org/multicoreware/x265_git/downloads/x265_${ver}.${ext} libnuma
 libnuma           2.0.19       tar.gz    https://github.com/numactl/numactl/archive/refs/tags/v${ver}.${ext}
 
-libass            0.17.4       tar.xz    https://github.com/libass/libass/releases/download/${ver}/libass-${ver}.${ext} libfreetype,libfribidi,libunibreak,libxml2,xz,libfontconfig
+libass            0.17.4       tar.xz    https://github.com/libass/libass/releases/download/${ver}/libass-${ver}.${ext} libfreetype,libharfbuzz,libfribidi,libunibreak,libxml2,xz
+libfontconfig     2.17.1       tar.xz    https://gitlab.freedesktop.org/api/v4/projects/890/packages/generic/fontconfig/${ver}/fontconfig-${ver}.${ext} libharfbuzz,expat,brotli
+libfreetype       2.14.1       tar.xz    https://downloads.sourceforge.net/freetype/freetype-${ver}.${ext} bzip,libpng,zlib,brotli
+libharfbuzz       12.3.0       tar.xz    https://github.com/harfbuzz/harfbuzz/releases/download/${ver}/harfbuzz-${ver}.${ext} libfreetype
 libunibreak       6.1          tar.gz    https://github.com/adah1972/libunibreak/releases/download/libunibreak_${ver//./_}/libunibreak-${ver}.${ext}
 libxml2           2.15.1       tar.gz    https://github.com/GNOME/libxml2/archive/refs/tags/v${ver}.${ext}
 xz                5.8.2        tar.xz    https://github.com/tukaani-project/xz/releases/download/v${ver}/xz-${ver}.${ext}
 libfribidi        1.0.16       tar.xz    https://github.com/fribidi/fribidi/releases/download/v${ver}/fribidi-${ver}.${ext}
-libfreetype       2.14.1       tar.xz    https://downloads.sourceforge.net/freetype/freetype-${ver}.${ext} zlib,bzip,libpng,libharfbuzz,brotli
 bzip              latest       git       https://github.com/libarchive/bzip2.git
-libharfbuzz       12.3.0       tar.xz    https://github.com/harfbuzz/harfbuzz/releases/download/${ver}/harfbuzz-${ver}.${ext}
 brotli            1.2.0        tar.gz    https://github.com/google/brotli/archive/refs/tags/v${ver}.${ext}
-libfontconfig     2.17.1       tar.xz    https://gitlab.freedesktop.org/api/v4/projects/890/packages/generic/fontconfig/${ver}/fontconfig-${ver}.${ext} expat
 expat             2.7.3        tar.xz    https://github.com/libexpat/libexpat/releases/download/R_${ver//./_}/expat-${ver}.${ext}
 '
     local supported_builds=()

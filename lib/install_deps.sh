@@ -167,7 +167,7 @@ check_for_req_pkgs() {
     has_cmd pipx || echo_if_fail python3 -m pipx ensurepath && source ~/.bashrc || return 1
     echo_if_fail pipx install virtualenv || return 1
     echo_if_fail pipx ensurepath || return 1
-    has_cmd meson || echo_if_fail pipx install meson || return 1
+    has_cmd meson && have_req_meson_version || echo_if_fail pipx install meson || return 1
     echo_pass "pipx is installed"
 
     # shellcheck disable=SC1091

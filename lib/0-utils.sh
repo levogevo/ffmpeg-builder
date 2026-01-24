@@ -381,6 +381,22 @@ using_cmake_4() {
     line_starts_with "${cmakeVersion}" 4
 }
 
+have_req_meson_version() {
+    local min=1.6.1
+    have_required_version "$(meson --version)" "${min}"
+}
+
+have_required_version() {
+    local have="$1"
+    local min="$2"
+    local hMaj hMin hPatch mMaj mMin mPatch
+    IFS=. read -r hMaj hMin hPatch <<<"${have}"
+    IFS=. read -r mMaj mMin mPatch <<<"${min}"
+    test "${hMaj}" -ge "${mMaj}" &&
+        test "${hMin}" -ge "${mMin}" &&
+        test "${hPatch}" -ge "${mPatch}"
+}
+
 recreate_dir() {
     local dirs=("$@")
     for dir in "${dirs[@]}"; do
