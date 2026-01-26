@@ -43,6 +43,17 @@ echo_if_fail() {
     local out="${TMP_DIR}/${logName}stdout"
     local err="${TMP_DIR}/${logName}stderr"
 
+    # get current trace status
+    local set
+    if [[ $- == *x* ]]; then
+        set='-x'
+    else
+        set='+x'
+    fi
+
+    # stop tracing before new trace file
+    set +x
+
     # set trace to the cmdEvalTrace and open file descriptor
     local cmdEvalTrace="${TMP_DIR}/${logName}cmdEvalTrace"
     exec 5>"${cmdEvalTrace}"
@@ -55,6 +66,9 @@ echo_if_fail() {
     # unset and close file descriptor
     set +x
     exec 5>&-
+
+    # reset previous state
+    set ${set}
 
     # parse out relevant part of the trace
     local cmdEvalLines=()
