@@ -33,11 +33,6 @@ for dir in "${IGN_DIRS[@]}"; do
 done
 unset IGN_DIRS
 
-# function names, descriptions, completions
-unset FB_FUNC_NAMES FB_FUNC_DESCS FB_FUNC_COMPLETION
-FB_FUNC_NAMES=()
-declare -A FB_FUNC_DESCS FB_FUNC_COMPLETION
-
 # can't have recursive generation
 FB_RUNNING_AS_SCRIPT=${FB_RUNNING_AS_SCRIPT:-0}
 
@@ -46,10 +41,34 @@ FB_COMPILE_OPTS_SET=0
 
 SCRIPT_DIR="${REPO_DIR}/scripts"
 ENTRY_SCRIPT="${SCRIPT_DIR}/entry.sh"
-src_scripts() {
-    local SCRIPT_DIR="${REPO_DIR}/scripts"
 
-    if [[ $FB_RUNNING_AS_SCRIPT -eq 0 ]]; then
+src_scripts() {
+    # function names, descriptions, completions
+    unset FB_FUNC_NAMES FB_FUNC_DESCS FB_FUNC_COMPLETION
+    FB_FUNC_NAMES=()
+    declare -gA FB_FUNC_DESCS FB_FUNC_COMPLETION
+    for script in "${REPO_DIR}/lib/"*.sh; do
+        # shellcheck disable=SC1090
+        source "${script}"
+    done
+    for funcName in "${FB_FUNC_NAMES[@]}"; do
+        (cd "${SCRIPT_DIR}" && ln -sf "entry.sh" "${funcName}.sh")
+    done
+}
+src_scripts || return 1
+
+FB_FUNC_NAMES+=('print_cmds')
+FB_FUNC_DESCS['print_cmds']='print usable commands'
+print_cmds() {
+    echo -e "~~~ Usable Commands ~~~\n"
+    for funcName in "${FB_FUNC_NAMES[@]}"; do
+        color="${CYAN}" word="${funcName}:" echo_wrapper "\n\t${FB_FUNC_DESCS[${funcName}]}"
+    done
+    echo -e "\n"
+}
+
+gen_links() {
+    if [[ ${FB_RUNNING_AS_SCRIPT} -eq 0 ]]; then
         rm "${SCRIPT_DIR}"/*.sh
         # shellcheck disable=SC2016
         echo '#!/usr/bin/env bash
@@ -62,26 +81,12 @@ cmd="${scr_name//.sh/}"
 if [[ $DEBUG == 1 ]]; then set -x; fi
 $cmd "$@"' >"${ENTRY_SCRIPT}"
         chmod +x "${ENTRY_SCRIPT}"
+		for funcName in "${FB_FUNC_NAMES[@]}"; do
+			(cd "${SCRIPT_DIR}" && ln -sf "entry.sh" "${funcName}.sh")
+		done
     fi
-
-    for script in "${REPO_DIR}/lib/"*.sh; do
-        # shellcheck disable=SC1090
-        source "${script}"
-    done
 }
-
-FB_FUNC_NAMES+=('print_cmds')
-FB_FUNC_DESCS['print_cmds']='print usable commands'
-print_cmds() {
-    echo -e "~~~ Usable Commands ~~~\n"
-    for funcName in "${FB_FUNC_NAMES[@]}"; do
-        color="${CYAN}" word="${funcName}:" echo_wrapper "\n\t${FB_FUNC_DESCS[${funcName}]}"
-        if [[ $FB_RUNNING_AS_SCRIPT -eq 0 ]]; then
-            (cd "$SCRIPT_DIR" && ln -sf entry.sh "${funcName}.sh")
-        fi
-    done
-    echo -e "\n"
-}
+gen_links || return 1
 
 set_completions() {
     for funcName in "${FB_FUNC_NAMES[@]}"; do
@@ -89,7 +94,6 @@ set_completions() {
     done
 }
 
-src_scripts || return 1
 determine_pkg_mgr || return 1
 check_compile_opts_override || return 1
 
