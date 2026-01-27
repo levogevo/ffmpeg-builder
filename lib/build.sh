@@ -368,7 +368,7 @@ glad              2.0.8        tar.gz    https://github.com/Dav1dde/glad/archive
 libx265           4.1          tar.gz    https://bitbucket.org/multicoreware/x265_git/downloads/x265_${ver}.${ext} libnuma
 libnuma           2.0.19       tar.gz    https://github.com/numactl/numactl/archive/refs/tags/v${ver}.${ext}
 
-libass            0.17.4       tar.xz    https://github.com/libass/libass/releases/download/${ver}/libass-${ver}.${ext} libfreetype,libharfbuzz,libfribidi,libunibreak,libxml2,xz
+libass            0.17.4       tar.xz    https://github.com/libass/libass/releases/download/${ver}/libass-${ver}.${ext} libfontconfig,libfreetype,libharfbuzz,libfribidi,libunibreak,libxml2,xz
 libfontconfig     2.17.1       tar.xz    https://gitlab.freedesktop.org/api/v4/projects/890/packages/generic/fontconfig/${ver}/fontconfig-${ver}.${ext} libharfbuzz,expat,brotli
 libfreetype       2.14.1       tar.xz    https://downloads.sourceforge.net/freetype/freetype-${ver}.${ext} bzip,libpng,zlib,brotli
 libharfbuzz       12.3.0       tar.xz    https://github.com/harfbuzz/harfbuzz/releases/download/${ver}/harfbuzz-${ver}.${ext} libfreetype
@@ -406,7 +406,7 @@ expat             2.7.3        tar.xz    https://github.com/libexpat/libexpat/re
     fi
 
     # special arg to print BUILDS_CONF but formatted with spaces
-    if [[ ${getBuild} == 'format-builds-conf' ]]; then
+    if [[ ${getBuild} == 'formatted' ]]; then
         echo "local BUILDS_CONF='"
         while read -r line; do
             IFS=$' \t' read -r build ver ext url deps <<<"${line}"
@@ -428,8 +428,15 @@ expat             2.7.3        tar.xz    https://github.com/libexpat/libexpat/re
     # url uses ver and extension
     eval "url=\"$url\""
     # set dependencies array
-    # shellcheck disable=SC2206
-    deps=(${deps//,/ })
+    # ffmpeg dependencies are everything enabled
+    if [[ ${build} == 'ffmpeg' ]]; then
+        # shellcheck disable=SC2206
+        # shellcheck disable=SC2153
+        deps=(${ENABLE})
+    else
+        # shellcheck disable=SC2206
+        deps=(${deps//,/ })
+    fi
     # set version based off of remote head
     # and set extracted directory
     if [[ ${ext} == 'git' ]]; then
@@ -504,7 +511,7 @@ download_release() {
             cd "${download}" || exit 1
             local localHEAD remoteHEAD
             localHEAD="$(git rev-parse HEAD)"
-            remoteHEAD="$(get_remote_head "$(git config --get remote.origin.url)")"
+            remoteHEAD="$(get_remote_head "${url}")"
             if [[ ${localHEAD} != "${remoteHEAD}" ]]; then
                 git stash
                 git pull --ff-only
@@ -522,6 +529,29 @@ download_release() {
     fi
 }
 
+# given a build, topologically sort
+# a build and its dependencies
+# to minimize rebuilds
+_generate_build_order() (
+    local build="$1"
+    local depMap=("${build} ${build}")
+    get_build_conf "${build}" || return 1
+    for dep in "${deps[@]}"; do
+        _generate_build_order "${dep}" || return 1
+        depMap+=("${dep} ${build}")
+    done
+    printf '%s\n' "${depMap[@]}"
+)
+generate_build_order() {
+    local build="$1"
+    local order
+    while read -r line; do
+        order+="${line} "
+    done <<<"$(_generate_build_order "${build}" | tsort)"
+    # remove self-inclusive build from order list
+    echo "${order// ${build}/}"
+}
+
 FB_FUNC_NAMES+=('do_build')
 # shellcheck disable=SC2034
 FB_FUNC_DESCS['do_build']='build a specific project'
@@ -530,14 +560,22 @@ FB_FUNC_COMPLETION['do_build']="$(get_build_conf supported)"
 do_build() {
     local build="${1:-''}"
     get_build_conf "${build}" || return 1
-    download_release || return 1
 
     set_compile_opts || return 1
-    for dep in "${deps[@]}"; do
-        do_build "${dep}" || return 1
-    done
+
+    # set BUILD_ORDER only if unset
+    # this recursive function needs to be able
+    # to control its callstack to minimize re-calls
+    if [[ ${BUILD_ORDER} == '' ]]; then
+        BUILD_ORDER="$(generate_build_order "${build}")" || return 1
+        for b in ${BUILD_ORDER}; do
+            test "${b}" == "${build}" && continue
+            do_build "${b}" || return 1
+        done
+        unset BUILD_ORDER
+    fi
+
     get_build_conf "${build}" || return 1
-    download_release || return 1
 
     # save the metadata for a build to skip re-building identical builds
     local oldMetadataFile="${TMP_DIR}/${build}-old-metadata"
@@ -557,6 +595,10 @@ do_build() {
         echo "ver: ${ver}"
         echo "url: ${url}"
         echo "LOCAL_PREFIX: ${LOCAL_PREFIX}"
+        for patch in "${PATCHES_DIR}/${build}"/*.patch; do
+            test -f "${patch}" || continue
+            echo "patch:${patch}" >>"${newMetadataFile}"
+        done
         COLOR=OFF SHOW_SINGLE=true dump_arr "${BUILD_ENV_NAMES[@]}"
     } >"${newMetadataFile}"
 
@@ -567,20 +609,20 @@ do_build() {
         type add_project_versioning_to_ffmpeg >>"${newMetadataFile}"
     fi
 
-    # prepare build
-    pushd "${extractedDir}" >/dev/null || return 1
-    # check for any patches
-    for patch in "${PATCHES_DIR}/${build}"/*.patch; do
-        test -f "${patch}" || continue
-        echo_if_fail patch -p1 -i "${patch}" || return 1
-        echo "patch:${patch}" >>"${newMetadataFile}"
-    done
-
     # rebuild if new metadata is different
     local newMetadata="$(<"${newMetadataFile}")"
     local oldMetadata=''
     test -f "${oldMetadataFile}" && oldMetadata="$(<"${oldMetadataFile}")"
     if [[ ${oldMetadata} != "${newMetadata}" || -n ${REQUIRES_REBUILD} ]]; then
+        # prepare build
+        download_release || return 1
+        pushd "${extractedDir}" >/dev/null || return 1
+        # check for any patches
+        for patch in "${PATCHES_DIR}/${build}"/*.patch; do
+            test -f "${patch}" || continue
+            echo_if_fail patch -p1 -i "${patch}" || return 1
+        done
+
         echo_info -n "building ${build} "
         # build in background
         local timeBefore=${EPOCHSECONDS}
@@ -603,7 +645,6 @@ do_build() {
         # indicate that build chain will require rebuild
         REQUIRES_REBUILD=1
     else
-        popd >/dev/null || return 1
         echo_info "re-using identical previous build for ${build}"
     fi
 }
@@ -622,11 +663,6 @@ build() {
 
     set_compile_opts || return 1
 
-    for build in ${ENABLE}; do
-        do_build "${build}" || return 1
-        # reset whether build chain requires a rebuild
-        unset REQUIRES_REBUILD
-    done
     do_build ffmpeg || return 1
 
     # skip packaging on PGO generate run

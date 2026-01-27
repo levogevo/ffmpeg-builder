@@ -364,19 +364,14 @@ bash_sort() {
 }
 
 _start_spinner() {
-    local spinChars=(
-        "-"
-        '\'
-        "|"
-        "/"
-    )
+    local spinChars=("⠋" "⠙" "⠹" "⠸" "⠼" "⠴" "⠦" "⠧" "⠇" "⠏")
 
     sleep 1
 
     while true; do
         for ((ind = 0; ind < "${#spinChars[@]}"; ind++)); do
             echo -ne "${spinChars[${ind}]}" '\b\b'
-            sleep .25
+            sleep .125
         done
     done
 }
