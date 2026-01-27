@@ -365,7 +365,7 @@ spirv_tools       2025.4       tar.gz    https://github.com/KhronosGroup/SPIRV-T
 spirv_headers     1.4.328.1    tar.gz    https://github.com/KhronosGroup/SPIRV-Headers/archive/refs/tags/vulkan-sdk-${ver}.${ext}
 glad              2.0.8        tar.gz    https://github.com/Dav1dde/glad/archive/refs/tags/v${ver}.${ext}
 
-libx265           4.1          tar.gz    https://bitbucket.org/multicoreware/x265_git/downloads/x265_${ver}.${ext} libnuma
+libx265           4.1          tar.gz    http://ftp.videolan.org/pub/videolan/x265/x265_${ver}.${ext} libnuma
 libnuma           2.0.19       tar.gz    https://github.com/numactl/numactl/archive/refs/tags/v${ver}.${ext}
 
 libass            0.17.4       tar.xz    https://github.com/libass/libass/releases/download/${ver}/libass-${ver}.${ext} libfontconfig,libfreetype,libharfbuzz,libfribidi,libunibreak,libxml2,xz
