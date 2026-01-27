@@ -81,9 +81,9 @@ cmd="${scr_name//.sh/}"
 if [[ $DEBUG == 1 ]]; then set -x; fi
 $cmd "$@"' >"${ENTRY_SCRIPT}"
         chmod +x "${ENTRY_SCRIPT}"
-		for funcName in "${FB_FUNC_NAMES[@]}"; do
-			(cd "${SCRIPT_DIR}" && ln -sf "entry.sh" "${funcName}.sh")
-		done
+        for funcName in "${FB_FUNC_NAMES[@]}"; do
+            (cd "${SCRIPT_DIR}" && ln -sf "entry.sh" "${funcName}.sh")
+        done
     fi
 }
 gen_links || return 1

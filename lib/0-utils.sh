@@ -37,11 +37,13 @@ echo_exit() {
 }
 void() { echo "$@" >/dev/null; }
 
-echo_if_fail() {
+trace_cmd_to_file() {
     local cmd=("$@")
-    local logName="${LOGNAME:-${RANDOM}}-"
-    local out="${TMP_DIR}/${logName}stdout"
-    local err="${TMP_DIR}/${logName}stderr"
+    test -n "${OUT}" && test -n "${ERR}" && test -n "${TRACE}" || return 1
+    local out="${OUT}"
+    local err="${ERR}"
+    local trace="${TRACE}"
+    local fd=6
 
     # get current trace status
     local set
@@ -55,20 +57,35 @@ echo_if_fail() {
     set +x
 
     # set trace to the cmdEvalTrace and open file descriptor
-    local cmdEvalTrace="${TMP_DIR}/${logName}cmdEvalTrace"
-    exec 5>"${cmdEvalTrace}"
-    export BASH_XTRACEFD=5
+    eval "exec ${fd}>\"${trace}\""
+    export BASH_XTRACEFD=${fd}
 
     set -x
     "${cmd[@]}" >"${out}" 2>"${err}"
     local retval=$?
 
     # unset and close file descriptor
+    # unset BASH_XTRACEFD first
     set +x
-    exec 5>&-
+    unset BASH_XTRACEFD
+    eval "exec ${fd}>&-"
 
     # reset previous state
     set ${set}
+
+    return ${retval}
+}
+
+echo_if_fail() {
+    local cmd=("$@")
+    local logName="${LOGNAME:-${RANDOM}}-"
+    local out="${TMP_DIR}/${logName}stdout"
+    local err="${TMP_DIR}/${logName}stderr"
+    local trace="${TMP_DIR}/${logName}trace"
+
+    OUT="${out}" ERR="${err}" TRACE="${trace}" trace_cmd_to_file \
+        "${cmd[@]}"
+    local retval=$?
 
     # parse out relevant part of the trace
     local cmdEvalLines=()
@@ -77,7 +94,7 @@ echo_if_fail() {
         test "${line}" == 'set +x' && continue
         test "${line}" == '' && continue
         cmdEvalLines+=("${line}")
-    done <"${cmdEvalTrace}"
+    done <"${trace}"
 
     if ! test ${retval} -eq 0; then
         echo
@@ -90,7 +107,7 @@ echo_if_fail() {
         echo
     fi
     if [[ -z ${LOGNAME} ]]; then
-        rm "${out}" "${err}" "${cmdEvalTrace}"
+        rm "${out}" "${err}" "${trace}"
     fi
     return ${retval}
 }
@@ -426,11 +443,29 @@ ensure_dir() {
     done
 }
 
+get_date() {
+    printf '%(%Y-%m-%d)T\n' -1
+}
+
 get_remote_head() {
     local url="$1"
-    local remoteHEAD=''
-    IFS=$' \t' read -r remoteHEAD _ <<< \
-        "$(git ls-remote "${url}" HEAD)"
+    # ${build} is magically populated from get_build_conf
+    local remoteCommitFile="${TMP_DIR}/${build}-remote-head.txt"
+    local date="$(get_date)"
+    # want to cache the remote head for faster retrieval
+    # and only get it once per day
+    local remoteHEAD
+    if [[ -f ${remoteCommitFile} ]]; then
+        IFS=' ' read -r prevDate prevBuild prevCommit <"${remoteCommitFile}"
+    fi
+
+    if [[ "${date}:${build}" == "${prevDate}:${prevBuild}" ]]; then
+        remoteHEAD="${prevCommit}"
+    else
+        IFS=$' \t' read -r remoteHEAD _ <<< \
+            "$(git ls-remote "${url}" HEAD)"
+        echo "${date} ${build} ${remoteHEAD}" >"${remoteCommitFile}"
+    fi
     echo "${remoteHEAD}"
 }
 
@@ -449,4 +484,52 @@ print_padded() {
     for ((i = 0; i < padding - ${#str}; i++)); do
         echo -n ' '
     done
+}
+
+benchmark_command() {
+    local cmd=("$@")
+    local out='/dev/null'
+    local err='/dev/null'
+    local trace="${TMP_DIR}/benchmark-trace.txt"
+
+    # note this marker around the awk parsing
+    local traceMarker='TRACEOUTPUT ; '
+
+    echo_warn "tracing ${cmd[*]}"
+    PS4='$EPOCHREALTIME TRACEOUTPUT ; ' OUT="${out}" ERR="${err}" TRACE="${trace}" trace_cmd_to_file \
+        "${cmd[@]}" || return 1
+    echo_pass "done tracing ${cmd[*]}"
+
+    awk '
+    BEGIN { 
+        # Use a regex for the marker to handle leading/trailing whitespace cleanly
+        marker = "TRACEOUTPUT ; " 
+    }
+    
+    # Match lines starting with a timestamp followed by the marker
+    $0 ~ /^[0-9.]+[ ]+TRACEOUTPUT ; / {
+        # 1. Calculate duration for the PREVIOUS command now that we have a new timestamp
+        if (prev_time != "") {
+            duration = $1 - prev_time
+            # Output for the system sort: [duration] | [command]
+            printf "%012.6f | %s\n", duration, prev_cmd
+        }
+        
+        # 2. Start tracking the NEW command
+        prev_time = $1
+        
+        # Extract everything after "TRACEOUTPUT ; "
+        # match() finds the position, substr() grabs the rest
+        match($0, /TRACEOUTPUT ; /)
+        prev_cmd = substr($0, RSTART + RLENGTH)
+        next
+    }
+
+    # If the line does not match the timestamp pattern, it is a newline in a variable
+    {
+        if (prev_time != "") {
+            prev_cmd = prev_cmd "\n" $0
+        }
+    }
+    ' "${trace}" | sort -rn | head -n 20
 }
