@@ -299,11 +299,13 @@ set_encode_opts() {
         return 1
     fi
 
-    echo
-    echo_info "INPUT: ${INPUT}"
-    echo_info "GRAIN: ${GRAIN}"
-    echo_info "OUTPUT: ${OUTPUT}"
-    echo
+    if [[ ${PRINT_OUT} == false ]]; then
+        echo
+        echo_info "INPUT: ${INPUT}"
+        echo_info "GRAIN: ${GRAIN}"
+        echo_info "OUTPUT: ${OUTPUT}"
+        echo
+    fi
 }
 
 # shellcheck disable=SC2034
@@ -449,11 +451,24 @@ gen_encode_script() {
         echo 'ffmpeg "${ffmpegParams[@]}" -dolbyvision 0 "${OUTPUT}" || exit 1'
 
         # track-stats and clear title
-        if [[ ${FILE_EXT} == 'mkv' ]] && has_cmd mkvpropedit; then
+        if [[ ${FILE_EXT} == 'mkv' ]] && has_cmd mkvmerge && has_cmd mkvpropedit; then
             {
+                # ffmpeg does not reliably copy PGS subtitles without breaking
+                # them when cropped, so just use mkvmerge to make sure they get
+                # copied correctly
+                local muxxed='"${OUTPUT}.muxxed"'
+                local mergeCmd=(
+                    mkvmerge
+                    -o "${muxxed}"
+                    --no-subtitles '"${OUTPUT}"'
+                    --no-video --no-audio --no-chapters
+                    --no-global-tags --subtitle-tracks eng '"${INPUT}"'
+                )
                 echo
-                echo 'mkvpropedit "${OUTPUT}" --add-track-statistics-tags'
-                echo 'mkvpropedit "${OUTPUT}" --edit info --set "title="'
+                echo "${mergeCmd[*]} || exit 1"
+                echo "mv ${muxxed}" '"${OUTPUT}" || exit 1'
+                echo 'mkvpropedit "${OUTPUT}" --add-track-statistics-tags || exit 1'
+                echo 'mkvpropedit "${OUTPUT}" --edit info --set "title=" || exit 1'
             }
         fi
 
@@ -461,7 +476,7 @@ gen_encode_script() {
     } >"${genScript}"
 
     if [[ ${PRINT_OUT} == true ]]; then
-        echo_info "${genScript} contents:"
+        echo_info "${genScript} contents:" 1>&2
         echo "$(<"${genScript}")"
     else
         bash -x "${genScript}" || return 1
