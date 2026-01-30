@@ -347,7 +347,7 @@ gen_encode_script() {
         "fast-decode=1"
         "enable-variance-boost=1"
         "enable-qm=1"
-        "chroma-qm-min-10"
+        "chroma-qm-min=10"
         "qm-min=4"
         "qm-max=15"
     )
