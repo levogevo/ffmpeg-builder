@@ -286,15 +286,18 @@ fi' >"${compilerDir}/which"
     else
         arch_flags+=("-march=${ARCH}")
     fi
+	CFLAGS_ARR+=("${arch_flags[@]}")
+	RUSTFLAGS_ARR+=(-C "target-cpu=${ARCH}")
 
     # can fail static builds with -fpic
     # warning: too many GOT entries for -fpic, please recompile with -fPIC
-    CFLAGS_ARR+=("${arch_flags[@]}" "-fPIC")
-    RUSTFLAGS_ARR+=("-C target-cpu=${ARCH}")
+    CFLAGS_ARR+=("-fPIC")
+	# add preprocessor flags
+	CFLAGS_ARR+=("${CPPFLAGS_ARR[@]}")
 
     # set exported env names to stringified arrays
     CPPFLAGS="${CPPFLAGS_ARR[*]}"
-    CFLAGS="${CFLAGS_ARR[*]} ${CPPFLAGS}"
+    CFLAGS="${CFLAGS_ARR[*]}"
     CXXFLAGS="${CFLAGS}"
     LDFLAGS="${LDFLAGS_ARR[*]}"
     RUSTFLAGS="${RUSTFLAGS_ARR[*]}"
@@ -349,7 +352,7 @@ libopus           1.6          tar.gz    https://github.com/xiph/opus/archive/re
 libdav1d          1.5.3        tar.xz    https://downloads.videolan.org/videolan/dav1d/${ver}/dav1d-${ver}.${ext}
 libx264           latest       git       https://code.videolan.org/videolan/x264.git
 libmp3lame        3.100        tar.gz    https://pilotfiber.dl.sourceforge.net/project/lame/lame/${ver}/lame-${ver}.${ext}
-libvpx            1.15.2       tar.gz    https://github.com/webmproject/libvpx/archive/refs/tags/v${ver}.${ext}
+libvpx            1.16.0       tar.gz    https://github.com/webmproject/libvpx/archive/refs/tags/v${ver}.${ext}
 
 libvorbis         1.3.7        tar.xz    https://github.com/xiph/vorbis/releases/download/v${ver}/libvorbis-${ver}.${ext} libogg
 libogg            1.3.6        tar.xz    https://github.com/xiph/ogg/releases/download/v${ver}/libogg-${ver}.${ext}
@@ -1102,7 +1105,9 @@ meta_configure_build() {
 }
 
 build_libvpx() {
-    meta_configure_build \
+	# remove preprocessor flags to not break the build
+	# when including old pre-built headers
+    CFLAGS="${CFLAGS//${CPPFLAGS}/}" meta_configure_build \
         --disable-examples \
         --disable-tools \
         --disable-docs \
@@ -1113,6 +1118,7 @@ build_libvpx() {
         --enable-vp9 \
         --enable-vp9-highbitdepth \
         --enable-better-hw-compatibility \
+		--enable-runtime-cpu-detect \
         --enable-webm-io \
         --enable-libyuv || return 1
     sanitize_sysroot_libs libvpx || return 1
