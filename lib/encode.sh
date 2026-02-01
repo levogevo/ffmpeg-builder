@@ -461,8 +461,13 @@ gen_encode_script() {
                     mkvmerge
                     -o "${muxxed}"
                     --no-subtitles '"${OUTPUT}"'
-                    --no-video --no-audio --no-chapters
-                    --no-global-tags --subtitle-tracks eng '"${INPUT}"'
+                    --no-video
+                    --no-audio
+                    --no-chapters
+                    --no-attachments
+                    --no-global-tags
+                    --subtitle-tracks eng
+                    '"${INPUT}"'
                 )
                 echo
                 echo "${mergeCmd[*]} || exit 1"
