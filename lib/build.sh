@@ -286,14 +286,14 @@ fi' >"${compilerDir}/which"
     else
         arch_flags+=("-march=${ARCH}")
     fi
-	CFLAGS_ARR+=("${arch_flags[@]}")
-	RUSTFLAGS_ARR+=(-C "target-cpu=${ARCH}")
+    CFLAGS_ARR+=("${arch_flags[@]}")
+    RUSTFLAGS_ARR+=(-C "target-cpu=${ARCH}")
 
     # can fail static builds with -fpic
     # warning: too many GOT entries for -fpic, please recompile with -fPIC
     CFLAGS_ARR+=("-fPIC")
-	# add preprocessor flags
-	CFLAGS_ARR+=("${CPPFLAGS_ARR[@]}")
+    # add preprocessor flags
+    CFLAGS_ARR+=("${CPPFLAGS_ARR[@]}")
 
     # set exported env names to stringified arrays
     CPPFLAGS="${CPPFLAGS_ARR[*]}"
@@ -373,7 +373,8 @@ libnuma           2.0.19       tar.gz    https://github.com/numactl/numactl/arch
 
 libass            0.17.4       tar.xz    https://github.com/libass/libass/releases/download/${ver}/libass-${ver}.${ext} libfontconfig,libfreetype,libharfbuzz,libfribidi,libunibreak,libxml2,xz
 libfontconfig     2.17.1       tar.xz    https://gitlab.freedesktop.org/api/v4/projects/890/packages/generic/fontconfig/${ver}/fontconfig-${ver}.${ext} libharfbuzz,expat,brotli
-libfreetype       2.14.1       tar.xz    https://downloads.sourceforge.net/freetype/freetype-${ver}.${ext} bzip,libpng,zlib,brotli
+libfreetype       2.14.1       tar.xz    https://downloads.sourceforge.net/freetype/freetype-${ver}.${ext} bzip,libpng,zlib,brotli,libharfbuzzNFTP
+libharfbuzzNFTP   12.3.0       tar.xz    https://github.com/harfbuzz/harfbuzz/releases/download/${ver}/harfbuzz-${ver}.${ext}
 libharfbuzz       12.3.0       tar.xz    https://github.com/harfbuzz/harfbuzz/releases/download/${ver}/harfbuzz-${ver}.${ext} libfreetype
 libunibreak       6.1          tar.gz    https://github.com/adah1972/libunibreak/releases/download/libunibreak_${ver//./_}/libunibreak-${ver}.${ext}
 libxml2           2.15.1       tar.gz    https://github.com/GNOME/libxml2/archive/refs/tags/v${ver}.${ext}
@@ -1046,8 +1047,16 @@ build_libfontconfig() {
     sanitize_sysroot_libs libfontconfig || return 1
 }
 
+# harfbuzz No FreeType
+build_libharfbuzzNFTP() {
+    DISABLE_FREETYPE=1 build_libharfbuzz
+}
+
 build_libharfbuzz() {
-    meta_meson_build \
+    local addFlag
+    test "${DISABLE_FREETYPE}" -eq 1 && addFlag="-Dfreetype=disabled"
+
+    meta_meson_build ${addFlag} \
         -D tests=disabled \
         -D docs=disabled \
         -D doc_tests=false || return 1
@@ -1105,8 +1114,8 @@ meta_configure_build() {
 }
 
 build_libvpx() {
-	# remove preprocessor flags to not break the build
-	# when including old pre-built headers
+    # remove preprocessor flags to not break the build
+    # when including old pre-built headers
     CFLAGS="${CFLAGS//${CPPFLAGS}/}" meta_configure_build \
         --disable-examples \
         --disable-tools \
@@ -1118,7 +1127,7 @@ build_libvpx() {
         --enable-vp9 \
         --enable-vp9-highbitdepth \
         --enable-better-hw-compatibility \
-		--enable-runtime-cpu-detect \
+        --enable-runtime-cpu-detect \
         --enable-webm-io \
         --enable-libyuv || return 1
     sanitize_sysroot_libs libvpx || return 1

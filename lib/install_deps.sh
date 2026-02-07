@@ -151,7 +151,7 @@ check_for_req_pkgs() {
     for pkg in $(print_req_pkgs); do
         # pkg_check has ${pkg} unexpanded
         eval "pkg_check=\"${pkg_check}\""
-        ${pkg_check} "${pkg}" >/dev/null 2>&1 || missing_pkgs+=("${pkg}")
+        ${pkg_check} "${pkg}" &>/dev/null || missing_pkgs+=("${pkg}")
     done
 
     if [[ ${#missing_pkgs[@]} -gt 0 ]]; then

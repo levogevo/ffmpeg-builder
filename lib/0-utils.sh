@@ -116,7 +116,7 @@ is_root_owned() {
     local path=$1
     local uid
 
-    if stat --version >/dev/null 2>&1; then
+    if stat --version &>/dev/null; then
         # GNU coreutils (Linux)
         uid=$(stat -c '%u' "$path")
     else
@@ -153,7 +153,7 @@ has_cmd() {
     local cmds=("$@")
     local rv=0
     for cmd in "${cmds[@]}"; do
-        command -v "${cmd}" >/dev/null 2>&1 || rv=1
+        command -v "${cmd}" &>/dev/null || rv=1
     done
 
     return ${rv}
@@ -381,7 +381,8 @@ spinner() {
     local spinPidFile="${TMP_DIR}/.spinner-pid"
     case "${action}" in
     start)
-        test -f "${spinPidFile}" && rm "${spinPidFile}"
+        # if there is already a pidfile, we're spinning
+        test -f "${spinPidFile}" && return
 
         # don't want to clutter logs if running headless
         test "${HEADLESS}" == '1' && return
@@ -390,7 +391,11 @@ spinner() {
         echo $! >"${spinPidFile}"
         ;;
     stop)
-        test -f "${spinPidFile}" && kill "$(<"${spinPidFile}")"
+        if [[ -f ${spinPidFile} ]]; then
+            local pid="$(<"${spinPidFile}")"
+            kill -0 "${pid}" &>/dev/null && kill "${pid}"
+            rm "${spinPidFile}"
+        fi
         echo -ne ' \n'
         ;;
     esac
