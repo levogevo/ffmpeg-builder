@@ -175,11 +175,6 @@ fi' >"${compilerDir}/which"
     )
     PKG_CONFIG_PATH="${LIBDIR}/pkgconfig"
 
-    # cmake version 4 breaks some builds
-    if using_cmake_4; then
-        CMAKE_FLAGS+=("-DCMAKE_POLICY_VERSION_MINIMUM=3.5")
-    fi
-
     # add prefix include
     # TODO use cygpath for windows
     CPPFLAGS_ARR+=("-I${PREFIX}/include")
@@ -354,7 +349,7 @@ libx264           latest       git       https://code.videolan.org/videolan/x264
 libmp3lame        3.100        tar.gz    https://pilotfiber.dl.sourceforge.net/project/lame/lame/${ver}/lame-${ver}.${ext}
 libvpx            1.16.0       tar.gz    https://github.com/webmproject/libvpx/archive/refs/tags/v${ver}.${ext}
 
-libvorbis         1.3.7        tar.xz    https://github.com/xiph/vorbis/releases/download/v${ver}/libvorbis-${ver}.${ext} libogg
+libvorbis         1.3.7        tar.xz    https://github.com/xiph/vorbis/releases/download/v${ver}/libvorbis-${ver}.${ext} libogg,cmake3
 libogg            1.3.6        tar.xz    https://github.com/xiph/ogg/releases/download/v${ver}/libogg-${ver}.${ext}
 
 libwebp           1.6.0        tar.gz    https://github.com/webmproject/libwebp/archive/refs/tags/v${ver}.${ext} libpng,libjpeg
@@ -368,8 +363,9 @@ spirv_tools       2025.4       tar.gz    https://github.com/KhronosGroup/SPIRV-T
 spirv_headers     1.4.328.1    tar.gz    https://github.com/KhronosGroup/SPIRV-Headers/archive/refs/tags/vulkan-sdk-${ver}.${ext}
 glad              2.0.8        tar.gz    https://github.com/Dav1dde/glad/archive/refs/tags/v${ver}.${ext}
 
-libx265           4.1          tar.gz    http://ftp.videolan.org/pub/videolan/x265/x265_${ver}.${ext} libnuma
+libx265           4.1          tar.gz    http://ftp.videolan.org/pub/videolan/x265/x265_${ver}.${ext} libnuma,cmake3
 libnuma           2.0.19       tar.gz    https://github.com/numactl/numactl/archive/refs/tags/v${ver}.${ext}
+cmake3            3.31.8       tar.gz    https://github.com/Kitware/CMake/archive/refs/tags/v${ver}.${ext}
 
 libass            0.17.4       tar.xz    https://github.com/libass/libass/releases/download/${ver}/libass-${ver}.${ext} libfontconfig,libfreetype,libharfbuzz,libfribidi,libunibreak,libxml2,xz
 libfontconfig     2.17.1       tar.xz    https://gitlab.freedesktop.org/api/v4/projects/890/packages/generic/fontconfig/${ver}/fontconfig-${ver}.${ext} libharfbuzz,expat,brotli
@@ -865,7 +861,12 @@ build_libopus() {
 }
 
 build_libvorbis() {
-    meta_cmake_build || return 1
+    local modPath
+    if ! using_cmake3; then
+        modPath="${LOCAL_PREFIX}/bin:"
+    fi
+
+    PATH="${modPath}${PATH}" meta_cmake_build || return 1
     sanitize_sysroot_libs \
         libvorbis libvorbisenc libvorbisfile || return 1
 }
@@ -923,14 +924,44 @@ build_spirv_headers() {
         -G Ninja || return 1
 }
 
-build_libx265() {
-    # libx265 does not support cmake >= 4
-    if using_cmake_4; then
-        remove_line "source/CMakeLists.txt" "cmake_policy(SET CMP0025 OLD)" || return 1
-        remove_line "source/CMakeLists.txt" "cmake_policy(SET CMP0054 OLD)" || return 1
+build_cmake3() {
+    # don't need to rebuild if already using cmake3
+    if using_cmake3; then
+        return 0
     fi
 
-    meta_cmake_build \
+    # don't need to rebuild if already built
+    if PATH="${LOCAL_PREFIX}/bin:${PATH}" using_cmake3; then
+        return 0
+    fi
+
+    local overrideFlags=(
+        "-DCMAKE_BUILD_TYPE=Release"
+        "-DCMAKE_PREFIX_PATH=${LOCAL_PREFIX}"
+        "-DCMAKE_INSTALL_PREFIX=${LOCAL_PREFIX}"
+        "-DENABLE_STATIC=ON"
+        "-DENABLE_SHARED=OFF"
+        "-DBUILD_SHARED_LIBS=OFF"
+    )
+    # reuse variables
+    for flag in "${CMAKE_FLAGS[@]}"; do
+        if line_contains "${flag}" 'CMAKE_INSTALL_LIBDIR' ||
+            line_contains "${flag}" 'COMPILER_LAUNCHER'; then
+            overrideFlags+=("${flag}")
+        fi
+    done
+    CMAKE_FLAGS='' CFLAGS='' CXXFLAGS='' LDFLAGS='' \
+        meta_cmake_build \
+        "${overrideFlags[@]}" || return 1
+}
+
+build_libx265() {
+    local modPath
+    if ! using_cmake3; then
+        modPath="${LOCAL_PREFIX}/bin:"
+    fi
+
+    PATH="${modPath}${PATH}" meta_cmake_build \
         -DHIGH_BIT_DEPTH=ON \
         -DENABLE_HDR10_PLUS=OFF \
         -S source || return 1

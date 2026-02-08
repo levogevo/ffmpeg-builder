@@ -406,10 +406,10 @@ get_pkgconfig_version() {
     pkg-config --modversion "${pkg}"
 }
 
-using_cmake_4() {
+using_cmake3() {
     local cmakeVersion
     IFS=$' \t' read -r _ _ cmakeVersion <<<"$(command cmake --version)"
-    line_starts_with "${cmakeVersion}" 4
+    line_starts_with "${cmakeVersion}" 3
 }
 
 have_req_meson_version() {
