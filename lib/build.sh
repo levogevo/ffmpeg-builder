@@ -915,16 +915,17 @@ build_spirv_tools() {
     meta_cmake_build \
         -DSPIRV-Headers_SOURCE_DIR="${PREFIX}" \
         -DSPIRV_WERROR=OFF \
-        -DSPIRV_SKIP_TESTS=ON \
-        -G Ninja || return 1
+        -DSPIRV_SKIP_TESTS=ON || return 1
 }
 
 build_spirv_headers() {
-    meta_cmake_build \
-        -G Ninja || return 1
+    meta_cmake_build || return 1
 }
 
-build_cmake3() {
+build_cmake3() (
+    # clean build environment
+    unset "${BUILD_ENV_NAMES[@]}"
+
     # don't need to rebuild if already using cmake3
     if using_cmake3; then
         return 0
@@ -935,25 +936,21 @@ build_cmake3() {
         return 0
     fi
 
-    local overrideFlags=(
-        "-DCMAKE_BUILD_TYPE=Release"
+    CMAKE_FLAGS+=(
         "-DCMAKE_PREFIX_PATH=${LOCAL_PREFIX}"
         "-DCMAKE_INSTALL_PREFIX=${LOCAL_PREFIX}"
+        "-DCMAKE_INSTALL_LIBDIR=lib"
+        "-DCMAKE_BUILD_TYPE=Release"
+        "-DCMAKE_C_COMPILER_LAUNCHER=ccache"
+        "-DCMAKE_CXX_COMPILER_LAUNCHER=ccache"
+        "-DCMAKE_VERBOSE_MAKEFILE=ON"
+        "-G" "Ninja"
         "-DENABLE_STATIC=ON"
         "-DENABLE_SHARED=OFF"
         "-DBUILD_SHARED_LIBS=OFF"
     )
-    # reuse variables
-    for flag in "${CMAKE_FLAGS[@]}"; do
-        if line_contains "${flag}" 'CMAKE_INSTALL_LIBDIR' ||
-            line_contains "${flag}" 'COMPILER_LAUNCHER'; then
-            overrideFlags+=("${flag}")
-        fi
-    done
-    CMAKE_FLAGS='' CFLAGS='' CXXFLAGS='' LDFLAGS='' \
-        meta_cmake_build \
-        "${overrideFlags[@]}" || return 1
-}
+    meta_cmake_build || return 1
+)
 
 build_libx265() {
     local modPath
