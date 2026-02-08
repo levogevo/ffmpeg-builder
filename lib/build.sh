@@ -1059,6 +1059,7 @@ build_libharfbuzz() {
     meta_meson_build ${addFlag} \
         -D tests=disabled \
         -D docs=disabled \
+        -D utilities=disabled \
         -D doc_tests=false || return 1
     sanitize_sysroot_libs libharfbuzz || return 1
 }
