@@ -36,25 +36,25 @@ pipeline {
                 }
             }
         }
-        // stage('build ffmpeg on darwin') {
-        //     matrix {
-        //         axes {
-        //             axis { 
-        //                 name 'COMP_OPTS'; 
-        //                 values 'OPT=0 LTO=OFF STATIC=OFF', 'OPT=2 LTO=OFF', 'PGO=ON'
-        //             }
-        //         }
-        //         stages {
-        //             stage('build on darwin ') {
-        //                 agent { label "darwin" }
-        //                 steps {
-        //                     sh "${COMP_OPTS} ./scripts/build.sh"
-        //                     archiveArtifacts allowEmptyArchive: true, artifacts: 'gitignore/package/*.tar.xz', defaultExcludes: false
-        //                 }
-        //             }
-        //         }
-        //     }
-        // }
+        stage('build ffmpeg on darwin') {
+            matrix {
+                axes {
+                    axis { 
+                        name 'COMP_OPTS'; 
+                        values 'OPT=0 LTO=OFF STATIC=OFF', 'OPT=2 LTO=OFF', 'PGO=ON'
+                    }
+                }
+                stages {
+                    stage('build on darwin ') {
+                        agent { label "darwin" }
+                        steps {
+                            sh "${COMP_OPTS} ./scripts/build.sh"
+                            archiveArtifacts allowEmptyArchive: true, artifacts: 'gitignore/package/*.tar.xz', defaultExcludes: false
+                        }
+                    }
+                }
+            }
+        }
         stage('build ffmpeg on linux') {
             matrix {
                 axes {
