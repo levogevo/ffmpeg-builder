@@ -352,7 +352,8 @@ libvpx            1.16.0       tar.gz    https://github.com/webmproject/libvpx/a
 libvorbis         1.3.7        tar.xz    https://github.com/xiph/vorbis/releases/download/v${ver}/libvorbis-${ver}.${ext} libogg,cmake3
 libogg            1.3.6        tar.xz    https://github.com/xiph/ogg/releases/download/v${ver}/libogg-${ver}.${ext}
 
-libopenjpeg       2.5.4        tar.gz    https://github.com/uclouvain/openjpeg/archive/refs/tags/v${ver}.${ext} libwebp
+libopenjpeg       2.5.4        tar.gz    https://github.com/uclouvain/openjpeg/archive/refs/tags/v${ver}.${ext} libwebp,libtiff
+libtiff           4.7.1        tar.gz    https://github.com/libsdl-org/libtiff/archive/refs/tags/v${ver}.${ext}
 libwebp           1.6.0        tar.gz    https://github.com/webmproject/libwebp/archive/refs/tags/v${ver}.${ext} libpng,libjpeg
 libjpeg           3.0.3        tar.gz    https://github.com/winlibs/libjpeg/archive/refs/tags/libjpeg-turbo-${ver}.${ext}
 libpng            1.6.53       tar.gz    https://github.com/pnggroup/libpng/archive/refs/tags/v${ver}.${ext} zlib
@@ -928,6 +929,14 @@ build_spirv_headers() {
 build_libopenjpeg() {
     meta_cmake_build || return 1
     sanitize_sysroot_libs libopenjp2 || return 1
+}
+
+build_libtiff() {
+    meta_cmake_build \
+        -Dtiff-tools=OFF \
+        -Dtiff-tests=OFF \
+        -Dtiff-contrib=OFF || return 1
+    sanitize_sysroot_libs libtiff || return 1
 }
 
 build_supmover() (

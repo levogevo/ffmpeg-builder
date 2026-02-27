@@ -55,7 +55,7 @@ print_req_pkgs() {
     # shellcheck disable=SC2034
     local brew_pkgs=(
         "${common_pkgs[@]}" pkgconf
-        mkvtoolnix pipx uutils-coreutils
+        mkvtoolnix pipx coreutils
         llvm lld
     )
     local common_linux_pkgs=(
