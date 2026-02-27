@@ -168,6 +168,7 @@ fi' >"${compilerDir}/which"
         "-G" "Ninja"
         "-DENABLE_STATIC=${STATIC}"
         "-DBUILD_STATIC_LIBS=${STATIC}"
+        "-DBUILD_TESTING=OFF"
     )
     CARGO_CINSTALL_FLAGS=(
         "--release"
@@ -352,12 +353,15 @@ libvpx            1.16.0       tar.gz    https://github.com/webmproject/libvpx/a
 libvorbis         1.3.7        tar.xz    https://github.com/xiph/vorbis/releases/download/v${ver}/libvorbis-${ver}.${ext} libogg,cmake3
 libogg            1.3.6        tar.xz    https://github.com/xiph/ogg/releases/download/v${ver}/libogg-${ver}.${ext}
 
-libopenjpeg       2.5.4        tar.gz    https://github.com/uclouvain/openjpeg/archive/refs/tags/v${ver}.${ext} libwebp,libtiff
-libtiff           4.7.1        tar.gz    https://github.com/libsdl-org/libtiff/archive/refs/tags/v${ver}.${ext}
+libopenjpeg       2.5.4        tar.gz    https://github.com/uclouvain/openjpeg/archive/refs/tags/v${ver}.${ext} libtiff,lcms2
+lcms2             2.18         tar.gz    https://github.com/mm2/Little-CMS/archive/refs/tags/lcms${ver}.${ext} libtiff,libjpeg
+libtiff           4.7.1        tar.gz    https://github.com/libsdl-org/libtiff/archive/refs/tags/v${ver}.${ext} libwebp,libdeflate,xz,zstd
 libwebp           1.6.0        tar.gz    https://github.com/webmproject/libwebp/archive/refs/tags/v${ver}.${ext} libpng,libjpeg
 libjpeg           3.0.3        tar.gz    https://github.com/winlibs/libjpeg/archive/refs/tags/libjpeg-turbo-${ver}.${ext}
 libpng            1.6.53       tar.gz    https://github.com/pnggroup/libpng/archive/refs/tags/v${ver}.${ext} zlib
 zlib              1.3.1        tar.gz    https://github.com/madler/zlib/archive/refs/tags/v${ver}.${ext}
+libdeflate        1.25         tar.gz    https://github.com/ebiggers/libdeflate/archive/refs/tags/v${ver}.${ext} zlib
+zstd              1.5.7        tar.gz    https://github.com/facebook/zstd/archive/refs/tags/v${ver}.${ext}
 
 libplacebo        7.351.0      tar.gz    https://github.com/haasn/libplacebo/archive/refs/tags/v${ver}.${ext} glslang,vulkan_loader,glad
 glslang           16.0.0       tar.gz    https://github.com/KhronosGroup/glslang/archive/refs/tags/${ver}.${ext} spirv_tools
@@ -838,14 +842,12 @@ build_cpuinfo() {
 build_libsvtav1() {
     meta_cmake_build \
         -DENABLE_AVX512=ON \
-        -DBUILD_TESTING=OFF \
         -DCOVERAGE=OFF || return 1
     sanitize_sysroot_libs libSvtAv1Enc || return 1
 }
 
 build_libsvtav1_psy() {
     meta_cmake_build \
-        -DBUILD_TESTING=OFF \
         -DENABLE_AVX512=ON \
         -DCOVERAGE=OFF \
         -DLIBDOVI_FOUND=1 \
@@ -901,6 +903,18 @@ build_libpng() {
         -DPNG_TESTS=OFF \
         -DPNG_TOOLS=OFF || return 1
     sanitize_sysroot_libs libpng || return 1
+}
+
+build_libdeflate() {
+    meta_cmake_build \
+        -DLIBDEFLATE_BUILD_GZIP=OFF || return 1
+    sanitize_sysroot_libs libdeflate || return 1
+}
+
+build_zstd() {
+    meta_cmake_build \
+        -S build/cmake || return 1
+    sanitize_sysroot_libs libzstd || return 1
 }
 
 build_zlib() {
@@ -1122,6 +1136,11 @@ build_libfribidi() {
     meta_meson_build \
         -D tests=false || return 1
     sanitize_sysroot_libs libfribidi || return 1
+}
+
+build_lcms2() {
+    meta_meson_build || return 1
+    sanitize_sysroot_libs liblcms2 || return 1
 }
 
 ### PYTHON ###
