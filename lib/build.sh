@@ -889,7 +889,16 @@ build_libwebp() {
             "if(FALSE)\n"
     fi
 
-    meta_cmake_build || return 1
+    meta_cmake_build \
+        -DWEBP_BUILD_ANIM_UTILS=OFF \
+        -DWEBP_BUILD_CWEBP=OFF \
+        -DWEBP_BUILD_DWEBP=OFF \
+        -DWEBP_BUILD_VWEBP=OFF \
+        -DWEBP_BUILD_GIF2WEBP=OFF \
+        -DWEBP_BUILD_IMG2WEBP=OFF \
+        -DWEBP_BUILD_WEBPINFO=OFF \
+        -DWEBP_BUILD_WEBPMUX=OFF \
+        -DWEBP_BUILD_EXTRAS=OFF || return 1
     sanitize_sysroot_libs libwebp libsharpyuv || return 1
 }
 
