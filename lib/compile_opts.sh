@@ -47,6 +47,7 @@ libmp3lame \
 libfribidi \
 libfreetype \
 libharfbuzz \
+libopenjpeg \
 libsvtav1_psy \
 libfontconfig \
 "

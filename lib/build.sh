@@ -166,6 +166,8 @@ fi' >"${compilerDir}/which"
         "-DCMAKE_CXX_COMPILER_LAUNCHER=ccache"
         "-DCMAKE_VERBOSE_MAKEFILE=ON"
         "-G" "Ninja"
+        "-DENABLE_STATIC=${STATIC}"
+        "-DBUILD_STATIC_LIBS=${STATIC}"
     )
     CARGO_CINSTALL_FLAGS=(
         "--release"
@@ -219,6 +221,9 @@ fi' >"${compilerDir}/which"
         SHARED_LIB_SUFF='so'
     fi
 
+    # least problematic place to set this
+    CMAKE_FLAGS+=("-DCMAKE_EXE_LINKER_FLAGS=${LDFLAGS_ARR[*]}")
+
     # static/shared linking
     if [[ ${STATIC} == 'ON' ]]; then
         BUILD_TYPE=static
@@ -228,17 +233,14 @@ fi' >"${compilerDir}/which"
         )
         MESON_FLAGS+=('--default-library=static')
         CMAKE_FLAGS+=(
-            "-DENABLE_STATIC=${STATIC}"
             "-DENABLE_SHARED=OFF"
             "-DBUILD_SHARED_LIBS=OFF"
         )
         # darwin does not support -static
         if is_darwin; then
             FFMPEG_EXTRA_FLAGS+=("--extra-ldflags=${LDFLAGS_ARR[*]}")
-            CMAKE_FLAGS+=("-DCMAKE_EXE_LINKER_FLAGS=${LDFLAGS_ARR[*]}")
         else
             FFMPEG_EXTRA_FLAGS+=("--extra-ldflags=${LDFLAGS_ARR[*]} -static")
-            CMAKE_FLAGS+=("-DCMAKE_EXE_LINKER_FLAGS=${LDFLAGS_ARR[*]} -static")
         fi
         FFMPEG_EXTRA_FLAGS+=("--pkg-config-flags=--static")
         # remove shared libraries for static builds
@@ -247,12 +249,10 @@ fi' >"${compilerDir}/which"
     else
         BUILD_TYPE=shared
         CMAKE_FLAGS+=(
-            "-DENABLE_STATIC=${STATIC}"
             "-DENABLE_SHARED=ON"
             "-DBUILD_SHARED_LIBS=ON"
             "-DCMAKE_INSTALL_RPATH=${LIBDIR}"
             "-DCMAKE_BUILD_WITH_INSTALL_RPATH=ON"
-            "-DCMAKE_EXE_LINKER_FLAGS=${LDFLAGS_ARR[*]}"
         )
         if is_darwin; then
             CMAKE_FLAGS+=(
@@ -352,6 +352,7 @@ libvpx            1.16.0       tar.gz    https://github.com/webmproject/libvpx/a
 libvorbis         1.3.7        tar.xz    https://github.com/xiph/vorbis/releases/download/v${ver}/libvorbis-${ver}.${ext} libogg,cmake3
 libogg            1.3.6        tar.xz    https://github.com/xiph/ogg/releases/download/v${ver}/libogg-${ver}.${ext}
 
+libopenjpeg       2.5.4        tar.gz    https://github.com/uclouvain/openjpeg/archive/refs/tags/v${ver}.${ext} libwebp
 libwebp           1.6.0        tar.gz    https://github.com/webmproject/libwebp/archive/refs/tags/v${ver}.${ext} libpng,libjpeg
 libjpeg           3.0.3        tar.gz    https://github.com/winlibs/libjpeg/archive/refs/tags/libjpeg-turbo-${ver}.${ext}
 libpng            1.6.53       tar.gz    https://github.com/pnggroup/libpng/archive/refs/tags/v${ver}.${ext} zlib
@@ -379,6 +380,8 @@ libfribidi        1.0.16       tar.xz    https://github.com/fribidi/fribidi/rele
 bzip              latest       git       https://github.com/libarchive/bzip2.git
 brotli            1.2.0        tar.gz    https://github.com/google/brotli/archive/refs/tags/v${ver}.${ext}
 expat             2.7.3        tar.xz    https://github.com/libexpat/libexpat/releases/download/R_${ver//./_}/expat-${ver}.${ext}
+
+supmover          2.4.3        tar.gz    https://github.com/MonoS/SupMover/archive/refs/tags/v${ver}.${ext}
 '
     local supported_builds=()
     unset ver ext url deps extractedDir
@@ -597,7 +600,7 @@ do_build() {
         echo "LOCAL_PREFIX: ${LOCAL_PREFIX}"
         for patch in "${PATCHES_DIR}/${build}"/*.patch; do
             test -f "${patch}" || continue
-            echo "patch:${patch}" >>"${newMetadataFile}"
+            echo -e "patch:${patch}\n$(<"${patch}")" >>"${newMetadataFile}"
         done
         COLOR=OFF SHOW_SINGLE=true dump_arr "${BUILD_ENV_NAMES[@]}"
     } >"${newMetadataFile}"
@@ -921,6 +924,20 @@ build_spirv_tools() {
 build_spirv_headers() {
     meta_cmake_build || return 1
 }
+
+build_libopenjpeg() {
+    meta_cmake_build || return 1
+    sanitize_sysroot_libs libopenjp2 || return 1
+}
+
+build_supmover() (
+    # clean build environment
+    unset "${BUILD_ENV_NAMES[@]}"
+
+    # manual install to sysroot
+    make || return 1
+    cp supmover "${LOCAL_PREFIX}/bin/supmover" || return 1
+)
 
 build_cmake3() (
     # clean build environment
