@@ -79,6 +79,7 @@ $(encode)
 - Skips re-encoding av1/opus streams.
 - Only maps audio streams that match the video stream language if the video stream has a defined language.
 - Only maps english subtitle streams.
+- Crop PGS subtitles to match video dimensions.
 - Adds track statistics to the output mkv file and embeds the encoder versions to the output metadata. For example:
 \`\`\`
 ENCODE : aa4d7e6

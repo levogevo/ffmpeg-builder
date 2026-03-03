@@ -1,8 +1,17 @@
 #!/usr/bin/env bash
 
+_ffprobe_wrapper() {
+    local stderr="${TMP_DIR}/ffprobe-stderr"
+    if ! ffprobe "$@" 2>"${TMP_DIR}/ffprobe-stderr"; then
+        cat "${stderr}"
+        return 1
+    fi
+    return 0
+}
+
 get_duration() {
     local file="$1"
-    ffprobe \
+    _ffprobe_wrapper \
         -v error \
         -show_entries format=duration \
         -of default=noprint_wrappers=1:nokey=1 \
@@ -11,7 +20,7 @@ get_duration() {
 
 get_avg_bitrate() {
     local file="$1"
-    ffprobe \
+    _ffprobe_wrapper \
         -v error \
         -select_streams v:0 \
         -show_entries format=bit_rate \
@@ -43,7 +52,7 @@ get_crop() {
     # don't care about decimal points
     IFS='.' read -r duration _ <<<"${duration}"
     # get crop value for first half of input
-    local timeEnc=$((duration / 2))
+    local timeEnc=$((duration / 20))
     ffmpeg \
         -y \
         -hide_banner \
@@ -55,7 +64,7 @@ get_crop() {
         -filter:v:0 'cropdetect=limit=100:round=16:skip=2:reset_count=0' \
         -codec:v 'wrapped_avframe' \
         -f 'null' '/dev/null' 2>&1 |
-        grep -o crop=.* |
+        grep -o 'crop=.*' |
         sort -bh |
         uniq -c |
         sort -bh |
@@ -63,10 +72,35 @@ get_crop() {
         grep -o "crop=.*"
 }
 
+# output '1920x1080'
+get_resolution() {
+    local file="$1"
+    _ffprobe_wrapper \
+        -v error \
+        -select_streams v:0 \
+        -show_entries stream=width,height \
+        -of csv=s=x:p=0 \
+        "${file}"
+}
+
+# same as get_resolution
+get_sup_resolution() {
+    local supfile="$1"
+    check_for_supmover || return 1
+    if [[ "$(get_file_format "${supfile}")" != 'sup' ]]; then
+        echo_fail "${supfile} is not a sup file"
+        return 1
+    fi
+    local trace res
+    trace="$("${SUPMOVER}" "${supfile}" --trace)" || return 1
+    res="$(grep 'Video size' <<<"${trace}" | sort -u | awk '{print $NF}')" || return 1
+    echo "${res}"
+}
+
 get_stream_codec() {
     local file="$1"
     local stream="$2"
-    ffprobe \
+    _ffprobe_wrapper \
         -v error \
         -select_streams "${stream}" \
         -show_entries stream=codec_name \
@@ -74,18 +108,31 @@ get_stream_codec() {
         "${file}"
 }
 
+get_stream_json() {
+    local file="$1"
+    local stream="$2"
+    _ffprobe_wrapper \
+        -v error \
+        -select_streams "${stream}" \
+        -show_entries stream \
+        -of json \
+        "${file}"
+}
+
 get_file_format() {
     local file="$1"
     local probe
-    probe="$(ffprobe \
+    probe="$(_ffprobe_wrapper \
         -v error \
         -show_entries format=format_name \
         -of default=noprint_wrappers=1:nokey=1 \
         "${file}")" || return 1
     if line_contains "${probe}" 'matroska'; then
         echo mkv
-    else
+    elif line_contains "${probe}" 'mp4'; then
         echo mp4
+    else
+        echo "${probe}"
     fi
 }
 
@@ -98,7 +145,7 @@ get_num_streams() {
         select=("-select_streams" "${type}")
     fi
 
-    ffprobe \
+    _ffprobe_wrapper \
         -v error "${select[@]}" \
         -show_entries stream=index \
         -of default=noprint_wrappers=1:nokey=1 \
@@ -108,7 +155,7 @@ get_num_streams() {
 get_num_audio_channels() {
     local file="$1"
     local stream="$2"
-    ffprobe \
+    _ffprobe_wrapper \
         -v error \
         -select_streams "${stream}" \
         -show_entries stream=channels \
@@ -119,7 +166,7 @@ get_num_audio_channels() {
 get_stream_lang() {
     local file="$1"
     local stream="$2"
-    ffprobe \
+    _ffprobe_wrapper \
         -v error \
         -select_streams "${stream}" \
         -show_entries stream_tags=language \

@@ -1,25 +1,27 @@
 #!/usr/bin/env bash
 
-# sets unmapStreams
+DESIRED_SUB_LANG=eng
+
+# sets UNMAP_STREAMS
 set_unmap_streams() {
     local file="$1"
     local unmapFilter='bin_data|jpeg|png'
     local streamsStr
-    unmapStreams=()
+    UNMAP_STREAMS=()
     streamsStr="$(get_num_streams "${file}")" || return 1
     mapfile -t streams <<<"${streamsStr}" || return 1
     for stream in "${streams[@]}"; do
         if [[ "$(get_stream_codec "${file}" "${stream}")" =~ ${unmapFilter} ]]; then
-            unmapStreams+=("-map" "-0:${stream}")
+            UNMAP_STREAMS+=("-map" "-0:${stream}")
         fi
     done
 }
 
-# sets audioParams
+# sets AUDIO_PARAMS
 set_audio_params() {
     local file="$1"
     local videoLang
-    audioParams=()
+    AUDIO_PARAMS=()
     videoLang="$(get_stream_lang "${file}" 'v:0')" || return 1
     for stream in $(get_num_streams "${file}" 'a'); do
         local numChannels codec lang
@@ -32,18 +34,18 @@ set_audio_params() {
         codec="$(get_stream_codec "${file}" "${stream}")" || return 1
         lang="$(get_stream_lang "${file}" "${stream}")" || return 1
         if [[ ${videoLang} != '' && ${videoLang} != "${lang}" ]]; then
-            audioParams+=(
+            AUDIO_PARAMS+=(
                 '-map'
                 "-0:${stream}"
             )
         elif [[ ${codec} == 'opus' ]]; then
-            audioParams+=(
+            AUDIO_PARAMS+=(
                 "-c:${OUTPUT_INDEX}"
                 "copy"
             )
             OUTPUT_INDEX=$((OUTPUT_INDEX + 1))
         else
-            audioParams+=(
+            AUDIO_PARAMS+=(
                 "-filter:${OUTPUT_INDEX}"
                 "aformat=channel_layouts=7.1|5.1|stereo|mono"
                 "-c:${OUTPUT_INDEX}"
@@ -56,11 +58,10 @@ set_audio_params() {
     done
 }
 
-# sets subtitleParams
+# sets SUBTITLE_PARAMS
 set_subtitle_params() {
     local file="$1"
     local convertCodec='eia_608'
-    local keepLang='eng'
 
     local defaultTextCodec
     if [[ ${SAME_CONTAINER} == false && ${FILE_EXT} == 'mkv' ]]; then
@@ -71,18 +72,27 @@ set_subtitle_params() {
         convertCodec+='|srt'
     fi
 
-    subtitleParams=()
+    SUBTITLE_PARAMS=()
     for stream in $(get_num_streams "${file}" 's'); do
         local codec lang
         codec="$(get_stream_codec "${file}" "${stream}")" || return 1
         lang="$(get_stream_lang "${file}" "${stream}")" || return 1
-        if [[ ${lang} != '' && ${keepLang} != "${lang}" ]]; then
-            subtitleParams+=(
+        if [[ ${lang} != '' && ${DESIRED_SUB_LANG} != "${lang}" ]]; then
+            SUBTITLE_PARAMS+=(
                 '-map'
                 "-0:${stream}"
             )
         elif [[ ${codec} =~ ${convertCodec} ]]; then
-            subtitleParams+=("-c:${OUTPUT_INDEX}" "${defaultTextCodec}")
+            SUBTITLE_PARAMS+=("-c:${OUTPUT_INDEX}" "${defaultTextCodec}")
+            OUTPUT_INDEX=$((OUTPUT_INDEX + 1))
+        elif [[ ${codec} == 'hdmv_pgs_subtitle' ]]; then
+            PGS_SUB_STREAMS+=("${stream}")
+            SUBTITLE_PARAMS+=(
+                '-map'
+                "-0:${stream}"
+            )
+        else
+            # map -0 covers the stream but still want to increment the index
             OUTPUT_INDEX=$((OUTPUT_INDEX + 1))
         fi
     done
@@ -91,57 +101,206 @@ set_subtitle_params() {
 get_encode_versions() {
     action="${1:-}"
 
-    encodeVersion="encode=$(git -C "${REPO_DIR}" rev-parse --short HEAD)"
-    ffmpegVersion=''
-    videoEncVersion=''
-    audioEncVersion=''
+    ENCODE_VERSION="encode=$(git -C "${REPO_DIR}" rev-parse --short HEAD)"
+    FFMPEG_VERSION=''
+    VIDEO_ENC_VERSION=''
+    AUDIO_ENC_VERSION=''
 
     # shellcheck disable=SC2155
     local output="$(ffmpeg -version 2>&1)"
     while read -r line; do
         if line_starts_with "${line}" 'ffmpeg='; then
-            ffmpegVersion="${line}"
+            FFMPEG_VERSION="${line}"
         elif line_starts_with "${line}" 'libsvtav1'; then
-            videoEncVersion="${line}"
+            VIDEO_ENC_VERSION="${line}"
         elif line_starts_with "${line}" 'libopus='; then
-            audioEncVersion="${line}"
+            AUDIO_ENC_VERSION="${line}"
         fi
     done <<<"${output}"
 
     local version
-    if [[ ${ffmpegVersion} == '' ]]; then
+    if [[ ${FFMPEG_VERSION} == '' ]]; then
         while read -r line; do
             if line_starts_with "${line}" 'ffmpeg version '; then
                 read -r _ _ version _ <<<"${line}"
-                ffmpegVersion="ffmpeg=${version}"
+                FFMPEG_VERSION="ffmpeg=${version}"
                 break
             fi
         done <<<"${output}"
     fi
 
-    if [[ ${videoEncVersion} == '' ]]; then
+    if [[ ${VIDEO_ENC_VERSION} == '' ]]; then
         version="$(get_pkgconfig_version SvtAv1Enc)"
         test "${version}" == '' && return 1
-        videoEncVersion="libsvtav1=${version}"
+        VIDEO_ENC_VERSION="libsvtav1=${version}"
     fi
 
-    if [[ ${audioEncVersion} == '' ]]; then
+    if [[ ${AUDIO_ENC_VERSION} == '' ]]; then
         version="$(get_pkgconfig_version opus)"
         test "${version}" == '' && return 1
-        audioEncVersion="libopus=${version}"
+        AUDIO_ENC_VERSION="libopus=${version}"
     fi
 
-    test "${ffmpegVersion}" == '' && return 1
-    test "${videoEncVersion}" == '' && return 1
-    test "${audioEncVersion}" == '' && return 1
+    test "${FFMPEG_VERSION}" == '' && return 1
+    test "${VIDEO_ENC_VERSION}" == '' && return 1
+    test "${AUDIO_ENC_VERSION}" == '' && return 1
 
     if [[ ${action} == 'print' ]]; then
-        echo "${encodeVersion}"
-        echo "${ffmpegVersion}"
-        echo "${videoEncVersion}"
-        echo "${audioEncVersion}"
+        echo "${ENCODE_VERSION}"
+        echo "${FFMPEG_VERSION}"
+        echo "${VIDEO_ENC_VERSION}"
+        echo "${AUDIO_ENC_VERSION}"
     fi
     return 0
+}
+
+# given an input mkv/sup file,
+# output a new mkv file with
+# input metadata preserved
+replace_mkv_sup() {
+    local mkvIn="$1"
+    local supIn="$2"
+    local mkvOut="$3"
+    local stream="${4:-0}"
+
+    local json
+    json="$(get_stream_json "${mkvIn}" "${stream}")" || return 1
+
+    # x:y
+    # x = stream json variable name
+    # y = mkvmerge option name
+    local optionMap=(
+        disposition.default:--default-track-flag
+        disposition.original:--original-flag
+        disposition.comment:--commentary-flag
+        disposition.forced:--forced-display-flag
+        disposition.hearing_impaired:--hearing-impaired-flag
+        tags.language:--language
+        tags.title:--track-name
+    )
+
+    # start building mkvmerge command
+    local mergeCmd=(
+        mkvmerge
+        -o "${mkvOut}"
+    )
+    for line in "${optionMap[@]}"; do
+        IFS=: read -r key option <<<"${line}"
+        local val
+        val="$(jq -r ".streams[].${key}" <<<"${json}")" || return 1
+        # skip undefined values
+        test "${val}" == null && continue
+        # always track 0 for single track
+        mergeCmd+=("${option}" "0:${val}")
+    done
+    mergeCmd+=("${supIn}")
+
+    "${mergeCmd[@]}"
+}
+
+# extract PGS_SUB_STREAMS from INPUT
+# and crop using CROP_VALUE
+setup_pgs_mkv() {
+    local pgsMkvOut="$1"
+
+    if [[ ${#PGS_SUB_STREAMS[@]} -eq 0 ]]; then
+        return
+    fi
+
+    check_for_supmover || return 1
+
+    # setup tempdir
+    local ogSup cropSup cropMkv tmpdir
+    tmpdir="${TMP_DIR}/pgs-${OUTPUT// /.}"
+    recreate_dir "${tmpdir}" || return 1
+
+    # get video resolution
+    local vidRes vidWidth vidHeight
+    vidRes="$(get_resolution "${INPUT}")"
+    IFS=x read -r vidWidth vidHeight <<<"${vidRes}"
+
+    for stream in "${PGS_SUB_STREAMS[@]}"; do
+        # extract sup from input
+        ogSup="${tmpdir}/${stream}.sup"
+        cropSup="${tmpdir}/${stream}-cropped.sup"
+        cropMkv="${tmpdir}/${stream}.mkv"
+        mkvextract "${INPUT}" tracks "${stream}:${ogSup}" || return 1
+
+        # check if PGS was uncropped
+        local supRes
+        supRes="$(get_sup_resolution "${ogSup}")" || return 1
+        # crop PGS if either initially cropping or "fixing"
+        # previously uncropped (relative to video) PGS subs
+        if [[ ${CROP_VALUE} != '' || ${supRes} != "${vidRes}" ]]; then
+            local supWidth supHeight
+            IFS=x read -r supWidth supHeight <<<"${supRes}"
+            local left top right bottom
+
+            # CROP_VALUE gets priority
+            if [[ ${CROP_VALUE} != '' ]]; then
+                # determine supmover crop based off of crop
+                local res w h x y
+                # extract ffmpeg crop value ("crop=w:h:x:y")
+                IFS='=' read -r _ res <<<"${CROP_VALUE}"
+                IFS=':' read -r w h x y <<<"${res}"
+
+                # ffmpeg crop value
+                # is different than supmover crop inputs
+
+                left=${x}
+                top=${y}
+                right=$((supWidth - w - left))
+                bottom=$((supHeight - h - top))
+            else
+                # determine supmover crop based off video stream
+                if [[ ${vidWidth} -gt ${supWidth} || ${vidHeight} -gt ${supHeight} ]]; then
+                    echo_warn "PGS sup (stream=${stream}) is somehow smaller than initial video stream"
+                    echo_warn "cropping based off of aspect ratio instead of resolution"
+                    left=0
+                    # (supHeight - ((vidHeight/vidWidth) * supWidth)) / 2
+                    top="$(awk '{ print int(($1 - ($2 / $3 * $4)) / 2) }' <<<"${supHeight} ${vidHeight} ${vidWidth} ${supWidth}")"
+                else
+                    left=$(((supWidth - vidWidth) / 2))
+                    top=$(((supHeight - vidHeight) / 2))
+                fi
+                right=${left}
+                bottom=${top}
+            fi
+            # crop sup
+            (
+                set -x
+                "${SUPMOVER}" \
+                    "${ogSup}" \
+                    "${cropSup}" \
+                    --crop \
+                    "${left}" "${top}" "${right}" "${bottom}" &>"${cropSup}.out" || return 1
+            )
+            local cropRet=$?
+            # supmover does not error for out-of-bounds subtitles
+            if grep 'Window is outside new screen area' "${cropSup}.out"; then
+                echo_fail "check ${cropSup}.out for complete logs"
+                cropRet=1
+            fi
+            if [[ ${cropRet} -ne 0 ]]; then
+                rm -r "${tmpdir}" || return 1
+                return 1
+            fi
+        else
+            # create placeholder copy for replacement
+            cp "${ogSup}" "${cropSup}" || return 1
+        fi
+
+        if ! replace_mkv_sup "${INPUT}" "${cropSup}" "${cropMkv}" "${stream}"; then
+            echo_fail "could not replace mkv sup for ${stream}"
+            rm -r "${tmpdir}" || return 1
+        fi
+    done
+
+    # merge all single mkv into one
+    mkvmerge -o "${pgsMkvOut}" "${tmpdir}/"*.mkv
+    local mergeRet=$?
+    rm -r "${tmpdir}" || return 1
+    return ${mergeRet}
 }
 
 encode_usage() {
@@ -312,7 +471,13 @@ set_encode_opts() {
 # shellcheck disable=SC2155
 # shellcheck disable=SC2016
 gen_encode_script() {
-    local genScript="${TMP_DIR}/$(bash_basename "${OUTPUT}").sh"
+    if missing_cmd mkvpropedit; then
+        echo_fail "use: ${REPO_DIR}/scripts/install_deps.sh"
+        return 1
+    fi
+
+    local outputBasename="$(bash_basename "${OUTPUT}")"
+    local genScript="${TMP_DIR}/${outputBasename}.sh"
 
     # global output index number to increment
     OUTPUT_INDEX=0
@@ -323,17 +488,15 @@ gen_encode_script() {
         OUTPUT
         PRESET
         CRF
-        crop
-        encodeVersion
-        ffmpegVersion
-        videoEncVersion
-        audioEncVersion
+        CROP_VALUE
+        ENCODE_VERSION
+        FFMPEG_VERSION
+        VIDEO_ENC_VERSION
+        AUDIO_ENC_VERSION
         svtAv1Params
+        pgsMkv
+        muxxedPgsMkv
     )
-    local crop=''
-    if [[ $CROP == "true" ]]; then
-        crop="$(get_crop "${INPUT}")" || return 1
-    fi
 
     svtAv1ParamsArr=(
         "tune=0"
@@ -357,13 +520,16 @@ gen_encode_script() {
 
     # arrays
     local arrays=(
-        unmapStreams
-        audioParams
+        UNMAP_STREAMS
+        AUDIO_PARAMS
+        SUBTITLE_PARAMS
         videoParams
         metadata
-        subtitleParams
         ffmpegParams
+        PGS_SUB_STREAMS
     )
+    local "${arrays[@]}"
+
     local videoParams=(
         "-crf" '${CRF}' "-preset" '${PRESET}' "-g" "240"
     )
@@ -376,51 +542,72 @@ gen_encode_script() {
     )
 
     # set video params
+    get_encode_versions || return 1
     local inputVideoCodec="$(get_stream_codec "${INPUT}" 'v:0')"
     if [[ ${inputVideoCodec} == 'av1' ]]; then
         ffmpegParams+=(
             "-c:v:${OUTPUT_INDEX}" 'copy'
         )
+        # can't crop if copying codec
+        CROP=false
     else
         ffmpegParams+=(
             '-pix_fmt' 'yuv420p10le'
             "-c:v:${OUTPUT_INDEX}" 'libsvtav1' '${videoParams[@]}'
             '-svtav1-params' '${svtAv1Params}'
         )
+        metadata+=(
+            '-metadata' '${VIDEO_ENC_VERSION}'
+            '-metadata' 'svtav1_params=${svtAv1Params}'
+            '-metadata' 'video_params=${videoParams[*]}'
+        )
     fi
     OUTPUT_INDEX=$((OUTPUT_INDEX + 1))
 
     # these values may be empty
-    local unmapStr audioParamsStr subtitleParamsStr
     set_unmap_streams "${INPUT}" || return 1
     set_audio_params "${INPUT}" || return 1
     set_subtitle_params "${INPUT}" || return 1
 
-    if [[ ${unmapStreams[*]} != '' ]]; then
-        ffmpegParams+=('${unmapStreams[@]}')
+    if [[ ${UNMAP_STREAMS[*]} != '' ]]; then
+        ffmpegParams+=('${UNMAP_STREAMS[@]}')
     fi
 
-    if [[ ${audioParams[*]} != '' ]]; then
-        ffmpegParams+=('${audioParams[@]}')
+    if [[ ${AUDIO_PARAMS[*]} != '' ]]; then
+        ffmpegParams+=('${AUDIO_PARAMS[@]}')
     fi
 
-    if [[ ${subtitleParams[*]} != '' ]]; then
-        ffmpegParams+=('${subtitleParams[@]}')
+    if [[ ${SUBTITLE_PARAMS[*]} != '' ]]; then
+        ffmpegParams+=('${SUBTITLE_PARAMS[@]}')
     fi
 
-    if [[ ${crop} != '' ]]; then
-        ffmpegParams+=('-vf' '${crop}')
-    fi
-
-    get_encode_versions || return 1
-    local metadata=(
-        '-metadata' '${encodeVersion}'
-        '-metadata' '${ffmpegVersion}'
-        '-metadata' '${videoEncVersion}'
-        '-metadata' '${audioEncVersion}'
-        '-metadata' 'svtav1_params=${svtAv1Params}'
-        '-metadata' 'video_params=${videoParams[*]}'
+    metadata+=(
+        '-metadata' '${ENCODE_VERSION}'
+        '-metadata' '${FFMPEG_VERSION}'
     )
+
+    # in the case all audio streams are copied,
+    # don't add libopus metadata
+    if line_contains "${AUDIO_PARAMS[*]}" 'libopus'; then
+        metadata+=(
+            '-metadata' '${AUDIO_ENC_VERSION}')
+    fi
+
+    local CROP_VALUE
+    if [[ ${CROP} == true ]]; then
+        CROP_VALUE="$(get_crop "${INPUT}")" || return 1
+        ffmpegParams+=('-vf' '${CROP_VALUE}')
+        metadata+=(
+            '-metadata' '${CROP_VALUE}'
+            '-metadata' "og_res=$(get_resolution "${INPUT}")"
+        )
+    fi
+
+    # separate processing step for pkg subs
+    local pgsMkv="${TMP_DIR}/pgs-${outputBasename// /.}.mkv"
+    local muxxedPgsMkv='${OUTPUT}.muxxed'
+    setup_pgs_mkv "${pgsMkv}" 1>&2 || return 1
+
     ffmpegParams+=('${metadata[@]}')
 
     {
@@ -451,27 +638,17 @@ gen_encode_script() {
         echo 'ffmpeg "${ffmpegParams[@]}" -dolbyvision 0 "${OUTPUT}" || exit 1'
 
         # track-stats and clear title
-        if [[ ${FILE_EXT} == 'mkv' ]] && has_cmd mkvmerge && has_cmd mkvpropedit; then
+        if [[ ${FILE_EXT} == 'mkv' ]]; then
             {
-                # ffmpeg does not reliably copy PGS subtitles without breaking
-                # them when cropped, so just use mkvmerge to make sure they get
-                # copied correctly
-                local muxxed='"${OUTPUT}.muxxed"'
-                local mergeCmd=(
-                    mkvmerge
-                    -o "${muxxed}"
-                    --no-subtitles '"${OUTPUT}"'
-                    --no-video
-                    --no-audio
-                    --no-chapters
-                    --no-attachments
-                    --no-global-tags
-                    --subtitle-tracks eng
-                    '"${INPUT}"'
-                )
-                echo
-                echo "${mergeCmd[*]} || exit 1"
-                echo "mv ${muxxed}" '"${OUTPUT}" || exit 1'
+                # ffmpeg does not copy PGS subtitles without breaking them
+                # use mkvmerge to extract and supmover to crop
+                if [[ ${#PGS_SUB_STREAMS[@]} -gt 0 ]]; then
+                    echo
+                    echo 'mkvmerge -o "${muxxedPgsMkv}" "${pgsMkv}" "${OUTPUT}" || exit 1'
+                    echo 'rm "${pgsMkv}" || exit 1'
+                    echo 'mv "${muxxedPgsMkv}" "${OUTPUT}" || exit 1'
+                fi
+
                 echo 'mkvpropedit "${OUTPUT}" --add-track-statistics-tags || exit 1'
                 echo 'mkvpropedit "${OUTPUT}" --edit info --set "title=" || exit 1'
             }
@@ -491,7 +668,7 @@ gen_encode_script() {
 
 FB_FUNC_NAMES+=('encode')
 # shellcheck disable=SC2034
-FB_FUNC_DESCS['encode']='encode a file using libsvtav1_psy and libopus'
+FB_FUNC_DESCS['encode']='encode a file using libsvtav1 and libopus'
 encode() {
     set_encode_opts "$@"
     local ret=$?

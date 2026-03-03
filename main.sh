@@ -88,6 +88,9 @@ $cmd "$@"' >"${ENTRY_SCRIPT}"
 }
 gen_links || return 1
 
+# allow calling entry.sh with arguments as execution
+entry() { "$@" ; }
+
 set_completions() {
     for funcName in "${FB_FUNC_NAMES[@]}"; do
         complete -W "${FB_FUNC_COMPLETION[${funcName}]}" "${funcName}"

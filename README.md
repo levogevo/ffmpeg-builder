@@ -13,7 +13,7 @@ Tested on:
 With these scripts you can:
 1. install required dependencies using `./scripts/install_deps.sh`
 2. build ffmpeg with the desired configuration using `./scripts/build.sh`
-3. encode a file using libsvtav1_psy and libopus using `./scripts/encode.sh`
+3. encode a file using libsvtav1 and libopus using `./scripts/encode.sh`
 4. estimate the film grain of a given file using `./scripts/efg.sh`
 
 # Building
@@ -24,7 +24,7 @@ Configuration is done through environment variables.
 By default, this project will build a static `ffmpeg` binary in `./gitignore/sysroot/bin/ffmpeg`.
 
 The user-overridable compile options are:
-- `ENABLE`: configure what ffmpeg enables (default: libaom libass libvpx libxml2 libvmaf libx264 libx265 libwebp libopus librav1e libdav1d libvorbis libmp3lame libfribidi libfreetype libharfbuzz libsvtav1_psy libfontconfig )
+- `ENABLE`: configure what ffmpeg enables (default: libaom libass libvpx libxml2 libvmaf libx264 libx265 libwebp libopus librav1e libdav1d libvorbis libmp3lame libfribidi libfreetype libharfbuzz libopenjpeg libsvtav1_psy libfontconfig )
 - `PREFIX`: prefix to install to, default is local install in ./gitignore/sysroot (default: local)
 - `STATIC`: static or shared build (default: ON)
 - `LTO`: enable link time optimization (default: ON)
@@ -78,6 +78,7 @@ encode -i input [options] output
 - Skips re-encoding av1/opus streams.
 - Only maps audio streams that match the video stream language if the video stream has a defined language.
 - Only maps english subtitle streams.
+- Crop PGS subtitles to match video dimensions.
 - Adds track statistics to the output mkv file and embeds the encoder versions to the output metadata. For example:
 ```
 ENCODE : aa4d7e6

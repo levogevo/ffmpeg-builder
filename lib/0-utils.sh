@@ -533,3 +533,10 @@ benchmark_command() {
     }
     ' "${trace}" | sort -rn | head -n 20
 }
+
+# make sure supmover is built
+# and set SUPMOVER
+check_for_supmover() {
+    SUPMOVER="${LOCAL_PREFIX}/bin/supmover"
+    test -f "${SUPMOVER}" || do_build supmover || return 1
+}
