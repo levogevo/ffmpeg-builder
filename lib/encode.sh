@@ -211,7 +211,7 @@ setup_pgs_mkv() {
 
     # setup tempdir
     local ogSup cropSup cropMkv tmpdir
-    tmpdir="${TMP_DIR}/pgs-${OUTPUT// /.}"
+    tmpdir="${pgsMkvOut}-dir"
     recreate_dir "${tmpdir}" || return 1
 
     # get video resolution
