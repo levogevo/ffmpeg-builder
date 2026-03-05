@@ -266,24 +266,32 @@ setup_pgs_mkv() {
                 right=${left}
                 bottom=${top}
             fi
-            # crop sup
-            (
-                set -x
-                "${SUPMOVER}" \
-                    "${ogSup}" \
-                    "${cropSup}" \
-                    --crop \
-                    "${left}" "${top}" "${right}" "${bottom}" &>"${cropSup}.out" || return 1
-            )
-            local cropRet=$?
-            # supmover does not error for out-of-bounds subtitles
-            if grep 'Window is outside new screen area' "${cropSup}.out"; then
-                echo_fail "check ${cropSup}.out for complete logs"
-                cropRet=1
-            fi
-            if [[ ${cropRet} -ne 0 ]]; then
-                rm -r "${tmpdir}" || return 1
-                return 1
+
+            # only crop if actually required
+            if [[ "${left}${top}${right}${bottom}" != "0000" ]]; then
+                # crop sup
+                (
+                    set -x
+                    "${SUPMOVER}" \
+                        "${ogSup}" \
+                        "${cropSup}" \
+                        --crop \
+                        "${left}" "${top}" "${right}" "${bottom}" &>"${cropSup}.out" || return 1
+                )
+                local cropRet=$?
+                # supmover does not error for out-of-bounds subtitles
+                # so error only when there is most certainly an issue
+                if [[ "$(grep -c 'Window is outside new screen area' "${cropSup}.out")" -gt 5 ]]; then
+                    echo_fail "check ${cropSup}.out for complete logs"
+                    cropRet=1
+                fi
+                if [[ ${cropRet} -ne 0 ]]; then
+                    rm -r "${tmpdir}" || return 1
+                    return 1
+                fi
+            else
+                # create placeholder copy for replacement
+                cp "${ogSup}" "${cropSup}" || return 1
             fi
         else
             # create placeholder copy for replacement
