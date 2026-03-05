@@ -75,12 +75,8 @@ get_crop() {
 # output '1920x1080'
 get_resolution() {
     local file="$1"
-    _ffprobe_wrapper \
-        -v error \
-        -select_streams v:0 \
-        -show_entries stream=width,height \
-        -of csv=s=x:p=0 \
-        "${file}"
+    get_stream_json "${file}" 0 |
+        jq -r '.streams[0] | "\(.width)x\(.height)"'
 }
 
 # same as get_resolution

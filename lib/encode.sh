@@ -236,8 +236,19 @@ setup_pgs_mkv() {
             IFS=x read -r supWidth supHeight <<<"${supRes}"
             local left top right bottom
 
-            # CROP_VALUE gets priority
-            if [[ ${CROP_VALUE} != '' ]]; then
+            # determine crop values
+            # if the supfile is smaller than the video stream
+            # crop using aspect ratio
+            if [[ ${vidWidth} -gt ${supWidth} || ${vidHeight} -gt ${supHeight} ]]; then
+                echo_warn "PGS sup (stream=${stream}) is somehow smaller than initial video stream"
+                echo_warn "cropping based off of aspect ratio instead of resolution"
+                left=0
+                # (supHeight - ((vidHeight/vidWidth) * supWidth)) / 2
+                top="$(awk '{ print int(($1 - ($2 / $3 * $4)) / 2) }' <<<"${supHeight} ${vidHeight} ${vidWidth} ${supWidth}")"
+                right=${left}
+                bottom=${top}
+            # otherwise crop using the crop value
+            elif [[ ${CROP_VALUE} != '' ]]; then
                 # determine supmover crop based off of crop
                 local res w h x y
                 # extract ffmpeg crop value ("crop=w:h:x:y")
@@ -246,23 +257,14 @@ setup_pgs_mkv() {
 
                 # ffmpeg crop value
                 # is different than supmover crop inputs
-
                 left=${x}
                 top=${y}
                 right=$((supWidth - w - left))
                 bottom=$((supHeight - h - top))
+            # fallback to just the video resolution
             else
-                # determine supmover crop based off video stream
-                if [[ ${vidWidth} -gt ${supWidth} || ${vidHeight} -gt ${supHeight} ]]; then
-                    echo_warn "PGS sup (stream=${stream}) is somehow smaller than initial video stream"
-                    echo_warn "cropping based off of aspect ratio instead of resolution"
-                    left=0
-                    # (supHeight - ((vidHeight/vidWidth) * supWidth)) / 2
-                    top="$(awk '{ print int(($1 - ($2 / $3 * $4)) / 2) }' <<<"${supHeight} ${vidHeight} ${vidWidth} ${supWidth}")"
-                else
-                    left=$(((supWidth - vidWidth) / 2))
-                    top=$(((supHeight - vidHeight) / 2))
-                fi
+                left=$(((supWidth - vidWidth) / 2))
+                top=$(((supHeight - vidHeight) / 2))
                 right=${left}
                 bottom=${top}
             fi
