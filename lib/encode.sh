@@ -198,6 +198,46 @@ replace_mkv_sup() {
     "${mergeCmd[@]}"
 }
 
+crop_sup() {
+    local inSup="$1"
+    local outSup="$2"
+    local left="$3"
+    local top="$4"
+    local right="$5"
+    local bottom="$6"
+    local warnMsg='Window is outside new screen area'
+    local maxAcceptableWarn=5
+    local offset=5
+
+    # skip cropping if not needed
+    if [[ "${left}${top}${right}${bottom}" == "0000" ]]; then
+        cp "${inSup}" "${outSup}" || return 1
+        return 0
+    fi
+
+    for ((try = 0; try < 30; try++)); do
+        echo_info "cropping sup with ${left} ${top} ${right} ${bottom}"
+        "${SUPMOVER}" \
+            "${inSup}" \
+            "${outSup}" \
+            --crop \
+            "${left}" "${top}" "${right}" "${bottom}" &>"${outSup}.out" || return 1
+        # supmover does not error for out-of-bounds subtitles
+        # so adjust crop value until there is most certainly no issue
+        if [[ "$(grep -c "${warnMsg}" "${cropSup}.out")" -gt ${maxAcceptableWarn} ]]; then
+            echo_warn "${warnMsg}, retrying... (try ${try})"
+            test "${left}" -gt ${offset} && left=$((left - offset))
+            test "${top}" -gt ${offset} && top=$((top - offset))
+            test "${right}" -gt ${offset} && right=$((right - offset))
+            test "${bottom}" -gt ${offset} && bottom=$((bottom - offset))
+        else
+            return 0
+        fi
+    done
+    # if we got here, all tries were had, so indicate failure
+    return 1
+}
+
 # extract PGS_SUB_STREAMS from INPUT
 # and crop using CROP_VALUE
 setup_pgs_mkv() {
@@ -226,78 +266,48 @@ setup_pgs_mkv() {
         cropMkv="${tmpdir}/${stream}.mkv"
         mkvextract "${INPUT}" tracks "${stream}:${ogSup}" || return 1
 
-        # check if PGS was uncropped
+        # check sup resolution
         local supRes
         supRes="$(get_sup_resolution "${ogSup}")" || return 1
-        # crop PGS if either initially cropping or "fixing"
-        # previously uncropped (relative to video) PGS subs
-        if [[ ${CROP_VALUE} != '' || ${supRes} != "${vidRes}" ]]; then
-            local supWidth supHeight
-            IFS=x read -r supWidth supHeight <<<"${supRes}"
-            local left top right bottom
+        local supWidth supHeight
+        IFS=x read -r supWidth supHeight <<<"${supRes}"
+        local left top right bottom
+        # determine crop values
+        # if the supfile is smaller than the video stream
+        # crop using aspect ratio instead of resolution
+        if [[ ${vidWidth} -gt ${supWidth} || ${vidHeight} -gt ${supHeight} ]]; then
+            echo_warn "PGS sup (stream=${stream}) is somehow smaller than initial video stream"
+            echo_warn "cropping based off of aspect ratio instead of resolution"
+            left=0
+            # (supHeight - ((vidHeight/vidWidth) * supWidth)) / 2
+            top="$(awk '{ print int(($1 - ($2 / $3 * $4)) / 2) }' <<<"${supHeight} ${vidHeight} ${vidWidth} ${supWidth}")"
+            right=${left}
+            bottom=${top}
+        # otherwise crop using the crop value
+        elif [[ ${CROP_VALUE} != '' ]]; then
+            # determine supmover crop based off of crop
+            local res w h x y
+            # extract ffmpeg crop value ("crop=w:h:x:y")
+            IFS='=' read -r _ res <<<"${CROP_VALUE}"
+            IFS=':' read -r w h x y <<<"${res}"
 
-            # determine crop values
-            # if the supfile is smaller than the video stream
-            # crop using aspect ratio
-            if [[ ${vidWidth} -gt ${supWidth} || ${vidHeight} -gt ${supHeight} ]]; then
-                echo_warn "PGS sup (stream=${stream}) is somehow smaller than initial video stream"
-                echo_warn "cropping based off of aspect ratio instead of resolution"
-                left=0
-                # (supHeight - ((vidHeight/vidWidth) * supWidth)) / 2
-                top="$(awk '{ print int(($1 - ($2 / $3 * $4)) / 2) }' <<<"${supHeight} ${vidHeight} ${vidWidth} ${supWidth}")"
-                right=${left}
-                bottom=${top}
-            # otherwise crop using the crop value
-            elif [[ ${CROP_VALUE} != '' ]]; then
-                # determine supmover crop based off of crop
-                local res w h x y
-                # extract ffmpeg crop value ("crop=w:h:x:y")
-                IFS='=' read -r _ res <<<"${CROP_VALUE}"
-                IFS=':' read -r w h x y <<<"${res}"
-
-                # ffmpeg crop value
-                # is different than supmover crop inputs
-                left=${x}
-                top=${y}
-                right=$((supWidth - w - left))
-                bottom=$((supHeight - h - top))
-            # fallback to just the video resolution
-            else
-                left=$(((supWidth - vidWidth) / 2))
-                top=$(((supHeight - vidHeight) / 2))
-                right=${left}
-                bottom=${top}
-            fi
-
-            # only crop if actually required
-            if [[ "${left}${top}${right}${bottom}" != "0000" ]]; then
-                # crop sup
-                (
-                    set -x
-                    "${SUPMOVER}" \
-                        "${ogSup}" \
-                        "${cropSup}" \
-                        --crop \
-                        "${left}" "${top}" "${right}" "${bottom}" &>"${cropSup}.out" || return 1
-                )
-                local cropRet=$?
-                # supmover does not error for out-of-bounds subtitles
-                # so error only when there is most certainly an issue
-                if [[ "$(grep -c 'Window is outside new screen area' "${cropSup}.out")" -gt 5 ]]; then
-                    echo_fail "check ${cropSup}.out for complete logs"
-                    cropRet=1
-                fi
-                if [[ ${cropRet} -ne 0 ]]; then
-                    rm -r "${tmpdir}" || return 1
-                    return 1
-                fi
-            else
-                # create placeholder copy for replacement
-                cp "${ogSup}" "${cropSup}" || return 1
-            fi
+            # ffmpeg crop value
+            # is different than supmover crop inputs
+            left=${x}
+            top=${y}
+            right=$((supWidth - w - left))
+            bottom=$((supHeight - h - top))
+        # fallback to just the video resolution
         else
-            # create placeholder copy for replacement
-            cp "${ogSup}" "${cropSup}" || return 1
+            left=$(((supWidth - vidWidth) / 2))
+            top=$(((supHeight - vidHeight) / 2))
+            right=${left}
+            bottom=${top}
+        fi
+
+        if ! crop_sup "${ogSup}" "${cropSup}" "${left}" "${top}" "${right}" "${bottom}"; then
+            rm -r "${tmpdir}" || return 1
+            return 1
         fi
 
         if ! replace_mkv_sup "${INPUT}" "${cropSup}" "${cropMkv}" "${stream}"; then
