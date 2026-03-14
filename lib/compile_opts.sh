@@ -48,7 +48,7 @@ libfribidi \
 libfreetype \
 libharfbuzz \
 libopenjpeg \
-libsvtav1_psy \
+libsvtav1_hdr \
 libfontconfig \
 "
 

@@ -24,7 +24,7 @@ Configuration is done through environment variables.
 By default, this project will build a static `ffmpeg` binary in `./gitignore/sysroot/bin/ffmpeg`.
 
 The user-overridable compile options are:
-- `ENABLE`: configure what ffmpeg enables (default: libaom libass libvpx libxml2 libvmaf libx264 libx265 libwebp libopus librav1e libdav1d libvorbis libmp3lame libfribidi libfreetype libharfbuzz libopenjpeg libsvtav1_psy libfontconfig )
+- `ENABLE`: configure what ffmpeg enables (default: libaom libass libvpx libxml2 libvmaf libx264 libx265 libwebp libopus librav1e libdav1d libvorbis libmp3lame libfribidi libfreetype libharfbuzz libopenjpeg libsvtav1_hdr libfontconfig )
 - `PREFIX`: prefix to install to, default is local install in ./gitignore/sysroot (default: local)
 - `STATIC`: static or shared build (default: ON)
 - `LTO`: enable link time optimization (default: ON)

@@ -324,6 +324,7 @@ fi' >"${compilerDir}/which"
 
 get_build_conf() {
     local getBuild="${1}"
+    local getBuildValue="${2:-}"
 
     local longestBuild=0
     local longestVer=0
@@ -335,12 +336,13 @@ get_build_conf() {
     local BUILDS_CONF='
 ffmpeg            8.0.1        tar.gz    https://github.com/FFmpeg/FFmpeg/archive/refs/tags/n${ver}.${ext}
 
+libsvtav1_hdr     4.0.1        tar.gz    https://github.com/juliobbv-p/svt-av1-hdr/archive/refs/tags/v${ver}.${ext} dovi_tool,hdr10plus_tool,cpuinfo
 libsvtav1_psy     3.0.2-B      tar.gz    https://github.com/BlueSwordM/svt-av1-psyex/archive/refs/tags/v${ver}.${ext} dovi_tool,hdr10plus_tool,cpuinfo
 hdr10plus_tool    1.7.2        tar.gz    https://github.com/quietvoid/hdr10plus_tool/archive/refs/tags/${ver}.${ext}
 dovi_tool         2.3.1        tar.gz    https://github.com/quietvoid/dovi_tool/archive/refs/tags/${ver}.${ext}
 cpuinfo           latest       git       https://github.com/pytorch/cpuinfo/
 
-libsvtav1         3.1.2        tar.gz    https://gitlab.com/AOMediaCodec/SVT-AV1/-/archive/v${ver}/SVT-AV1-v${ver}.${ext}
+libsvtav1         4.0.1        tar.gz    https://gitlab.com/AOMediaCodec/SVT-AV1/-/archive/v${ver}/SVT-AV1-v${ver}.${ext}
 librav1e          0.8.1        tar.gz    https://github.com/xiph/rav1e/archive/refs/tags/v${ver}.${ext}
 libaom            3.13.1       tar.gz    https://storage.googleapis.com/aom-releases/libaom-${ver}.${ext}
 libvmaf           3.0.0        tar.gz    https://github.com/Netflix/vmaf/archive/refs/tags/v${ver}.${ext}
@@ -454,6 +456,11 @@ supmover          2.4.3        tar.gz    https://github.com/MonoS/SupMover/archi
         extractedDir="${BUILD_DIR}/${build}-v${ver}"
     fi
 
+    if [[ -n ${getBuildValue} ]]; then
+        declare -n value=${getBuildValue}
+        echo "${value}"
+    fi
+
     return 0
 }
 
@@ -514,7 +521,7 @@ download_release() {
     else
         # for git downloads
         test -d "${download}" ||
-            git clone --recursive "${url}" "${download}" || return 1
+            git clone --depth 1 --recursive "${url}" "${download}" || return 1
         (
             cd "${download}" || exit 1
             local localHEAD remoteHEAD
@@ -605,7 +612,7 @@ do_build() {
         echo "LOCAL_PREFIX: ${LOCAL_PREFIX}"
         for patch in "${PATCHES_DIR}/${build}"/*.patch; do
             test -f "${patch}" || continue
-            echo -e "patch:${patch}\n$(<"${patch}")" >>"${newMetadataFile}"
+            echo -e "patch:${patch}\n$(<"${patch}")"
         done
         COLOR=OFF SHOW_SINGLE=true dump_arr "${BUILD_ENV_NAMES[@]}"
     } >"${newMetadataFile}"
@@ -839,19 +846,21 @@ build_cpuinfo() {
     sanitize_sysroot_libs libcpuinfo || return 1
 }
 
-build_libsvtav1() {
-    meta_cmake_build \
-        -DENABLE_AVX512=ON \
-        -DCOVERAGE=OFF || return 1
-    sanitize_sysroot_libs libSvtAv1Enc || return 1
+build_libsvtav1_hdr() {
+    build_libsvtav1_psy
 }
 
 build_libsvtav1_psy() {
-    meta_cmake_build \
-        -DENABLE_AVX512=ON \
-        -DCOVERAGE=OFF \
+    build_libsvtav1 \
         -DLIBDOVI_FOUND=1 \
-        -DLIBHDR10PLUS_RS_FOUND=1 || return 1
+        -DLIBHDR10PLUS_RS_FOUND=1
+}
+
+build_libsvtav1() {
+    meta_cmake_build \
+        -DSVT_AV1_LTO=OFF \
+        -DENABLE_AVX512=ON \
+        -DCOVERAGE=OFF "$@" || return 1
     sanitize_sysroot_libs libSvtAv1Enc || return 1
 }
 
@@ -983,6 +992,13 @@ build_cmake3() (
     # don't need to rebuild if already built
     if PATH="${LOCAL_PREFIX}/bin:${PATH}" using_cmake3; then
         return 0
+    fi
+
+    if is_android; then
+        CMAKE_FLAGS+=(
+            "-DCMAKE_USE_SYSTEM_LIBUV=ON"
+            "-DCMAKE_USE_SYSTEM_LIBARCHIVE=ON"
+        )
     fi
 
     CMAKE_FLAGS+=(
@@ -1261,14 +1277,11 @@ add_project_versioning_to_ffmpeg() {
         '' # pad with empty line
         "ffmpeg-builder=$(git -C "${REPO_DIR}" rev-parse HEAD)"
     )
-    for build in ${ENABLE}; do
+    for build in ${ENABLE} ffmpeg; do
         get_build_conf "${build}" || return 1
         # add build configuration info
         FFMPEG_BUILDER_INFO+=("${build}=${ver}")
     done
-    # and finally for ffmpeg itself
-    get_build_conf ffmpeg || return 1
-    FFMPEG_BUILDER_INFO+=("${build}=${ver}")
 
     local fname='opt_common.c'
     local optFile="fftools/${fname}"
@@ -1286,9 +1299,18 @@ add_project_versioning_to_ffmpeg() {
 build_ffmpeg() {
     add_project_versioning_to_ffmpeg || return 1
 
-    # libsvtav1_psy real name is libsvtav1
+    # libsvtav1_* patch and enable name change
     for enable in ${ENABLE}; do
-        test "${enable}" == 'libsvtav1_psy' && enable='libsvtav1'
+        if line_starts_with "${enable}" libsvtav1; then
+            # libsvtav1 v4 is breaking API
+            if [[ "$(get_build_conf "${enable}" ver)" == '4'* ]]; then
+                replace_line \
+                    libavcodec/libsvtav1.c \
+                    'param->enable_adaptive_quantization = 0;' \
+                    'param->aq_mode = 0;' || return 1
+            fi
+            enable=libsvtav1
+        fi
         CONFIGURE_FLAGS+=("--enable-${enable}")
     done
 

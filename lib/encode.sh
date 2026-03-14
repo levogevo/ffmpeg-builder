@@ -417,7 +417,7 @@ set_encode_opts() {
                 encode_usage
                 return 1
             fi
-            GRAIN="film-grain=${OPTARG}:film-grain-denoise=1:"
+            GRAIN="film-grain=${OPTARG}:film-grain-denoise=1:adaptive-film-grain=1:"
             optsUsed=$((optsUsed + 2))
             ;;
         P)
@@ -551,7 +551,7 @@ gen_encode_script() {
     local "${arrays[@]}"
 
     local videoParams=(
-        "-crf" '${CRF}' "-preset" '${PRESET}' "-g" "240"
+        "-crf" '${CRF}' "-preset" '${PRESET}'
     )
     local ffmpegParams=(
         '-hide_banner'
