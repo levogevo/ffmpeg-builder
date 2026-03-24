@@ -330,7 +330,7 @@ get_build_conf() {
     # name version file-extension url dep1,dep2
     # shellcheck disable=SC2016
     local BUILDS_CONF='
-ffmpeg            8.0.1        tar.gz    https://github.com/FFmpeg/FFmpeg/archive/refs/tags/n${ver}.${ext}
+ffmpeg            8.1          tar.gz    https://github.com/FFmpeg/FFmpeg/archive/refs/tags/n${ver}.${ext}
 
 libsvtav1_hdr     4.0.1        tar.gz    https://github.com/juliobbv-p/svt-av1-hdr/archive/refs/tags/v${ver}.${ext} dovi_tool,hdr10plus_tool,cpuinfo
 libsvtav1_psy     3.0.2-B      tar.gz    https://github.com/BlueSwordM/svt-av1-psyex/archive/refs/tags/v${ver}.${ext} dovi_tool,hdr10plus_tool,cpuinfo
@@ -338,7 +338,7 @@ hdr10plus_tool    1.7.2        tar.gz    https://github.com/quietvoid/hdr10plus_
 dovi_tool         2.3.1        tar.gz    https://github.com/quietvoid/dovi_tool/archive/refs/tags/${ver}.${ext}
 cpuinfo           main         git       https://github.com/pytorch/cpuinfo/
 
-libsvtav1         4.0.1        tar.gz    https://gitlab.com/AOMediaCodec/SVT-AV1/-/archive/v${ver}/SVT-AV1-v${ver}.${ext}
+libsvtav1         4.1.0        tar.gz    https://gitlab.com/AOMediaCodec/SVT-AV1/-/archive/v${ver}/SVT-AV1-v${ver}.${ext}
 librav1e          0.8.1        tar.gz    https://github.com/xiph/rav1e/archive/refs/tags/v${ver}.${ext}
 libaom            3.13.1       tar.gz    https://storage.googleapis.com/aom-releases/libaom-${ver}.${ext}
 libvmaf           3.0.0        tar.gz    https://github.com/Netflix/vmaf/archive/refs/tags/v${ver}.${ext}

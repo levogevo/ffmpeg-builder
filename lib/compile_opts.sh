@@ -34,6 +34,7 @@ DEFAULT_ENABLE="\
 libaom \
 libass \
 libvpx \
+libjxl \
 libxml2 \
 libvmaf \
 libx264 \
@@ -42,6 +43,7 @@ libwebp \
 libopus \
 librav1e \
 libdav1d \
+libbluray \
 libvorbis \
 libmp3lame \
 libfribidi \
