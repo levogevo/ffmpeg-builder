@@ -449,7 +449,8 @@ get_date() {
 
 get_remote_head() {
     local url="$1"
-    # ${build} is magically populated from get_build_conf
+    local build="$2"
+    local ver="$3"
     local remoteCommitFile="${TMP_DIR}/${build}-remote-head.txt"
     local date="$(get_date)"
     # want to cache the remote head for faster retrieval
@@ -463,7 +464,7 @@ get_remote_head() {
         remoteHEAD="${prevCommit}"
     else
         IFS=$' \t' read -r remoteHEAD _ <<< \
-            "$(git ls-remote "${url}" HEAD)"
+            "$(git ls-remote "${url}" "${ver}")"
         echo "${date} ${build} ${remoteHEAD}" >"${remoteCommitFile}"
     fi
     echo "${remoteHEAD}"

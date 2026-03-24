@@ -1,0 +1,11 @@
+diff --git a/libssh.pc.cmake b/libssh.pc.cmake
+index f288b94..438ca38 100644
+--- a/libssh.pc.cmake
++++ b/libssh.pc.cmake
+@@ -6,5 +6,5 @@ includedir=@CMAKE_INSTALL_FULL_INCLUDEDIR@
+ Name: @PROJECT_NAME@
+ Description: The SSH Library
+ Version: @PROJECT_VERSION@
+-Libs: -L${libdir} -lssh
++Libs: -L${libdir} -lssh -lcrypto -lz
+ Cflags: -I${includedir}

@@ -29,6 +29,8 @@ set_compile_opts() {
         PGO_FLAG
         LIB_SUFF
         BUILD_TYPE
+        NO_BUILD_TYPE
+        SHARED
     )
     unset "${BUILD_ENV_NAMES[@]}"
     export "${EXPORTED_ENV_NAMES[@]}"
@@ -228,15 +230,9 @@ fi' >"${compilerDir}/which"
     # static/shared linking
     if [[ ${STATIC} == 'ON' ]]; then
         BUILD_TYPE=static
-        CONFIGURE_FLAGS+=(
-            '--enable-static'
-            '--disable-shared'
-        )
+        NO_BUILD_TYPE=shared
+        SHARED=OFF
         MESON_FLAGS+=('--default-library=static')
-        CMAKE_FLAGS+=(
-            "-DENABLE_SHARED=OFF"
-            "-DBUILD_SHARED_LIBS=OFF"
-        )
         # darwin does not support -static
         if is_darwin; then
             FFMPEG_EXTRA_FLAGS+=("--extra-ldflags=${LDFLAGS_ARR[*]}")
@@ -244,14 +240,11 @@ fi' >"${compilerDir}/which"
             FFMPEG_EXTRA_FLAGS+=("--extra-ldflags=${LDFLAGS_ARR[*]} -static")
         fi
         FFMPEG_EXTRA_FLAGS+=("--pkg-config-flags=--static")
-        # remove shared libraries for static builds
-        USE_LIB_SUFF="${STATIC_LIB_SUFF}"
-        DEL_LIB_SUFF="${SHARED_LIB_SUFF}"
     else
         BUILD_TYPE=shared
+        NO_BUILD_TYPE=static
+        SHARED=ON
         CMAKE_FLAGS+=(
-            "-DENABLE_SHARED=ON"
-            "-DBUILD_SHARED_LIBS=ON"
             "-DCMAKE_INSTALL_RPATH=${LIBDIR}"
             "-DCMAKE_BUILD_WITH_INSTALL_RPATH=ON"
         )
@@ -263,15 +256,18 @@ fi' >"${compilerDir}/which"
         fi
         FFMPEG_EXTRA_FLAGS+=("--extra-ldflags=${LDFLAGS_ARR[*]}")
         LDFLAGS_ARR+=("-Wl,-rpath,${LIBDIR}")
-        CONFIGURE_FLAGS+=(
-            '--enable-shared'
-            '--disable-static'
-        )
         FFMPEG_EXTRA_FLAGS+=('--enable-rpath')
-        # remove static libraries for shared builds
-        USE_LIB_SUFF="${SHARED_LIB_SUFF}"
-        DEL_LIB_SUFF="${STATIC_LIB_SUFF}"
     fi
+    CMAKE_FLAGS+=(
+        "-DENABLE_SHARED=${SHARED}"
+        "-DBUILD_SHARED_LIBS=${SHARED}"
+    )
+    CONFIGURE_FLAGS+=(
+        "--enable-${BUILD_TYPE}"
+        "--disable-${NO_BUILD_TYPE}"
+    )
+    declare -gn USE_LIB_SUFF="${BUILD_TYPE^^}_LIB_SUFF"
+    declare -gn DEL_LIB_SUFF="${NO_BUILD_TYPE^^}_LIB_SUFF"
 
     # architecture/cpu compile flags
     # arm prefers -mcpu over -march for native builds
@@ -340,7 +336,7 @@ libsvtav1_hdr     4.0.1        tar.gz    https://github.com/juliobbv-p/svt-av1-h
 libsvtav1_psy     3.0.2-B      tar.gz    https://github.com/BlueSwordM/svt-av1-psyex/archive/refs/tags/v${ver}.${ext} dovi_tool,hdr10plus_tool,cpuinfo
 hdr10plus_tool    1.7.2        tar.gz    https://github.com/quietvoid/hdr10plus_tool/archive/refs/tags/${ver}.${ext}
 dovi_tool         2.3.1        tar.gz    https://github.com/quietvoid/dovi_tool/archive/refs/tags/${ver}.${ext}
-cpuinfo           latest       git       https://github.com/pytorch/cpuinfo/
+cpuinfo           main         git       https://github.com/pytorch/cpuinfo/
 
 libsvtav1         4.0.1        tar.gz    https://gitlab.com/AOMediaCodec/SVT-AV1/-/archive/v${ver}/SVT-AV1-v${ver}.${ext}
 librav1e          0.8.1        tar.gz    https://github.com/xiph/rav1e/archive/refs/tags/v${ver}.${ext}
@@ -348,13 +344,18 @@ libaom            3.13.1       tar.gz    https://storage.googleapis.com/aom-rele
 libvmaf           3.0.0        tar.gz    https://github.com/Netflix/vmaf/archive/refs/tags/v${ver}.${ext}
 libopus           1.6          tar.gz    https://github.com/xiph/opus/archive/refs/tags/v${ver}.${ext}
 libdav1d          1.5.3        tar.xz    https://downloads.videolan.org/videolan/dav1d/${ver}/dav1d-${ver}.${ext}
-libx264           latest       git       https://code.videolan.org/videolan/x264.git
+libx264           master       git       https://code.videolan.org/videolan/x264.git
 libmp3lame        3.100        tar.gz    https://pilotfiber.dl.sourceforge.net/project/lame/lame/${ver}/lame-${ver}.${ext}
 libvpx            1.16.0       tar.gz    https://github.com/webmproject/libvpx/archive/refs/tags/v${ver}.${ext}
+libbluray         1.4.0        tar.xz    https://download.videolan.org/pub/videolan/libbluray/${ver}/libbluray-${ver}.${ext} libfontconfig,libfreetype,libxml2
+libsnappy         1.2.2        tar.gz    https://github.com/google/snappy/archive/refs/tags/${ver}.${ext}
+libssh            0.11.1       tar.gz    https://github.com/canonical/libssh/archive/refs/tags/libssh-${ver}.${ext} libcrypto
+libcrypto         3.6.1        tar.gz    https://github.com/openssl/openssl/archive/refs/tags/openssl-${ver}.${ext} brotli,zlib,zstd
 
 libvorbis         1.3.7        tar.xz    https://github.com/xiph/vorbis/releases/download/v${ver}/libvorbis-${ver}.${ext} libogg,cmake3
 libogg            1.3.6        tar.xz    https://github.com/xiph/ogg/releases/download/v${ver}/libogg-${ver}.${ext}
 
+libjxl            v0.11.2      git       https://github.com/libjxl/libjxl brotli,libpng
 libopenjpeg       2.5.4        tar.gz    https://github.com/uclouvain/openjpeg/archive/refs/tags/v${ver}.${ext} libtiff,lcms2
 lcms2             2.18         tar.gz    https://github.com/mm2/Little-CMS/archive/refs/tags/lcms${ver}.${ext} libtiff,libjpeg
 libtiff           4.7.1        tar.gz    https://github.com/libsdl-org/libtiff/archive/refs/tags/v${ver}.${ext} libwebp,libdeflate,xz,zstd
@@ -384,7 +385,7 @@ libunibreak       6.1          tar.gz    https://github.com/adah1972/libunibreak
 libxml2           2.15.1       tar.gz    https://github.com/GNOME/libxml2/archive/refs/tags/v${ver}.${ext}
 xz                5.8.2        tar.xz    https://github.com/tukaani-project/xz/releases/download/v${ver}/xz-${ver}.${ext}
 libfribidi        1.0.16       tar.xz    https://github.com/fribidi/fribidi/releases/download/v${ver}/fribidi-${ver}.${ext}
-bzip              latest       git       https://github.com/libarchive/bzip2.git
+bzip              master       git       https://github.com/libarchive/bzip2.git
 brotli            1.2.0        tar.gz    https://github.com/google/brotli/archive/refs/tags/v${ver}.${ext}
 expat             2.7.3        tar.xz    https://github.com/libexpat/libexpat/releases/download/R_${ver//./_}/expat-${ver}.${ext}
 
@@ -447,11 +448,9 @@ supmover          2.4.3        tar.gz    https://github.com/MonoS/SupMover/archi
         # shellcheck disable=SC2206
         deps=(${deps//,/ })
     fi
-    # set version based off of remote head
-    # and set extracted directory
+    # set extracted directory
     if [[ ${ext} == 'git' ]]; then
-        ver="$(get_remote_head "${url}")"
-        extractedDir="${BUILD_DIR}/${build}-${ext}"
+        extractedDir="${BUILD_DIR}/${build}-${ext}-${ver}"
     else
         extractedDir="${BUILD_DIR}/${build}-v${ver}"
     fi
@@ -521,12 +520,15 @@ download_release() {
     else
         # for git downloads
         test -d "${download}" ||
-            git clone --depth 1 --recursive "${url}" "${download}" || return 1
+            git clone \
+                --branch "${ver}" \
+                --depth 1 \
+                --recursive "${url}" "${download}" || return 1
         (
             cd "${download}" || exit 1
             local localHEAD remoteHEAD
             localHEAD="$(git rev-parse HEAD)"
-            remoteHEAD="$(get_remote_head "${url}")"
+            remoteHEAD="$(get_remote_head "${url}" "${build}" "${ver}")"
             if [[ ${localHEAD} != "${remoteHEAD}" ]]; then
                 git stash
                 git pull --ff-only
@@ -713,6 +715,11 @@ sanitize_sysroot_libs() {
     if is_windows; then return; fi
 
     local libs=("$@")
+
+    if [[ -z ${USE_LIB_SUFF} || -z ${DEL_LIB_SUFF} ]]; then
+        echo_fail "{USE,DEL}_LIB_SUFF not defined"
+        return 1
+    fi
 
     for lib in "${libs[@]}"; do
         local libPath="${LIBDIR}/${lib}"
@@ -1052,6 +1059,26 @@ build_expat() {
     sanitize_sysroot_libs libexpat || return 1
 }
 
+build_libsnappy() {
+    meta_cmake_build \
+        -DSNAPPY_BUILD_TESTS=OFF \
+        -DSNAPPY_BUILD_BENCHMARKS=OFF || return 1
+    sanitize_sysroot_libs libsnappy || return 1
+}
+
+build_libssh() {
+    meta_cmake_build || return 1
+    sanitize_sysroot_libs libssh || return 1
+}
+
+build_libjxl() {
+    meta_cmake_build \
+        -DJPEGXL_FORCE_SYSTEM_BROTLI=ON \
+        -DJPEGXL_BUNDLE_LIBPNG=OFF || return 1
+    sanitize_sysroot_libs \
+        libjxl libjxl_cms libjxl_extras_codec libjxl_threads || return 1
+}
+
 ### MESON ###
 meta_meson_build() {
     local addFlags=("$@")
@@ -1169,6 +1196,12 @@ build_lcms2() {
     sanitize_sysroot_libs liblcms2 || return 1
 }
 
+build_libbluray() {
+    meta_meson_build \
+        -D enable_tools=false || return 1
+    sanitize_sysroot_libs libbluray || return 1
+}
+
 ### PYTHON ###
 build_glad() {
     true
@@ -1268,6 +1301,29 @@ build_libunibreak() {
 build_libass() {
     meta_configure_build || return 1
     sanitize_sysroot_libs libass || return 1
+}
+
+build_libcrypto() {
+    local cryptoFlags=()
+    if [[ ${STATIC} == 'OFF' ]]; then
+        cryptoFlags+=(no-shared)
+    fi
+
+    cryptoFlags+=(
+        enable-{brotli,zlib,zstd}
+        --with-{brotli,zlib,zstd}-include="${PREFIX}/include"
+        --with-{brotli,zlib,zstd}-lib="${LIBDIR}"
+    )
+
+    cp Configure configure
+    (
+        unset CONFIGURE_FLAGS
+        meta_configure_build \
+            --prefix="${PREFIX}" \
+			--libdir=lib \
+            "${cryptoFlags[@]}"
+    ) || return 1
+    sanitize_sysroot_libs libcrypto libssl || return 1
 }
 
 add_project_versioning_to_ffmpeg() {

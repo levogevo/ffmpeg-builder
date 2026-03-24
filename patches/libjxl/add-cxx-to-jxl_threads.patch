@@ -1,0 +1,12 @@
+diff --git a/lib/threads/libjxl_threads.pc.in b/lib/threads/libjxl_threads.pc.in
+index dfbaa3f..2c7bfe8 100644
+--- a/lib/threads/libjxl_threads.pc.in
++++ b/lib/threads/libjxl_threads.pc.in
+@@ -8,6 +8,6 @@ Description: JPEG XL multi-thread runner using std::threads.
+ Version: @JPEGXL_LIBRARY_VERSION@
+ @JPEGXL_REQUIRES_TYPE@: @JPEGXL_THREADS_LIBRARY_REQUIRES@
+ Libs: -L${libdir} -ljxl_threads
+-Libs.private: -lm
++Libs.private: -lm @PKGCONFIG_CXX_LIB@
+ Cflags: -I${includedir}
+ Cflags.private: -DJXL_THREADS_STATIC_DEFINE
