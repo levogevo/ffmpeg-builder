@@ -167,7 +167,7 @@ fi' >"${compilerDir}/which"
         "-DCMAKE_C_COMPILER_LAUNCHER=ccache"
         "-DCMAKE_CXX_COMPILER_LAUNCHER=ccache"
         "-DCMAKE_VERBOSE_MAKEFILE=ON"
-        "-G" "Ninja"
+        "-GNinja"
         "-DENABLE_STATIC=${STATIC}"
         "-DBUILD_STATIC_LIBS=${STATIC}"
         "-DBUILD_TESTING=OFF"
@@ -1075,8 +1075,18 @@ build_libjxl() {
     meta_cmake_build \
         -DJPEGXL_FORCE_SYSTEM_BROTLI=ON \
         -DJPEGXL_BUNDLE_LIBPNG=OFF || return 1
-    sanitize_sysroot_libs \
-        libjxl libjxl_cms libjxl_extras_codec libjxl_threads || return 1
+
+    local libs=(
+        libjxl
+        libjxl_cms
+        libjxl_threads
+    )
+    if [[ ${STATIC} == ON ]]; then
+        libs+=(libjxl_extras_codec)
+    else
+        libs+=(libjxl_jni)
+    fi
+    sanitize_sysroot_libs "${libs[@]}" || return 1
 }
 
 ### MESON ###
@@ -1320,7 +1330,7 @@ build_libcrypto() {
         unset CONFIGURE_FLAGS
         meta_configure_build \
             --prefix="${PREFIX}" \
-			--libdir=lib \
+            --libdir=lib \
             "${cryptoFlags[@]}"
     ) || return 1
     sanitize_sysroot_libs libcrypto libssl || return 1
@@ -1358,13 +1368,6 @@ build_ffmpeg() {
     # libsvtav1_* patch and enable name change
     for enable in ${ENABLE}; do
         if line_starts_with "${enable}" libsvtav1; then
-            # libsvtav1 v4 is breaking API
-            if [[ "$(get_build_conf "${enable}" ver)" == '4'* ]]; then
-                replace_line \
-                    libavcodec/libsvtav1.c \
-                    'param->enable_adaptive_quantization = 0;' \
-                    'param->aq_mode = 0;' || return 1
-            fi
             enable=libsvtav1
         fi
         CONFIGURE_FLAGS+=("--enable-${enable}")
