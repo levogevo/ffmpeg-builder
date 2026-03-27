@@ -14,7 +14,7 @@ def withDockerCreds(body) {
 pipeline {
     agent none
     environment {
-        DEBUG = "1"
+        DEBUG = "0"
         HEADLESS = "1"
     }
     options { buildDiscarder logRotator(numToKeepStr: '4') }
