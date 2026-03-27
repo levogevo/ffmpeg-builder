@@ -1013,7 +1013,6 @@ build_cmake3() (
     fi
 
     CMAKE_FLAGS+=(
-        "-DCMAKE_PREFIX_PATH=${LOCAL_PREFIX}"
         "-DCMAKE_INSTALL_PREFIX=${LOCAL_PREFIX}"
         "-DCMAKE_INSTALL_LIBDIR=lib"
         "-DCMAKE_BUILD_TYPE=Release"
