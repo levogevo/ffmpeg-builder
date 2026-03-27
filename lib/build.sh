@@ -351,7 +351,7 @@ libdav1d          1.5.3        tar.xz    https://downloads.videolan.org/videolan
 libx264           master       git       https://code.videolan.org/videolan/x264.git
 libmp3lame        3.100        tar.gz    https://pilotfiber.dl.sourceforge.net/project/lame/lame/${ver}/lame-${ver}.${ext}
 libvpx            1.16.0       tar.gz    https://github.com/webmproject/libvpx/archive/refs/tags/v${ver}.${ext}
-libbluray         1.4.0        tar.xz    https://download.videolan.org/pub/videolan/libbluray/${ver}/libbluray-${ver}.${ext} libfontconfig,libfreetype,libxml2
+libbluray         1.4.1        tar.xz    https://download.videolan.org/pub/videolan/libbluray/${ver}/libbluray-${ver}.${ext} libfontconfig,libfreetype,libxml2
 libsnappy         1.2.2        tar.gz    https://github.com/google/snappy/archive/refs/tags/${ver}.${ext}
 libssh            0.11.1       tar.gz    https://github.com/canonical/libssh/archive/refs/tags/libssh-${ver}.${ext} libcrypto
 libcrypto         3.6.1        tar.gz    https://github.com/openssl/openssl/archive/refs/tags/openssl-${ver}.${ext} brotli,zlib,zstd
