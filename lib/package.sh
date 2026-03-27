@@ -1,9 +1,7 @@
 #!/usr/bin/env bash
 
 check_for_package_cfg() {
-    local requiredCfg='ON:ON:ON:3'
-    local currentCfg="${STATIC}:${LTO}:${PGO}:${OPT}"
-    if [[ ${currentCfg} == "${requiredCfg}" ]]; then
+    if [[ ${PACKAGE} == 'ON' ]]; then
         return 0
     else
         return 1

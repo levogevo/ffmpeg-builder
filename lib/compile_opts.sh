@@ -7,7 +7,7 @@
 unset FB_COMP_OPTS_DESC
 declare -Ag FB_COMP_OPTS_DESC
 
-# default compile options
+# default build options
 FB_COMP_OPTS_DESC['CLEAN']='clean build directories before building'
 DEFAULT_CLEAN=ON
 
@@ -28,6 +28,9 @@ DEFAULT_ARCH=native
 
 FB_COMP_OPTS_DESC['PREFIX']='prefix to install to, default is local install in ./gitignore/sysroot'
 DEFAULT_PREFIX='local'
+
+FB_COMP_OPTS_DESC['PACKAGE']='package ffmpeg binaries to tarball in ./gitignore/package' 
+DEFAULT_PACKAGE=OFF
 
 FB_COMP_OPTS_DESC['ENABLE']='configure what ffmpeg enables'
 DEFAULT_ENABLE="\

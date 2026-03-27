@@ -89,7 +89,7 @@ $cmd "$@"' >"${ENTRY_SCRIPT}"
 gen_links || return 1
 
 # allow calling entry.sh with arguments as execution
-entry() { "$@" ; }
+entry() { "$@"; }
 
 set_completions() {
     for funcName in "${FB_FUNC_NAMES[@]}"; do
@@ -97,7 +97,7 @@ set_completions() {
     done
 }
 
-determine_pkg_mgr || return 1
+set_sudo || return 1
 check_compile_opts_override || return 1
 
 # set local prefix since some functions need it

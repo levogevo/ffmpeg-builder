@@ -301,6 +301,14 @@ print_os() {
     echo "${FB_OS}"
 }
 
+set_sudo() {
+    if is_windows || test "$(id -u)" -eq 0; then
+        SUDO=''
+    else
+        SUDO='sudo '
+    fi
+}
+
 is_positive_integer() {
     local input="$1"
     if [[ ${input} != ?(-)+([[:digit:]]) || ${input} -lt 0 ]]; then
@@ -431,7 +439,7 @@ have_required_version() {
 recreate_dir() {
     local dirs=("$@")
     for dir in "${dirs[@]}"; do
-        test -d "${dir}" && rm -rf "${dir}"
+        test -d "${dir}" && ${SUDO_MODIFY} rm -rf "${dir}"
         mkdir -p "${dir}" || return 1
     done
 }
@@ -439,7 +447,7 @@ recreate_dir() {
 ensure_dir() {
     local dirs=("$@")
     for dir in "${dirs[@]}"; do
-        test -d "${dir}" || mkdir -p "${dir}" || return 1
+        test -d "${dir}" || ${SUDO_MODIFY} mkdir -p "${dir}" || return 1
     done
 }
 

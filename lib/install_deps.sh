@@ -2,14 +2,6 @@
 
 # shellcheck disable=SC2120
 determine_pkg_mgr() {
-    # sudo used externally
-    # shellcheck disable=SC2034
-    if is_windows || test "$(id -u)" -eq 0; then
-        SUDO=''
-    else
-        SUDO='sudo '
-    fi
-
     # pkg-mgr update-cmd upgrade-cmd install-cmd check-cmd
     # shellcheck disable=SC2016
     local PKG_MGR_MAP='

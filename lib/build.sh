@@ -31,6 +31,9 @@ set_compile_opts() {
         BUILD_TYPE
         NO_BUILD_TYPE
         SHARED
+        BINDIR
+        LIBDIR
+        INCDIR
     )
     unset "${BUILD_ENV_NAMES[@]}"
     export "${EXPORTED_ENV_NAMES[@]}"
@@ -39,6 +42,10 @@ set_compile_opts() {
     JOBS="$(nproc)"
     # local vs system prefix
     test "${PREFIX}" == 'local' && PREFIX="${LOCAL_PREFIX}"
+    # relevant prefix directories
+    BINDIR="${PREFIX}/bin"
+    LIBDIR="${PREFIX}/lib"
+    INCDIR="${PREFIX}/include"
 
     # check if we need to handle PREFIX with sudo
     local testfile=''
@@ -53,14 +60,11 @@ set_compile_opts() {
         SUDO_MODIFY=''
     else
         SUDO_MODIFY="${SUDO}"
-        echo_warn "using ${SUDO}to install"
-        ${SUDO_MODIFY} mkdir -p "${PREFIX}/bin/" || return 1
+        echo_warn "using ${SUDO}to modify PREFIX"
     fi
     test -f "${testfile}" && ${SUDO_MODIFY} rm "${testfile}"
-    test -d "${PREFIX}" || { ${SUDO_MODIFY} mkdir -p "${PREFIX}" || return 1; }
+    ensure_dir "${BINDIR}" || return 1
 
-    # set library/pkgconfig directory
-    LIBDIR="${PREFIX}/lib"
     LDFLAGS_ARR=("-L${LIBDIR}")
 
     # android has different library location/names
@@ -182,7 +186,7 @@ fi' >"${compilerDir}/which"
 
     # add prefix include
     # TODO use cygpath for windows
-    CPPFLAGS_ARR+=("-I${PREFIX}/include")
+    CPPFLAGS_ARR+=("-I${INCDIR}")
 
     # if PGO is enabled, first build run will be to generate
     # second run will be to use generated profdata
@@ -684,11 +688,11 @@ build() {
 
     # skip packaging on PGO generate run
     if [[ ${PGO} == 'ON' && ${PGO_RUN} == 'generate' ]]; then
-        PATH="${PREFIX}/bin:${PATH}" gen_profdata
+        PATH="${BINDIR}:${PATH}" gen_profdata
         return $?
     fi
 
-    local ffmpegBin="${PREFIX}/bin/ffmpeg"
+    local ffmpegBin="${BINDIR}/ffmpeg"
     # run ffmpeg to show completion
     "${ffmpegBin}" -version || return 1
 
@@ -698,8 +702,8 @@ build() {
     if [[ ${ffmpeg} != "${ffmpegBin}" ]]; then
         echo
         echo_warn "ffmpeg in path (${ffmpeg}) is not the built one (${ffmpegBin})"
-        echo_info "consider adding ${PREFIX}/bin to \$PATH"
-        echo "echo 'export PATH=\"${PREFIX}/bin:\$PATH\"' >> ~/.bashrc"
+        echo_info "consider adding ${BINDIR} to \$PATH"
+        echo "echo 'export PATH=\"${BINDIR}:\$PATH\"' >> ~/.bashrc"
     fi
 
     package || return 1
@@ -1072,6 +1076,9 @@ build_libssh() {
 }
 
 build_libjxl() {
+    # jxl headers interfere with this build
+    recreate_dir "${INCDIR}/jxl" || return 1
+
     meta_cmake_build \
         -DJPEGXL_FORCE_SYSTEM_BROTLI=ON \
         -DJPEGXL_BUNDLE_LIBPNG=OFF || return 1
@@ -1084,7 +1091,7 @@ build_libjxl() {
     if [[ ${STATIC} == ON ]]; then
         libs+=(libjxl_extras_codec)
     else
-        libs+=(libjxl_jni)
+        is_darwin || libs+=(libjxl_jni)
     fi
     sanitize_sysroot_libs "${libs[@]}" || return 1
 }
@@ -1321,7 +1328,7 @@ build_libcrypto() {
 
     cryptoFlags+=(
         enable-{brotli,zlib,zstd}
-        --with-{brotli,zlib,zstd}-include="${PREFIX}/include"
+        --with-{brotli,zlib,zstd}-include="${INCDIR}"
         --with-{brotli,zlib,zstd}-lib="${LIBDIR}"
     )
 
@@ -1405,7 +1412,7 @@ build_ffmpeg() {
     meta_configure_build \
         "${ffmpegFlags[@]}" || return 1
     LTO="${ltoBackup}"
-    ${SUDO_MODIFY} cp ff*_g "${PREFIX}/bin"
+    ${SUDO_MODIFY} cp ff*_g "${BINDIR}"
     sanitize_sysroot_libs \
         libavcodec libavdevice libavfilter libswscale \
         libavformat libavutil libswresample || return 1
