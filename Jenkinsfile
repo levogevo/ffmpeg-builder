@@ -41,7 +41,7 @@ pipeline {
                 axes {
                     axis { 
                         name 'COMP_OPTS'; 
-                        values 'OPT=0 LTO=OFF STATIC=OFF', 'OPT=2 LTO=OFF', 'PGO=ON'
+                        values 'OPT=0 LTO=OFF STATIC=OFF', 'OPT=2 LTO=OFF', 'PGO=ON PACKAGE=ON'
                     }
                 }
                 stages {
@@ -62,7 +62,7 @@ pipeline {
                     axis { name 'DISTRO'; values 'ubuntu', 'fedora', 'debian', 'archlinux' }
                     axis { 
                         name 'COMP_OPTS'; 
-                        values 'OPT=0 LTO=OFF STATIC=OFF', 'OPT=2 LTO=OFF', 'PGO=ON'
+                        values 'OPT=0 LTO=OFF STATIC=OFF', 'OPT=2 LTO=OFF', 'PGO=ON PACKAGE=ON'
                     }
                 }
                 stages {

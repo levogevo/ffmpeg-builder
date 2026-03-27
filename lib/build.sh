@@ -1079,6 +1079,7 @@ build_libjxl() {
     recreate_dir "${INCDIR}/jxl" || return 1
 
     meta_cmake_build \
+        -DJPEGXL_ENABLE_JNI=OFF \
         -DJPEGXL_FORCE_SYSTEM_BROTLI=ON \
         -DJPEGXL_BUNDLE_LIBPNG=OFF || return 1
 
@@ -1089,8 +1090,6 @@ build_libjxl() {
     )
     if [[ ${STATIC} == ON ]]; then
         libs+=(libjxl_extras_codec)
-    else
-        is_darwin || libs+=(libjxl_jni)
     fi
     sanitize_sysroot_libs "${libs[@]}" || return 1
 }
