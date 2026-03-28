@@ -29,32 +29,34 @@ DEFAULT_ARCH=native
 FB_COMP_OPTS_DESC['PREFIX']='prefix to install to, default is local install in ./gitignore/sysroot'
 DEFAULT_PREFIX='local'
 
-FB_COMP_OPTS_DESC['PACKAGE']='package ffmpeg binaries to tarball in ./gitignore/package' 
+FB_COMP_OPTS_DESC['PACKAGE']='package ffmpeg binaries to tarball in ./gitignore/package'
 DEFAULT_PACKAGE=OFF
 
 FB_COMP_OPTS_DESC['ENABLE']='configure what ffmpeg enables'
-DEFAULT_ENABLE="\
-libaom \
-libass \
-libvpx \
-libjxl \
-libxml2 \
-libvmaf \
-libx264 \
-libx265 \
-libwebp \
-libopus \
-librav1e \
-libdav1d \
-libbluray \
-libvorbis \
-libmp3lame \
-libfribidi \
-libfreetype \
-libharfbuzz \
-libopenjpeg \
-libsvtav1_hdr \
-libfontconfig \
+DEFAULT_ENABLE="
+lcms2
+libaom
+libass
+libvpx
+libjxl
+libxml2
+libvmaf
+libx264
+libx265
+libwebp
+libopus
+librav1e
+libdav1d
+libbluray
+libsnappy
+libvorbis
+libmp3lame
+libfribidi
+libfreetype
+libharfbuzz
+libopenjpeg
+libsvtav1_hdr
+libfontconfig
 "
 
 # user-overridable compile option variable names

@@ -27,7 +27,7 @@ echo_wrapper() {
 
     echo -e "${args[@]}" "${color}${word:-''}${endColor}" "$@"
 }
-echo_fail() { color="${RED}" word="FAIL" echo_wrapper "$@"; }
+echo_fail() { color="${RED}" word="FAIL" echo_wrapper "$@" 1>&2; }
 echo_info() { color="${CYAN}" word="INFO" echo_wrapper "$@"; }
 echo_pass() { color="${GREEN}" word="PASS" echo_wrapper "$@"; }
 echo_warn() { color="${YELLOW}" word="WARN" echo_wrapper "$@"; }

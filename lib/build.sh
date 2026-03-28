@@ -322,6 +322,8 @@ fi' >"${compilerDir}/which"
     echo
 }
 
+# BUILDS_CONF intentionally does not expand variables
+# shellcheck disable=SC2016
 get_build_conf() {
     local getBuild="${1}"
     local getBuildValue="${2:-}"
@@ -332,68 +334,68 @@ get_build_conf() {
     local padding=4
 
     # name version file-extension url dep1,dep2
-    # shellcheck disable=SC2016
     local BUILDS_CONF='
 ffmpeg            8.1          tar.gz    https://github.com/FFmpeg/FFmpeg/archive/refs/tags/n${ver}.${ext}
-
-libsvtav1_hdr     4.0.1        tar.gz    https://github.com/juliobbv-p/svt-av1-hdr/archive/refs/tags/v${ver}.${ext} dovi_tool,hdr10plus_tool,cpuinfo
-libsvtav1_psy     3.0.2-B      tar.gz    https://github.com/BlueSwordM/svt-av1-psyex/archive/refs/tags/v${ver}.${ext} dovi_tool,hdr10plus_tool,cpuinfo
-hdr10plus_tool    1.7.2        tar.gz    https://github.com/quietvoid/hdr10plus_tool/archive/refs/tags/${ver}.${ext}
-dovi_tool         2.3.1        tar.gz    https://github.com/quietvoid/dovi_tool/archive/refs/tags/${ver}.${ext}
-cpuinfo           main         git       https://github.com/pytorch/cpuinfo/
-
-libsvtav1         4.1.0        tar.gz    https://gitlab.com/AOMediaCodec/SVT-AV1/-/archive/v${ver}/SVT-AV1-v${ver}.${ext}
-librav1e          0.8.1        tar.gz    https://github.com/xiph/rav1e/archive/refs/tags/v${ver}.${ext}
+'
+    # ffmpeg --enable packages
+    BUILDS_CONF+='
+lcms2             2.18         tar.gz    https://github.com/mm2/Little-CMS/archive/refs/tags/lcms${ver}.${ext} libtiff,libjpeg
 libaom            3.13.1       tar.gz    https://storage.googleapis.com/aom-releases/libaom-${ver}.${ext}
-libvmaf           3.0.0        tar.gz    https://github.com/Netflix/vmaf/archive/refs/tags/v${ver}.${ext}
-libopus           1.6          tar.gz    https://github.com/xiph/opus/archive/refs/tags/v${ver}.${ext}
-libdav1d          1.5.3        tar.xz    https://downloads.videolan.org/videolan/dav1d/${ver}/dav1d-${ver}.${ext}
-libx264           master       git       https://code.videolan.org/videolan/x264.git
-libmp3lame        3.100        tar.gz    https://pilotfiber.dl.sourceforge.net/project/lame/lame/${ver}/lame-${ver}.${ext}
+libass            0.17.4       tar.xz    https://github.com/libass/libass/releases/download/${ver}/libass-${ver}.${ext} libfontconfig,libfreetype,libharfbuzz,libfribidi,libunibreak,libxml2,xz
 libvpx            1.16.0       tar.gz    https://github.com/webmproject/libvpx/archive/refs/tags/v${ver}.${ext}
+libjxl            v0.11.2      git       https://github.com/libjxl/libjxl brotli,libpng
+libxml2           2.15.1       tar.gz    https://github.com/GNOME/libxml2/archive/refs/tags/v${ver}.${ext}
+libvmaf           3.0.0        tar.gz    https://github.com/Netflix/vmaf/archive/refs/tags/v${ver}.${ext}
+libx264           master       git       https://code.videolan.org/videolan/x264.git
+libx265           4.1          tar.gz    http://ftp.videolan.org/pub/videolan/x265/x265_${ver}.${ext} libnuma,cmake3
+libwebp           1.6.0        tar.gz    https://github.com/webmproject/libwebp/archive/refs/tags/v${ver}.${ext} libpng,libjpeg
+libopus           1.6          tar.gz    https://github.com/xiph/opus/archive/refs/tags/v${ver}.${ext}
+librav1e          0.8.1        tar.gz    https://github.com/xiph/rav1e/archive/refs/tags/v${ver}.${ext}
+libdav1d          1.5.3        tar.xz    https://downloads.videolan.org/videolan/dav1d/${ver}/dav1d-${ver}.${ext}
 libbluray         1.4.1        tar.xz    https://download.videolan.org/pub/videolan/libbluray/${ver}/libbluray-${ver}.${ext} libfontconfig,libfreetype,libxml2
 libsnappy         1.2.2        tar.gz    https://github.com/google/snappy/archive/refs/tags/${ver}.${ext}
-libssh            0.11.1       tar.gz    https://github.com/canonical/libssh/archive/refs/tags/libssh-${ver}.${ext} libcrypto
-libcrypto         3.6.1        tar.gz    https://github.com/openssl/openssl/archive/refs/tags/openssl-${ver}.${ext} brotli,zlib,zstd
-
 libvorbis         1.3.7        tar.xz    https://github.com/xiph/vorbis/releases/download/v${ver}/libvorbis-${ver}.${ext} libogg,cmake3
-libogg            1.3.6        tar.xz    https://github.com/xiph/ogg/releases/download/v${ver}/libogg-${ver}.${ext}
-
-libjxl            v0.11.2      git       https://github.com/libjxl/libjxl brotli,libpng
+libmp3lame        3.100        tar.gz    https://pilotfiber.dl.sourceforge.net/project/lame/lame/${ver}/lame-${ver}.${ext}
+libfribidi        1.0.16       tar.xz    https://github.com/fribidi/fribidi/releases/download/v${ver}/fribidi-${ver}.${ext}
+libfreetype       2.14.1       tar.xz    https://downloads.sourceforge.net/freetype/freetype-${ver}.${ext} bzip,libpng,zlib,brotli,libharfbuzzNFTP
+libharfbuzz       12.3.0       tar.xz    https://github.com/harfbuzz/harfbuzz/releases/download/${ver}/harfbuzz-${ver}.${ext} libfreetype
 libopenjpeg       2.5.4        tar.gz    https://github.com/uclouvain/openjpeg/archive/refs/tags/v${ver}.${ext} libtiff,lcms2
-lcms2             2.18         tar.gz    https://github.com/mm2/Little-CMS/archive/refs/tags/lcms${ver}.${ext} libtiff,libjpeg
-libtiff           4.7.1        tar.gz    https://github.com/libsdl-org/libtiff/archive/refs/tags/v${ver}.${ext} libwebp,libdeflate,xz,zstd
-libwebp           1.6.0        tar.gz    https://github.com/webmproject/libwebp/archive/refs/tags/v${ver}.${ext} libpng,libjpeg
-libjpeg           3.0.3        tar.gz    https://github.com/winlibs/libjpeg/archive/refs/tags/libjpeg-turbo-${ver}.${ext}
-libpng            1.6.53       tar.gz    https://github.com/pnggroup/libpng/archive/refs/tags/v${ver}.${ext} zlib
+libsvtav1         4.1.0        tar.gz    https://gitlab.com/AOMediaCodec/SVT-AV1/-/archive/v${ver}/SVT-AV1-v${ver}.${ext}
+libsvtav1_hdr     4.0.1        tar.gz    https://github.com/juliobbv-p/svt-av1-hdr/archive/refs/tags/v${ver}.${ext} dovi_tool,hdr10plus_tool,cpuinfo
+libsvtav1_psy     3.0.2-B      tar.gz    https://github.com/BlueSwordM/svt-av1-psyex/archive/refs/tags/v${ver}.${ext} dovi_tool,hdr10plus_tool,cpuinfo
+libfontconfig     2.17.1       tar.xz    https://gitlab.freedesktop.org/api/v4/projects/890/packages/generic/fontconfig/${ver}/fontconfig-${ver}.${ext} libharfbuzz,expat,brotli
+'
+    # dependencies
+    BUILDS_CONF+='
+xz                5.8.2        tar.xz    https://github.com/tukaani-project/xz/releases/download/v${ver}/xz-${ver}.${ext}
+glad              2.0.8        tar.gz    https://github.com/Dav1dde/glad/archive/refs/tags/v${ver}.${ext}
 zlib              1.3.1        tar.gz    https://github.com/madler/zlib/archive/refs/tags/v${ver}.${ext}
-libdeflate        1.25         tar.gz    https://github.com/ebiggers/libdeflate/archive/refs/tags/v${ver}.${ext} zlib
 zstd              1.5.7        tar.gz    https://github.com/facebook/zstd/archive/refs/tags/v${ver}.${ext}
-
-libplacebo        7.351.0      tar.gz    https://github.com/haasn/libplacebo/archive/refs/tags/v${ver}.${ext} glslang,vulkan_loader,glad
+bzip              master       git       https://github.com/libarchive/bzip2.git
+expat             2.7.3        tar.xz    https://github.com/libexpat/libexpat/releases/download/R_${ver//./_}/expat-${ver}.${ext}
+brotli            1.2.0        tar.gz    https://github.com/google/brotli/archive/refs/tags/v${ver}.${ext}
+cmake3            3.31.8       tar.gz    https://github.com/Kitware/CMake/archive/refs/tags/v${ver}.${ext}
+libogg            1.3.6        tar.xz    https://github.com/xiph/ogg/releases/download/v${ver}/libogg-${ver}.${ext}
+libpng            1.6.53       tar.gz    https://github.com/pnggroup/libpng/archive/refs/tags/v${ver}.${ext} zlib
+libtiff           4.7.1        tar.gz    https://github.com/libsdl-org/libtiff/archive/refs/tags/v${ver}.${ext} libwebp,libdeflate,xz,zstd
+cpuinfo           main         git       https://github.com/pytorch/cpuinfo/
+libjpeg           3.0.3        tar.gz    https://github.com/winlibs/libjpeg/archive/refs/tags/libjpeg-turbo-${ver}.${ext}
 glslang           16.0.0       tar.gz    https://github.com/KhronosGroup/glslang/archive/refs/tags/${ver}.${ext} spirv_tools
+libnuma           2.0.19       tar.gz    https://github.com/numactl/numactl/archive/refs/tags/v${ver}.${ext}
+supmover          2.4.3        tar.gz    https://github.com/MonoS/SupMover/archive/refs/tags/v${ver}.${ext}
+dovi_tool         2.3.1        tar.gz    https://github.com/quietvoid/dovi_tool/archive/refs/tags/${ver}.${ext}
+libcrypto         3.6.1        tar.gz    https://github.com/openssl/openssl/archive/refs/tags/openssl-${ver}.${ext} brotli,zlib,zstd
+libdeflate        1.25         tar.gz    https://github.com/ebiggers/libdeflate/archive/refs/tags/v${ver}.${ext} zlib
+libunibreak       6.1          tar.gz    https://github.com/adah1972/libunibreak/releases/download/libunibreak_${ver//./_}/libunibreak-${ver}.${ext}
 spirv_tools       2025.4       tar.gz    https://github.com/KhronosGroup/SPIRV-Tools/archive/refs/tags/v${ver}.${ext} spirv_headers
 spirv_headers     1.4.328.1    tar.gz    https://github.com/KhronosGroup/SPIRV-Headers/archive/refs/tags/vulkan-sdk-${ver}.${ext}
-glad              2.0.8        tar.gz    https://github.com/Dav1dde/glad/archive/refs/tags/v${ver}.${ext}
-
-libx265           4.1          tar.gz    http://ftp.videolan.org/pub/videolan/x265/x265_${ver}.${ext} libnuma,cmake3
-libnuma           2.0.19       tar.gz    https://github.com/numactl/numactl/archive/refs/tags/v${ver}.${ext}
-cmake3            3.31.8       tar.gz    https://github.com/Kitware/CMake/archive/refs/tags/v${ver}.${ext}
-
-libass            0.17.4       tar.xz    https://github.com/libass/libass/releases/download/${ver}/libass-${ver}.${ext} libfontconfig,libfreetype,libharfbuzz,libfribidi,libunibreak,libxml2,xz
-libfontconfig     2.17.1       tar.xz    https://gitlab.freedesktop.org/api/v4/projects/890/packages/generic/fontconfig/${ver}/fontconfig-${ver}.${ext} libharfbuzz,expat,brotli
-libfreetype       2.14.1       tar.xz    https://downloads.sourceforge.net/freetype/freetype-${ver}.${ext} bzip,libpng,zlib,brotli,libharfbuzzNFTP
+hdr10plus_tool    1.7.2        tar.gz    https://github.com/quietvoid/hdr10plus_tool/archive/refs/tags/${ver}.${ext}
 libharfbuzzNFTP   12.3.0       tar.xz    https://github.com/harfbuzz/harfbuzz/releases/download/${ver}/harfbuzz-${ver}.${ext}
-libharfbuzz       12.3.0       tar.xz    https://github.com/harfbuzz/harfbuzz/releases/download/${ver}/harfbuzz-${ver}.${ext} libfreetype
-libunibreak       6.1          tar.gz    https://github.com/adah1972/libunibreak/releases/download/libunibreak_${ver//./_}/libunibreak-${ver}.${ext}
-libxml2           2.15.1       tar.gz    https://github.com/GNOME/libxml2/archive/refs/tags/v${ver}.${ext}
-xz                5.8.2        tar.xz    https://github.com/tukaani-project/xz/releases/download/v${ver}/xz-${ver}.${ext}
-libfribidi        1.0.16       tar.xz    https://github.com/fribidi/fribidi/releases/download/v${ver}/fribidi-${ver}.${ext}
-bzip              master       git       https://github.com/libarchive/bzip2.git
-brotli            1.2.0        tar.gz    https://github.com/google/brotli/archive/refs/tags/v${ver}.${ext}
-expat             2.7.3        tar.xz    https://github.com/libexpat/libexpat/releases/download/R_${ver//./_}/expat-${ver}.${ext}
-
-supmover          2.4.3        tar.gz    https://github.com/MonoS/SupMover/archive/refs/tags/v${ver}.${ext}
+'
+    # ffmpeg --enable that are not added to DEFAULT_ENABLE (WIP)
+    BUILDS_CONF+='
+libssh            0.11.1       tar.gz    https://github.com/canonical/libssh/archive/refs/tags/libssh-${ver}.${ext} libcrypto
+libplacebo        7.351.0      tar.gz    https://github.com/haasn/libplacebo/archive/refs/tags/v${ver}.${ext} glslang,vulkan_loader,glad
 '
     local supported_builds=()
     unset ver ext url deps extractedDir
@@ -403,9 +405,11 @@ supmover          2.4.3        tar.gz    https://github.com/MonoS/SupMover/archi
         supported_builds+=("${build}")
 
         # padding support
-        longestBuild="$(fb_max "${#build}" "${longestBuild}")"
-        longestVer="$(fb_max "${#ver}" "${longestVer}")"
-        longestExt="$(fb_max "${#ext}" "${longestExt}")"
+        if [[ ${getBuild} == 'formatted' ]]; then
+            longestBuild="$(fb_max "${#build}" "${longestBuild}")"
+            longestVer="$(fb_max "${#ver}" "${longestVer}")"
+            longestExt="$(fb_max "${#ext}" "${longestExt}")"
+        fi
 
         if [[ ${getBuild} != "${build}" ]]; then
             build=''
