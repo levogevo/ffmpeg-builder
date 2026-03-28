@@ -1067,7 +1067,15 @@ build_expat() {
 }
 
 build_libsnappy() {
+    local modCxx
+    modCxx="$(get_cmake_flag CMAKE_CXX_FLAGS "${CMAKE_FLAGS[@]}")" || return 1
+    if [[ ${PGO} == 'ON' ]]; then
+        # libsnappy fails PGO for some reason
+        modCxx+=" -Wno-backend-plugin"
+    fi
+
     meta_cmake_build \
+        -DCMAKE_CXX_FLAGS="${modCxx}" \
         -DSNAPPY_BUILD_TESTS=OFF \
         -DSNAPPY_BUILD_BENCHMARKS=OFF || return 1
     sanitize_sysroot_libs libsnappy || return 1

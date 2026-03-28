@@ -420,6 +420,25 @@ using_cmake3() {
     line_starts_with "${cmakeVersion}" 3
 }
 
+get_cmake_flag() {
+    local findFlag="$1"
+    shift
+    local flags=("$@")
+    local flagOption
+    for flag in "${flags[@]}"; do
+        if line_starts_with "${flag}" "-D${findFlag}="; then
+            IFS='=' read -r _ flagOption <<<"${flag}"
+        fi
+    done
+
+    if [[ -z ${flagOption} ]]; then
+        echo_fail "could not find ${findFlag} from ${flags[*]}"
+        return 1
+    else
+        echo "${flagOption}"
+    fi
+}
+
 have_req_meson_version() {
     local min=1.6.1
     have_required_version "$(meson --version)" "${min}"
