@@ -705,9 +705,10 @@ build() {
     local ffmpeg="$(command -v ffmpeg 2>/dev/null)"
     if [[ ${ffmpeg} != "${ffmpegBin}" ]]; then
         echo
-        echo_warn "ffmpeg in path (${ffmpeg}) is not the built one (${ffmpegBin})"
-        echo_info "consider adding ${BINDIR} to \$PATH"
-        echo "echo 'export PATH=\"${BINDIR}:\$PATH\"' >> ~/.bashrc"
+        echo_warn "ffmpeg in PATH (${ffmpeg}) is not the built one (${ffmpegBin})"
+        local homeAwareBin="${BINDIR//${HOME}/\$HOME}"
+        echo_info "consider adding ${homeAwareBin} to \$PATH"
+        echo "echo 'export PATH=\"${homeAwareBin}:\$PATH\"' >> ~/.bashrc"
     fi
 
     package || return 1
