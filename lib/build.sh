@@ -343,7 +343,7 @@ lcms2             2.18         tar.gz    https://github.com/mm2/Little-CMS/archi
 libaom            3.13.1       tar.gz    https://storage.googleapis.com/aom-releases/libaom-${ver}.${ext}
 libass            0.17.4       tar.xz    https://github.com/libass/libass/releases/download/${ver}/libass-${ver}.${ext} libfontconfig,libfreetype,libharfbuzz,libfribidi,libunibreak,libxml2,xz
 libvpx            1.16.0       tar.gz    https://github.com/webmproject/libvpx/archive/refs/tags/v${ver}.${ext}
-libjxl            v0.11.2      git       https://github.com/libjxl/libjxl brotli,libpng
+libjxl            v0.11.2      git       https://github.com/libjxl/libjxl brotli,libpng,libwebp
 libxml2           2.15.1       tar.gz    https://github.com/GNOME/libxml2/archive/refs/tags/v${ver}.${ext}
 libvmaf           3.0.0        tar.gz    https://github.com/Netflix/vmaf/archive/refs/tags/v${ver}.${ext}
 libx264           master       git       https://code.videolan.org/videolan/x264.git
