@@ -14,7 +14,7 @@ gen_function_info() {
 gen_compile_opts_info() {
     for opt in "${FB_COMP_OPTS[@]}"; do
         declare -n defOptVal="DEFAULT_${opt}"
-        echo "- \`${opt}\`: ${FB_COMP_OPTS_DESC[${opt}]} (default: ${defOptVal})"
+        echo "- \`${opt}\`: ${FB_COMP_OPTS_DESC[${opt}]}. default: ${defOptVal}"
     done
 }
 
@@ -70,11 +70,11 @@ ENABLE='libdav1d' ./scripts/docker_run_image.sh ubuntu ./scripts/build.sh
 # Encoding scripts
 The encoding scripts are designed to be installed to system paths for re-use via symbolic links back to this repo using the \`-I\` flag.
 
-## Encoding with svtav1-psy and opus
+## Encoding with svtav1 and opus
 \`\`\`bash
 $(encode)
 \`\`\`
-- Uses svtav1-psy for the video encoder.
+- Uses svtav1 for the video encoder.
 - Uses libopus for the audio encoder.
 - Skips re-encoding av1/opus streams.
 - Only maps audio streams that match the video stream language if the video stream has a defined language.

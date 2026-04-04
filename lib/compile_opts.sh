@@ -8,28 +8,28 @@ unset FB_COMP_OPTS_DESC
 declare -Ag FB_COMP_OPTS_DESC
 
 # default build options
-FB_COMP_OPTS_DESC['CLEAN']='clean build directories before building'
+FB_COMP_OPTS_DESC['CLEAN']='clean build directories before building (ON/OFF)'
 DEFAULT_CLEAN=ON
 
-FB_COMP_OPTS_DESC['LTO']='enable link time optimization'
+FB_COMP_OPTS_DESC['LTO']='enable link time optimization (ON/OFF)'
 DEFAULT_LTO=ON
 
-FB_COMP_OPTS_DESC['PGO']='enable profile guided optimization'
+FB_COMP_OPTS_DESC['PGO']='enable profile guided optimization (ON/OFF)'
 DEFAULT_PGO=OFF
 
 FB_COMP_OPTS_DESC['OPT']='optimization level (0-3)'
 DEFAULT_OPT=3
 
-FB_COMP_OPTS_DESC['STATIC']='static or shared build'
+FB_COMP_OPTS_DESC['STATIC']='static (ON) or shared (OFF) build'
 DEFAULT_STATIC=ON
 
 FB_COMP_OPTS_DESC['ARCH']='architecture type (x86-64-v{1,2,3,4}, armv8-a, etc)'
 DEFAULT_ARCH=native
 
-FB_COMP_OPTS_DESC['PREFIX']='prefix to install to, default is local install in ./gitignore/sysroot'
+FB_COMP_OPTS_DESC['PREFIX']='path to install to, local install is in ./gitignore/sysroot'
 DEFAULT_PREFIX='local'
 
-FB_COMP_OPTS_DESC['PACKAGE']='package ffmpeg binaries to tarball in ./gitignore/package'
+FB_COMP_OPTS_DESC['PACKAGE']='package ffmpeg binaries to tarball in ./gitignore/package (ON/OFF)'
 DEFAULT_PACKAGE=OFF
 
 FB_COMP_OPTS_DESC['ENABLE']='configure what ffmpeg enables'

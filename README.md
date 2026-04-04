@@ -24,7 +24,7 @@ Configuration is done through environment variables.
 By default, this project will build a static `ffmpeg` binary in `./gitignore/sysroot/bin/ffmpeg`.
 
 The user-overridable compile options are:
-- `ENABLE`: configure what ffmpeg enables (default: 
+- `ENABLE`: configure what ffmpeg enables. default: 
 lcms2
 libaom
 libass
@@ -48,15 +48,15 @@ libharfbuzz
 libopenjpeg
 libsvtav1_hdr
 libfontconfig
-)
-- `PREFIX`: prefix to install to, default is local install in ./gitignore/sysroot (default: local)
-- `STATIC`: static or shared build (default: ON)
-- `LTO`: enable link time optimization (default: ON)
-- `CLEAN`: clean build directories before building (default: ON)
-- `PGO`: enable profile guided optimization (default: OFF)
-- `PACKAGE`: package ffmpeg binaries to tarball in ./gitignore/package (default: OFF)
-- `ARCH`: architecture type (x86-64-v{1,2,3,4}, armv8-a, etc) (default: native)
-- `OPT`: optimization level (0-3) (default: 3)
+
+- `PREFIX`: path to install to, local install is in ./gitignore/sysroot. default: local
+- `STATIC`: static (ON) or shared (OFF) build. default: ON
+- `LTO`: enable link time optimization (ON/OFF). default: ON
+- `CLEAN`: clean build directories before building (ON/OFF). default: ON
+- `PGO`: enable profile guided optimization (ON/OFF). default: OFF
+- `PACKAGE`: package ffmpeg binaries to tarball in ./gitignore/package (ON/OFF). default: OFF
+- `ARCH`: architecture type (x86-64-v{1,2,3,4}, armv8-a, etc). default: native
+- `OPT`: optimization level (0-3). default: 3
 
 Examples:
 - only build libsvtav1_psy and libopus: `ENABLE='libsvtav1_psy libopus' ./scripts/build.sh`
@@ -80,7 +80,7 @@ ENABLE='libdav1d' ./scripts/docker_run_image.sh ubuntu ./scripts/build.sh
 # Encoding scripts
 The encoding scripts are designed to be installed to system paths for re-use via symbolic links back to this repo using the `-I` flag.
 
-## Encoding with svtav1-psy and opus
+## Encoding with svtav1 and opus
 ```bash
 encode -i input [options] output
 	[-P NUM] set preset (default: 3)
@@ -98,7 +98,7 @@ encode -i input [options] output
 	[-I] system install at /usr/local/bin/encode
 	[-U] uninstall from /usr/local/bin/encode
 ```
-- Uses svtav1-psy for the video encoder.
+- Uses svtav1 for the video encoder.
 - Uses libopus for the audio encoder.
 - Skips re-encoding av1/opus streams.
 - Only maps audio streams that match the video stream language if the video stream has a defined language.
