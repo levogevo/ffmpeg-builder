@@ -170,15 +170,16 @@ check_for_req_pkgs() {
         if missing_cmd rustup; then
             echo_warn "installing rustup"
             curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-            # shellcheck disable=SC2016
-            grep -q 'source "${HOME}/.cargo/env"' "${HOME}/.bashrc" ||
-                echo 'source "${HOME}/.cargo/env"' >>"${HOME}/.bashrc"
-            # shellcheck disable=SC1091
+        fi
+        if missing_cmd cargo; then
             source "${HOME}/.bashrc"
         fi
     fi
 
-    has_cmd cargo-cbuild || echo_if_fail cargo install cargo-c || return 1
+    if ! has_cmd cargo-cbuild; then
+        echo_info "installing cargo-c"
+        echo_if_fail cargo install cargo-c || return 1
+    fi
     echo_pass "cargo-c is installed"
     echo_pass "all required packages installed"
 

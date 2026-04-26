@@ -51,8 +51,8 @@ get_crop() {
     duration="$(get_duration "${file}")" || return 1
     # don't care about decimal points
     IFS='.' read -r duration _ <<<"${duration}"
-    # get crop value for first half of input
-    local timeEnc=$((duration / 20))
+    # get crop value for first tenth of input
+    local timeEnc=$((duration / 10))
     ffmpeg \
         -y \
         -hide_banner \
