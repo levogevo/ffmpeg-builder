@@ -335,7 +335,7 @@ get_build_conf() {
 
     # name version file-extension url dep1,dep2
     local BUILDS_CONF='
-ffmpeg            8.1          tar.gz    https://github.com/FFmpeg/FFmpeg/archive/refs/tags/n${ver}.${ext}
+ffmpeg            8.1.1        tar.gz    https://github.com/FFmpeg/FFmpeg/archive/refs/tags/n${ver}.${ext}
 '
     # ffmpeg --enable packages
     BUILDS_CONF+='
@@ -349,7 +349,7 @@ libvmaf           3.0.0        tar.gz    https://github.com/Netflix/vmaf/archive
 libx264           master       git       https://code.videolan.org/videolan/x264.git
 libx265           4.1          tar.gz    http://ftp.videolan.org/pub/videolan/x265/x265_${ver}.${ext} libnuma,cmake3
 libwebp           1.6.0        tar.gz    https://github.com/webmproject/libwebp/archive/refs/tags/v${ver}.${ext} libpng,libjpeg
-libopus           1.6          tar.gz    https://github.com/xiph/opus/archive/refs/tags/v${ver}.${ext}
+libopus           1.6.1        tar.gz    https://github.com/xiph/opus/archive/refs/tags/v${ver}.${ext}
 librav1e          0.8.1        tar.gz    https://github.com/xiph/rav1e/archive/refs/tags/v${ver}.${ext}
 libdav1d          1.5.3        tar.xz    https://downloads.videolan.org/videolan/dav1d/${ver}/dav1d-${ver}.${ext}
 libbluray         1.4.1        tar.xz    https://download.videolan.org/pub/videolan/libbluray/${ver}/libbluray-${ver}.${ext} libfontconfig,libfreetype,libxml2
