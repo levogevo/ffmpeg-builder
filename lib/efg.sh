@@ -2,99 +2,114 @@
 
 efg_usage() {
     echo "efg -i input [options]"
-    echo -e "\t[-P NUM] set preset (default: ${PRESET})"
-    echo -e "\t[-l NUM] low value (default: ${LOW})"
-    echo -e "\t[-s NUM] step value (default: ${STEP})"
-    echo -e "\t[-h NUM] high value (default: ${HIGH})"
-    echo -e "\t[-p] plot bitrates using gnuplot"
-    echo -e "\n\t[-I] system install at ${EFG_INSTALL_PATH}"
-    echo -e "\t[-U] uninstall from ${EFG_INSTALL_PATH}"
+    print_opt_map "${EFG_OPT_MAP[@]}" || return 1
     return 0
 }
 
 set_efg_opts() {
-    local opts='P:pl:s:h:i:IU'
-    local numOpts=${#opts}
     # default values
-    unset INPUT
     PRESET=10
     LOW=0
     STEP=1
     HIGH=30
     PLOT=false
+    ENCODE_SEGMENTS=5
     EFG_INSTALL_PATH='/usr/local/bin/efg'
+
+    local EFG_OPT_MAP=(
+        "-i --input input file"
+        "-P --preset set preset (default: ${PRESET})"
+        "-l --low set low end value for grain range (default: ${LOW})"
+        "-s --step set step value for grain range (default: ${STEP})"
+        "-h --high set high end value for grain range (default: ${HIGH})"
+        "-n --segments number of segments to analyze from input (default: ${ENCODE_SEGMENTS})"
+        "-p --plot plot bitrates using gnuplot"
+        "-I --install system install at ${EFG_INSTALL_PATH}"
+        "-U --uninstall uninstall from ${EFG_INSTALL_PATH}"
+    )
+
     # only using -I or -U
     local minOpt=1
-    # using all
-    local maxOpt=${numOpts}
     test $# -lt ${minOpt} && efg_usage && return 1
-    test $# -gt ${maxOpt} && efg_usage && return 1
-    local OPTARG OPTIND
-    while getopts "${opts}" flag; do
-        case "${flag}" in
-        P)
-            if ! is_positive_integer "${OPTARG}"; then
+
+    local arg value
+    while [[ $# -gt 0 ]]; do
+        arg="$1"
+        value="${2:-}"
+        case "${arg}" in
+        -i | --input)
+            INPUT="${value}"
+            shift
+            ;;
+        -P | --preset)
+            if ! is_positive_integer "${value}"; then
                 efg_usage
                 return 1
             fi
-            PRESET="${OPTARG}"
+            PRESET="${value}"
+            shift
             ;;
-        I)
+        -l | --low)
+            if ! is_positive_integer "${value}"; then
+                efg_usage
+                return 1
+            fi
+            LOW="${value}"
+            shift
+            ;;
+        -s | --step)
+            if ! is_positive_integer "${value}"; then
+                efg_usage
+                return 1
+            fi
+            STEP="${value}"
+            shift
+            ;;
+        -h | --high)
+            if ! is_positive_integer "${value}"; then
+                efg_usage
+                return 1
+            fi
+            HIGH="${value}"
+            shift
+            ;;
+        -n | --num-segments)
+            if ! is_positive_integer "${value}"; then
+                efg_usage
+                return 1
+            fi
+            ENCODE_SEGMENTS="${value}"
+            shift
+            ;;
+        -p | --plot)
+            missing_cmd gnuplot && return 1
+            PLOT=true
+            ;;
+        -I | --install)
             echo_warn "attempting install"
             sudo ln -sf "${SCRIPT_DIR}/efg.sh" \
                 "${EFG_INSTALL_PATH}" || return 1
             echo_pass "succesfull install"
-            return ${FUNC_EXIT_SUCCESS}
+            return "${FUNC_EXIT_SUCCESS}"
             ;;
-        U)
+        -U | --uninstall)
             echo_warn "attempting uninstall"
             sudo rm "${EFG_INSTALL_PATH}" || return 1
             echo_pass "succesfull uninstall"
-            return ${FUNC_EXIT_SUCCESS}
-            ;;
-        i)
-            if [[ $# -lt 2 ]]; then
-                echo_fail "wrong arguments given"
-                efg_usage
-                return 1
-            fi
-            INPUT="${OPTARG}"
-            ;;
-        p)
-            missing_cmd gnuplot && return 1
-            PLOT=true
-            ;;
-        l)
-            if ! is_positive_integer "${OPTARG}"; then
-                efg_usage
-                return 1
-            fi
-            LOW="${OPTARG}"
-            ;;
-        s)
-            if ! is_positive_integer "${OPTARG}"; then
-                efg_usage
-                return 1
-            fi
-            STEP="${OPTARG}"
-            ;;
-        h)
-            if ! is_positive_integer "${OPTARG}"; then
-                efg_usage
-                return 1
-            fi
-            HIGH="${OPTARG}"
+            return "${FUNC_EXIT_SUCCESS}"
             ;;
         *)
-            echo "wrong flags given"
+            echo_fail "unsupported option: [${arg}]"
             efg_usage
             return 1
             ;;
         esac
+        shift
     done
 
-    if [[ ! -f ${INPUT} ]]; then
-        echo "${INPUT} does not exist"
+    # validate input
+    if [[ -z ${INPUT} || ! -f ${INPUT} ]]; then
+        echo_fail "input undefined or does not exist"
         efg_usage
         return 1
     fi
@@ -108,7 +123,7 @@ set_efg_opts() {
     EFG_DIR+="-${sanitizedInput}"
 
     echo_info "estimating film grain for ${INPUT}"
-    echo_info "range: $LOW-$HIGH with $STEP step increments"
+    echo_info "range: ${LOW}-${HIGH} with ${STEP} step increments"
 }
 
 efg_segment() {
@@ -255,9 +270,13 @@ FB_FUNC_NAMES+=('efg')
 # shellcheck disable=SC2034
 FB_FUNC_DESCS['efg']='estimate the film grain of a given file'
 efg() {
+    # localize variables used by child functions
+    local PRESET LOW STEP HIGH PLOT \
+        EFG_INSTALL_PATH EFG_DIR ENCODE_SEGMENTS \
+        GRAIN_LOG
+
     EFG_DIR="${TMP_DIR}/efg"
     # encode N highest-bitrate segments
-    ENCODE_SEGMENTS=5
 
     set_efg_opts "$@"
     local ret=$?

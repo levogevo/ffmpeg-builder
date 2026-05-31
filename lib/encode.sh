@@ -324,21 +324,11 @@ setup_pgs_mkv() {
 }
 
 encode_usage() {
-    local OPT_INDS
-    declare -A SHORT_OPTS LONG_OPTS DESC_OPTS
-    parse_opt_map \
-        OPT_INDS \
-        SHORT_OPTS \
-        LONG_OPTS \
-        DESC_OPTS \
-        "${ENCODE_OPT_MAP[@]}"
-
     echo "encode -i input [options] [output]"
-    echo -e "\nOPTIONS:"
-    for ind in "${OPT_INDS[@]}"; do
-        echo -e "  ${SHORT_OPTS[${ind}]}, ${LONG_OPTS[${ind}]}${DESC_OPTS[${ind}]}"
-    done
+    print_opt_map "${ENCODE_OPT_MAP[@]}" || return 1
     echo -e "\n  [output] output filename (default: \${PWD}/av1-input-file-name.mkv)\n"
+
+    return 0
 }
 
 encode_update() {
@@ -358,14 +348,14 @@ set_encode_opts() {
 
     local ENCODE_OPT_MAP=(
         "-i --input input file"
-        "-P --preset set preset (default ${PRESET})"
-        "-C --crf set CRF (default ${CRF})"
-        "-g --grain set film grain (default disabled)"
+        "-P --preset set preset (default: ${PRESET})"
+        "-C --crf set CRF (default: ${CRF})"
+        "-g --grain set film grain (default: disabled)"
         "-p --print print the script instead of executing it"
         "-c --crop use crop detect to auto-crop"
-        "-d --dv enable dolby vision (default ${DV_TOGGLE})"
+        "-d --dv enable dolby vision"
         "-v --version print version info"
-        "-s --same-container use same container as input, default is mkv"
+        "-s --same-container use same container as input (default: mkv)"
         "-u --update update script (git pull ffmpeg-builder)"
         "-I --install system install at ${ENCODE_INSTALL_PATH}"
         "-U --uninstall uninstall from ${ENCODE_INSTALL_PATH}"
@@ -382,7 +372,7 @@ set_encode_opts() {
         case "${arg}" in
         -i | --input)
             INPUT="${value}"
-            shift 2
+            shift
             ;;
         -P | --preset)
             if ! is_positive_integer "${value}"; then
@@ -390,7 +380,7 @@ set_encode_opts() {
                 return 1
             fi
             PRESET="${value}"
-            shift 2
+            shift
             ;;
         -C | --crf)
             if ! is_positive_integer "${value}" || test "${value}" -gt 63; then
@@ -399,7 +389,7 @@ set_encode_opts() {
                 return 1
             fi
             CRF="${value}"
-            shift 2
+            shift
             ;;
         -g | --grain)
             if ! is_positive_integer "${value}"; then
@@ -407,19 +397,16 @@ set_encode_opts() {
                 return 1
             fi
             GRAIN="film-grain=${value}:film-grain-denoise=1:adaptive-film-grain=1:"
-            shift 2
+            shift
             ;;
         -c | --crop)
             CROP=true
-            shift
             ;;
         -p | --print)
             PRINT_OUT=true
-            shift
             ;;
         -d | --dv)
             DV_TOGGLE=true
-            shift
             ;;
         -v | --version)
             get_encode_versions print || return 1
@@ -427,7 +414,6 @@ set_encode_opts() {
             ;;
         -s | --same-container)
             SAME_CONTAINER=true
-            shift
             ;;
         -u | --update)
             encode_update || return 1
@@ -449,14 +435,14 @@ set_encode_opts() {
         *)
             # OUTPUT will be the last (optional) arg
             if [[ $# -ne 1 ]]; then
-                echo_fail "wrong flags given"
+                echo_fail "unsupported option: [${arg}]"
                 encode_usage
                 return 1
             fi
             OUTPUT="${arg}"
-            shift
             ;;
         esac
+        shift
     done
 
     # validate input

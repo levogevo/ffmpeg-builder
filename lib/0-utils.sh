@@ -600,6 +600,18 @@ parse_opt_map() {
     local longestOpt=0
     for opt in "${optMap[@]}"; do
         read -r short long desc <<<"${opt}"
+
+        # check for duplicate/overwrites
+        if line_contains "${shortOpt[*]}" "${short}"; then
+            echo_fail "${short} already defined"
+            return 1
+        fi
+
+        if line_contains "${longOpt[*]}" "${long}"; then
+            echo_fail "${long} already defined"
+            return 1
+        fi
+
         # --flag -> flag
         index="${long//--/}"
         optIndex+=("${index}")
@@ -621,4 +633,22 @@ parse_opt_map() {
         padding="$(repeat_character ' ' $((longestOpt - longLen)))"
         descOpt["${ind}"]="${padding}${tab}${descOpt[${ind}]}"
     done
+}
+
+print_opt_map() {
+    local optionMap=("$@")
+    local OPT_INDS
+    declare -A SHORT_OPTS LONG_OPTS DESC_OPTS
+    parse_opt_map \
+        OPT_INDS \
+        SHORT_OPTS \
+        LONG_OPTS \
+        DESC_OPTS \
+        "${optionMap[@]}" || return 1
+
+    echo -e "\nOPTIONS:"
+    for ind in "${OPT_INDS[@]}"; do
+        echo -e "  ${SHORT_OPTS[${ind}]}, ${LONG_OPTS[${ind}]}${DESC_OPTS[${ind}]}"
+    done
+    echo
 }
