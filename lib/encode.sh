@@ -64,7 +64,7 @@ set_subtitle_params() {
     local convertCodec='eia_608'
 
     local defaultTextCodec
-    if [[ ${SAME_CONTAINER} == false && ${FILE_EXT} == 'mkv' ]]; then
+    if [[ ${SAME_CONTAINER} == false && ${OUTPUT} == *'.mkv' ]]; then
         defaultTextCodec='srt'
         convertCodec+='|mov_text'
     else
@@ -324,20 +324,21 @@ setup_pgs_mkv() {
 }
 
 encode_usage() {
-    echo "encode -i input [options] output"
-    echo -e "\t[-P NUM] set preset (default: ${PRESET})"
-    echo -e "\t[-C NUM] set CRF (default: ${CRF})"
-    echo -e "\t[-g NUM] set film grain for encode"
-    echo -e "\t[-p] print the command instead of executing it (default: ${PRINT_OUT})"
-    echo -e "\t[-c] use cropdetect (default: ${CROP})"
-    echo -e "\t[-d] enable dolby vision (default: ${DV_TOGGLE})"
-    echo -e "\t[-v] print relevant version info"
-    echo -e "\t[-s] use same container as input, default is convert to mkv"
-    echo -e "\n\t[output] if unset, defaults to \${PWD}/av1-input-file-name.mkv"
-    echo -e "\n\t[-u] update script (git pull ffmpeg-builder)"
-    echo -e "\t[-I] system install at ${ENCODE_INSTALL_PATH}"
-    echo -e "\t[-U] uninstall from ${ENCODE_INSTALL_PATH}"
-    return 0
+    local OPT_INDS
+    declare -A SHORT_OPTS LONG_OPTS DESC_OPTS
+    parse_opt_map \
+        OPT_INDS \
+        SHORT_OPTS \
+        LONG_OPTS \
+        DESC_OPTS \
+        "${ENCODE_OPT_MAP[@]}"
+
+    echo "encode -i input [options] [output]"
+    echo -e "\nOPTIONS:"
+    for ind in "${OPT_INDS[@]}"; do
+        echo -e "  ${SHORT_OPTS[${ind}]}, ${LONG_OPTS[${ind}]}${DESC_OPTS[${ind}]}"
+    done
+    echo -e "\n  [output] output filename (default: \${PWD}/av1-input-file-name.mkv)\n"
 }
 
 encode_update() {
@@ -345,138 +346,150 @@ encode_update() {
 }
 
 set_encode_opts() {
-    local opts='vi:pcsdg:P:C:uIU'
-    local numOpts=${#opts}
     # default values
     PRESET=3
     CRF=25
-    GRAIN=""
+    GRAIN=''
     CROP=false
     PRINT_OUT=false
     DV_TOGGLE=false
     ENCODE_INSTALL_PATH='/usr/local/bin/encode'
     SAME_CONTAINER="false"
+
+    local ENCODE_OPT_MAP=(
+        "-i --input input file"
+        "-P --preset set preset (default ${PRESET})"
+        "-C --crf set CRF (default ${CRF})"
+        "-g --grain set film grain (default disabled)"
+        "-p --print print the script instead of executing it"
+        "-c --crop use crop detect to auto-crop"
+        "-d --dv enable dolby vision (default ${DV_TOGGLE})"
+        "-v --version print version info"
+        "-s --same-container use same container as input, default is mkv"
+        "-u --update update script (git pull ffmpeg-builder)"
+        "-I --install system install at ${ENCODE_INSTALL_PATH}"
+        "-U --uninstall uninstall from ${ENCODE_INSTALL_PATH}"
+    )
+
     # only using -I/U
     local minOpt=1
-    # using all + output name
-    local maxOpt=$((numOpts + 1))
     test $# -lt ${minOpt} && encode_usage && return 1
-    test $# -gt ${maxOpt} && encode_usage && return 1
-    local optsUsed=0
-    local OPTARG OPTIND
-    while getopts "${opts}" flag; do
-        case "${flag}" in
-        u)
-            encode_update || return 1
-            return ${FUNC_EXIT_SUCCESS}
+
+    local arg value
+    while [[ $# -gt 0 ]]; do
+        arg="$1"
+        value="${2:-}"
+        case "${arg}" in
+        -i | --input)
+            INPUT="${value}"
+            shift 2
             ;;
-        I)
+        -P | --preset)
+            if ! is_positive_integer "${value}"; then
+                encode_usage
+                return 1
+            fi
+            PRESET="${value}"
+            shift 2
+            ;;
+        -C | --crf)
+            if ! is_positive_integer "${value}" || test "${value}" -gt 63; then
+                echo_fail "${value} is not a valid CRF value (0-63)"
+                encode_usage
+                return 1
+            fi
+            CRF="${value}"
+            shift 2
+            ;;
+        -g | --grain)
+            if ! is_positive_integer "${value}"; then
+                encode_usage
+                return 1
+            fi
+            GRAIN="film-grain=${value}:film-grain-denoise=1:adaptive-film-grain=1:"
+            shift 2
+            ;;
+        -c | --crop)
+            CROP=true
+            shift
+            ;;
+        -p | --print)
+            PRINT_OUT=true
+            shift
+            ;;
+        -d | --dv)
+            DV_TOGGLE=true
+            shift
+            ;;
+        -v | --version)
+            get_encode_versions print || return 1
+            return "${FUNC_EXIT_SUCCESS}"
+            ;;
+        -s | --same-container)
+            SAME_CONTAINER=true
+            shift
+            ;;
+        -u | --update)
+            encode_update || return 1
+            return "${FUNC_EXIT_SUCCESS}"
+            ;;
+        -I | --install)
             echo_warn "attempting install"
             sudo ln -sf "${SCRIPT_DIR}/encode.sh" \
                 "${ENCODE_INSTALL_PATH}" || return 1
             echo_pass "succesfull install"
-            return ${FUNC_EXIT_SUCCESS}
+            return "${FUNC_EXIT_SUCCESS}"
             ;;
-        U)
+        -U | --uninstall)
             echo_warn "attempting uninstall"
             sudo rm "${ENCODE_INSTALL_PATH}" || return 1
             echo_pass "succesfull uninstall"
-            return ${FUNC_EXIT_SUCCESS}
-            ;;
-        v)
-            get_encode_versions print || return 1
-            return ${FUNC_EXIT_SUCCESS}
-            ;;
-        i)
-            if [[ $# -lt 2 ]]; then
-                echo_fail "wrong arguments given"
-                encode_usage
-                return 1
-            fi
-            INPUT="${OPTARG}"
-            optsUsed=$((optsUsed + 2))
-            ;;
-        p)
-            PRINT_OUT=true
-            optsUsed=$((optsUsed + 1))
-            ;;
-        c)
-            CROP=true
-            optsUsed=$((optsUsed + 1))
-            ;;
-        d)
-            DV_TOGGLE=true
-            optsUsed=$((optsUsed + 1))
-            ;;
-        s)
-            SAME_CONTAINER=true
-            optsUsed=$((optsUsed + 1))
-            ;;
-        g)
-            if ! is_positive_integer "${OPTARG}"; then
-                encode_usage
-                return 1
-            fi
-            GRAIN="film-grain=${OPTARG}:film-grain-denoise=1:adaptive-film-grain=1:"
-            optsUsed=$((optsUsed + 2))
-            ;;
-        P)
-            if ! is_positive_integer "${OPTARG}"; then
-                encode_usage
-                return 1
-            fi
-            PRESET="${OPTARG}"
-            optsUsed=$((optsUsed + 2))
-            ;;
-        C)
-            if ! is_positive_integer "${OPTARG}" || test ${OPTARG} -gt 63; then
-                echo_fail "${OPTARG} is not a valid CRF value (0-63)"
-                encode_usage
-                return 1
-            fi
-            CRF="${OPTARG}"
-            OPTS_USED=$((OPTS_USED + 2))
+            return "${FUNC_EXIT_SUCCESS}"
             ;;
         *)
-            echo_fail "wrong flags given"
-            encode_usage
-            return 1
+            # OUTPUT will be the last (optional) arg
+            if [[ $# -ne 1 ]]; then
+                echo_fail "wrong flags given"
+                encode_usage
+                return 1
+            fi
+            OUTPUT="${arg}"
+            shift
             ;;
         esac
     done
 
-    # allow optional output filename
-    if [[ $(($# - optsUsed)) == 1 ]]; then
-        OUTPUT="${*: -1}"
-    else
-        local basename="$(bash_basename "${INPUT}")"
+    # validate input
+    if [[ -z ${INPUT} || ! -f ${INPUT} ]]; then
+        echo_fail "input undefined or does not exist"
+        encode_usage
+        return 1
+    fi
+
+    # fallback output path
+    if [[ -z ${OUTPUT} ]]; then
+        local basename
+        basename="$(bash_basename "${INPUT}")" || return 1
         OUTPUT="${PWD}/av1-${basename}"
     fi
 
     # use same container for output
-    if [[ $SAME_CONTAINER == "true" ]]; then
-        local fileFormat
+    if [[ ${SAME_CONTAINER} == true ]]; then
+        local fileFormat outputSuffix
         fileFormat="$(get_file_format "${INPUT}")" || return 1
-        FILE_EXT=''
         if [[ ${fileFormat} == 'MPEG-4' ]]; then
-            FILE_EXT='mp4'
+            outputSuffix='mp4'
         elif [[ ${fileFormat} == 'Matroska' ]]; then
-            FILE_EXT='mkv'
+            outputSuffix='mkv'
         else
-            echo "unrecognized input format"
+            echo_fail "unrecognized input format"
             return 1
         fi
     else
-        FILE_EXT="mkv"
+        outputSuffix='mkv'
     fi
     OUTPUT="${OUTPUT%.*}"
-    OUTPUT+=".${FILE_EXT}"
-
-    if [[ ! -f ${INPUT} ]]; then
-        echo "${INPUT} does not exist"
-        encode_usage
-        return 1
-    fi
+    OUTPUT+=".${outputSuffix}"
 
     if [[ ${PRINT_OUT} == false ]]; then
         echo
@@ -658,7 +671,7 @@ gen_encode_script() {
         echo 'ffmpeg "${ffmpegParams[@]}" -dolbyvision 0 "${OUTPUT}" || exit 1'
 
         # track-stats and clear title
-        if [[ ${FILE_EXT} == 'mkv' ]]; then
+        if [[ ${OUTPUT} == *'.mkv' ]]; then
             {
                 # ffmpeg does not copy PGS subtitles without breaking them
                 # use mkvmerge to extract and supmover to crop
@@ -690,6 +703,11 @@ FB_FUNC_NAMES+=('encode')
 # shellcheck disable=SC2034
 FB_FUNC_DESCS['encode']='encode a file using libsvtav1 and libopus'
 encode() {
+    # localize variables used by child functions
+    local PRESET CRF GRAIN CROP PRINT_OUT \
+        DV_TOGGLE ENCODE_INSTALL_PATH SAME_CONTAINER \
+        INPUT OUTPUT
+
     set_encode_opts "$@"
     local ret=$?
     if [[ ${ret} -eq ${FUNC_EXIT_SUCCESS} ]]; then

@@ -568,3 +568,57 @@ check_for_supmover() {
     SUPMOVER="${LOCAL_PREFIX}/bin/supmover"
     test -f "${SUPMOVER}" || do_build supmover || return 1
 }
+
+repeat_character() {
+    local char="$1"
+    local count="$2"
+    local spaces
+    printf -v spaces "%${count}s" ''
+    echo "${spaces// /${char}}"
+}
+
+# read given varnames to set:
+# - index array
+# - short option array
+# - long option array
+# - option description array with
+#   padding based off of longest option
+parse_opt_map() {
+    local optIndexVarname="$1"
+    local shortOptVarname="$2"
+    local longOptVarname="$3"
+    local descOptVarname="$4"
+    shift 4
+    local optMap=("$@")
+
+    declare -n optIndex="${optIndexVarname}"
+    declare -n shortOpt="${shortOptVarname}"
+    declare -n longOpt="${longOptVarname}"
+    declare -n descOpt="${descOptVarname}"
+
+    local opt index short long desc
+    local longestOpt=0
+    for opt in "${optMap[@]}"; do
+        read -r short long desc <<<"${opt}"
+        # --flag -> flag
+        index="${long//--/}"
+        optIndex+=("${index}")
+        shortOpt["${index}"]="${short}"
+        longOpt["${index}"]="${long}"
+        descOpt["${index}"]="${desc}"
+
+        # track longest longOpt to pad the description
+        if [[ ${longestOpt} -lt ${#long} ]]; then
+            longestOpt=${#long}
+        fi
+    done
+
+    local longLen
+    local tab=$'\t\t'
+    for ind in "${optIndex[@]}"; do
+        long="${longOpt[${ind}]}"
+        longLen=${#long}
+        padding="$(repeat_character ' ' $((longestOpt - longLen)))"
+        descOpt["${ind}"]="${padding}${tab}${descOpt[${ind}]}"
+    done
+}
