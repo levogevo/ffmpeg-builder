@@ -335,7 +335,7 @@ get_build_conf() {
 
     # name version file-extension url dep1,dep2
     local BUILDS_CONF='
-ffmpeg            8.1.2        tar.gz    https://github.com/FFmpeg/FFmpeg/archive/refs/tags/n${ver}.${ext}
+ffmpeg            9.0.1        tar.gz    https://github.com/FFmpeg/FFmpeg/archive/refs/tags/n${ver}.${ext}
 '
     # ffmpeg --enable packages
     BUILDS_CONF+='
@@ -362,6 +362,7 @@ libharfbuzz       12.3.0       tar.xz    https://github.com/harfbuzz/harfbuzz/re
 libopenjpeg       2.5.4        tar.gz    https://github.com/uclouvain/openjpeg/archive/refs/tags/v${ver}.${ext} libtiff,lcms2
 libsvtav1         4.1.0        tar.gz    https://gitlab.com/AOMediaCodec/SVT-AV1/-/archive/v${ver}/SVT-AV1-v${ver}.${ext}
 libsvtav1_hdr     4.1.0        tar.gz    https://github.com/juliobbv-p/svt-av1-hdr/archive/refs/tags/v${ver}.${ext} dovi_tool,hdr10plus_tool,cpuinfo
+libsvtav1_ess     4.0.1        tar.gz    https://github.com/nekotrix/SVT-AV1-Essential/archive/refs/tags/v${ver}-Essential.${ext} dovi_tool,hdr10plus_tool,cpuinfo
 libsvtav1_psy     3.0.2-B      tar.gz    https://github.com/BlueSwordM/svt-av1-psyex/archive/refs/tags/v${ver}.${ext} dovi_tool,hdr10plus_tool,cpuinfo
 libfontconfig     2.17.1       tar.xz    https://gitlab.freedesktop.org/api/v4/projects/890/packages/generic/fontconfig/${ver}/fontconfig-${ver}.${ext} libharfbuzz,expat,brotli
 '
@@ -512,7 +513,7 @@ download_release() {
 
         # download archive if not present
         if ! test -f "${wgetOut}"; then
-            echo_info "downloading ${build}"
+            echo_info "downloading ${build} version ${ver}"
             echo_if_fail wget "${url}" -O "${wgetOut}"
         fi
 
@@ -648,7 +649,7 @@ do_build() {
             echo_if_fail patch -p1 -i "${patch}" || return 1
         done
 
-        echo_info -n "building ${build} "
+        echo_info -n "building ${build} ${ver} "
         # build in background
         local timeBefore=${EPOCHSECONDS}
         spinner start
@@ -670,7 +671,7 @@ do_build() {
         # indicate that build chain will require rebuild
         REQUIRES_REBUILD=1
     else
-        echo_info "re-using identical previous build for ${build}"
+        echo_info "re-using identical previous build for ${build} ${ver}"
     fi
 }
 
@@ -860,6 +861,10 @@ build_cpuinfo() {
         -DCPUINFO_LOG_TO_STDIO=ON \
         -DUSE_SYSTEM_LIBS=ON || return 1
     sanitize_sysroot_libs libcpuinfo || return 1
+}
+
+build_libsvtav1_ess() {
+    build_libsvtav1_psy
 }
 
 build_libsvtav1_hdr() {
@@ -1383,7 +1388,7 @@ add_project_versioning_to_ffmpeg() {
 build_ffmpeg() {
     add_project_versioning_to_ffmpeg || return 1
 
-    # libsvtav1_* patch and enable name change
+    # libsvtav1* name change
     for enable in ${ENABLE}; do
         if line_starts_with "${enable}" libsvtav1; then
             enable=libsvtav1
