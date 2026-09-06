@@ -335,7 +335,7 @@ get_build_conf() {
 
     # name version file-extension url dep1,dep2
     local BUILDS_CONF='
-ffmpeg            9.0.1        tar.gz    https://github.com/FFmpeg/FFmpeg/archive/refs/tags/n${ver}.${ext}
+ffmpeg            8.1.2        tar.gz    https://github.com/FFmpeg/FFmpeg/archive/refs/tags/n${ver}.${ext}
 '
     # ffmpeg --enable packages
     BUILDS_CONF+='
