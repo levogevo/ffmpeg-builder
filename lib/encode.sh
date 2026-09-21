@@ -2,6 +2,14 @@
 
 DESIRED_SUB_LANG=eng
 
+use_film_grain() {
+    [[ ${inputVideoCodec} != 'av1' && -n ${GRAIN} && ${GRAIN} -gt 0 ]]
+}
+
+denoise_with_vapoursynth() {
+    use_film_grain && [[ ${DENOISE_VS} == true ]]
+}
+
 # sets UNMAP_STREAMS
 set_unmap_streams() {
     local file="$1"
@@ -344,16 +352,18 @@ set_encode_opts() {
     PRINT_OUT=false
     DV_TOGGLE=false
     ENCODE_INSTALL_PATH='/usr/local/bin/encode'
-    SAME_CONTAINER="false"
+    SAME_CONTAINER=false
+    DENOISE_VS=false
 
     local ENCODE_OPT_MAP=(
         "-i --input input file"
         "-P --preset set preset (default: ${PRESET})"
         "-C --crf set CRF (default: ${CRF})"
         "-g --grain set film grain (default: disabled)"
+        "-d --denoise denoise with vapoursynth (default: disabled)"
         "-p --print print the script instead of executing it"
         "-c --crop use crop detect to auto-crop"
-        "-d --dv enable dolby vision"
+        "-z --dv enable dolby vision"
         "-v --version print version info"
         "-s --same-container use same container as input (default: mkv)"
         "-u --update update script (git pull ffmpeg-builder)"
@@ -371,7 +381,7 @@ set_encode_opts() {
         value="${2:-}"
         case "${arg}" in
         -i | --input)
-            INPUT="${value}"
+            INPUT="$(readlink -f "${value}")"
             shift
             ;;
         -P | --preset)
@@ -396,8 +406,11 @@ set_encode_opts() {
                 encode_usage
                 return 1
             fi
-            GRAIN="film-grain=${value}:film-grain-denoise=1:adaptive-film-grain=1:"
+            GRAIN=${value}
             shift
+            ;;
+        -d | --denoise)
+            DENOISE_VS=true
             ;;
         -c | --crop)
             CROP=true
@@ -405,7 +418,7 @@ set_encode_opts() {
         -p | --print)
             PRINT_OUT=true
             ;;
-        -d | --dv)
+        -z | --dv)
             DV_TOGGLE=true
             ;;
         -v | --version)
@@ -501,41 +514,28 @@ gen_encode_script() {
     # global output index number to increment
     OUTPUT_INDEX=0
 
-    # single string params
+    # global string params
     local params=(
         INPUT
         OUTPUT
         PRESET
         CRF
+        GRAIN
         CROP_VALUE
         ENCODE_VERSION
         FFMPEG_VERSION
         VIDEO_ENC_VERSION
         AUDIO_ENC_VERSION
+    )
+
+    # local string params
+    local localParams=(
         svtAv1Params
         pgsMkv
         muxxedPgsMkv
+        inputVideoCodec
     )
-
-    svtAv1ParamsArr=(
-        "tune=0"
-        "complex-hvs=1"
-        "spy-rd=1"
-        "psy-rd=1"
-        "sharpness=3"
-        "enable-overlays=0"
-        "hbd-mds=1"
-        "scd=1"
-        "fast-decode=1"
-        "enable-variance-boost=1"
-        "enable-qm=1"
-        "chroma-qm-min=10"
-        "qm-min=4"
-        "qm-max=15"
-    )
-    IFS=':'
-    local svtAv1Params="${GRAIN}${svtAv1ParamsArr[*]}"
-    unset IFS
+    params+=("${localParams[@]}")
 
     # arrays
     local arrays=(
@@ -546,23 +546,36 @@ gen_encode_script() {
         metadata
         ffmpegParams
         PGS_SUB_STREAMS
+        vspipeCmd
     )
-    local "${arrays[@]}"
+    local "${arrays[@]}" "${localParams[@]}"
 
-    local videoParams=(
-        "-crf" '${CRF}' "-preset" '${PRESET}'
-    )
-    local ffmpegParams=(
-        '-hide_banner'
-        '-i' '${INPUT}'
-        '-y'
-        '-map' '0'
-        '-c:s' 'copy'
+    ffmpegParams=(
+        -hide_banner
+        -y
+        -i '${INPUT}'
     )
 
-    # set video params
+    # denoising only happens when encoding, so not denoising for av1
+    inputVideoCodec="$(get_stream_codec "${INPUT}" 'v:0')"
+    if denoise_with_vapoursynth; then
+        ffmpegParams+=(
+            -f yuv4mpegpipe
+            -i -
+            -map 0
+            -map -0:v
+            -map 1:0
+        )
+    else
+        ffmpegParams+=(-map 0)
+    fi
+
+    ffmpegParams+=(
+        -c:s copy
+    )
+
     get_encode_versions || return 1
-    local inputVideoCodec="$(get_stream_codec "${INPUT}" 'v:0')"
+    # no re-encoding for AV1
     if [[ ${inputVideoCodec} == 'av1' ]]; then
         ffmpegParams+=(
             "-c:v:${OUTPUT_INDEX}" 'copy'
@@ -570,15 +583,47 @@ gen_encode_script() {
         # can't crop if copying codec
         CROP=false
     else
-        ffmpegParams+=(
-            '-pix_fmt' 'yuv420p10le'
-            "-c:v:${OUTPUT_INDEX}" 'libsvtav1' '${videoParams[@]}'
-            '-svtav1-params' '${svtAv1Params}'
+        # set video params
+        videoParams=(
+            -crf '${CRF}'
+            -preset '${PRESET}'
         )
+        ffmpegParams+=(
+            -pix_fmt yuv420p10le
+            "-c:v:${OUTPUT_INDEX}" libsvtav1
+            '${videoParams[@]}'
+            -svtav1-params '${svtAv1Params}'
+        )
+        svtAv1ParamsArr=(
+            "tune=0"
+            "complex-hvs=1"
+            "sharpness=3"
+            "enable-overlays=0"
+            "hbd-mds=1"
+            "scd=1"
+            "fast-decode=1"
+            "enable-variance-boost=1"
+            "enable-qm=1"
+        )
+        IFS=':'
+        svtAv1Params="${svtAv1ParamsArr[*]}"
+        unset IFS
+
+        if use_film_grain; then
+            svtAv1Params+=":film-grain=${GRAIN}:adaptive-film-grain=1"
+            if denoise_with_vapoursynth; then
+                # use external denoiser
+                svtAv1Params+=":film-grain-denoise=0"
+                # add color params since vapoursynth drops them
+                svtAv1Params+=":$(build_svtav1_color_params "${INPUT}")"
+            else
+                svtAv1Params+=":film-grain-denoise=1"
+            fi
+        fi
         metadata+=(
-            '-metadata' '${VIDEO_ENC_VERSION}'
-            '-metadata' 'svtav1_params=${svtAv1Params}'
-            '-metadata' 'video_params=${videoParams[*]}'
+            -metadata '${VIDEO_ENC_VERSION}'
+            -metadata 'svtav1_params=${svtAv1Params}'
+            -metadata 'video_params=${videoParams[*]}'
         )
     fi
     OUTPUT_INDEX=$((OUTPUT_INDEX + 1))
@@ -601,24 +646,23 @@ gen_encode_script() {
     fi
 
     metadata+=(
-        '-metadata' '${ENCODE_VERSION}'
-        '-metadata' '${FFMPEG_VERSION}'
+        -metadata '${ENCODE_VERSION}'
+        -metadata '${FFMPEG_VERSION}'
     )
 
     # in the case all audio streams are copied,
     # don't add libopus metadata
     if line_contains "${AUDIO_PARAMS[*]}" 'libopus'; then
         metadata+=(
-            '-metadata' '${AUDIO_ENC_VERSION}')
+            -metadata '${AUDIO_ENC_VERSION}')
     fi
 
-    local CROP_VALUE
     if [[ ${CROP} == true ]]; then
         CROP_VALUE="$(get_crop "${INPUT}")" || return 1
         ffmpegParams+=('-vf' '${CROP_VALUE}')
         metadata+=(
-            '-metadata' '${CROP_VALUE}'
-            '-metadata' "og_res=$(get_resolution "${INPUT}")"
+            -metadata '${CROP_VALUE}'
+            -metadata "og_res=$(get_resolution "${INPUT}")"
         )
     fi
 
@@ -628,6 +672,17 @@ gen_encode_script() {
     setup_pgs_mkv "${pgsMkv}" 1>&2 || return 1
 
     ffmpegParams+=('${metadata[@]}')
+
+    if denoise_with_vapoursynth; then
+        vspipeCmd=(
+            vspipe
+            --container y4m
+            --arg 'input=${INPUT}'
+            --arg grain=$((GRAIN * 20))
+            "${SCRIPT_DIR}/vapoursynth-denoise.py"
+            -
+        )
+    fi
 
     {
         echo '#!/usr/bin/env bash'
@@ -650,10 +705,11 @@ gen_encode_script() {
         done
 
         # actually do ffmpeg commmand
-        echo
         if [[ ${DV_TOGGLE} == true ]]; then
+            denoise_with_vapoursynth && echo '"${vspipeCmd[@]}" |'
             echo 'ffmpeg "${ffmpegParams[@]}" -dolbyvision 1 "${OUTPUT}" || \'
         fi
+        denoise_with_vapoursynth && echo '"${vspipeCmd[@]}" |'
         echo 'ffmpeg "${ffmpegParams[@]}" -dolbyvision 0 "${OUTPUT}" || exit 1'
 
         # track-stats and clear title
@@ -691,7 +747,7 @@ FB_FUNC_DESCS['encode']='encode a file using libsvtav1 and libopus'
 encode() {
     # localize variables used by child functions
     local PRESET CRF GRAIN CROP PRINT_OUT \
-        DV_TOGGLE ENCODE_INSTALL_PATH SAME_CONTAINER \
+        DENOISE_VS DV_TOGGLE ENCODE_INSTALL_PATH SAME_CONTAINER \
         INPUT OUTPUT
 
     set_encode_opts "$@"

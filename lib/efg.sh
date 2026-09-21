@@ -15,6 +15,7 @@ set_efg_opts() {
     PLOT=false
     ENCODE_SEGMENTS=5
     EFG_INSTALL_PATH='/usr/local/bin/efg'
+    DENOISE_VS=false
 
     local EFG_OPT_MAP=(
         "-i --input input file"
@@ -22,6 +23,7 @@ set_efg_opts() {
         "-l --low set low end value for grain range (default: ${LOW})"
         "-s --step set step value for grain range (default: ${STEP})"
         "-h --high set high end value for grain range (default: ${HIGH})"
+        "-d --denoise denoise with vapoursynth (default: disabled)"
         "-n --segments number of segments to analyze from input (default: ${ENCODE_SEGMENTS})"
         "-p --plot plot bitrates using gnuplot"
         "-I --install system install at ${EFG_INSTALL_PATH}"
@@ -38,7 +40,7 @@ set_efg_opts() {
         value="${2:-}"
         case "${arg}" in
         -i | --input)
-            INPUT="${value}"
+            INPUT="$(readlink -f ${value})"
             shift
             ;;
         -P | --preset)
@@ -72,6 +74,9 @@ set_efg_opts() {
             fi
             HIGH="${value}"
             shift
+            ;;
+        -d | --denoise)
+            DENOISE_VS=true
             ;;
         -n | --num-segments)
             if ! is_positive_integer "${value}"; then
@@ -194,14 +199,21 @@ efg_segment() {
 
 efg_encode() {
     local grainLogWIP="${GRAIN_LOG}.wip"
+    local encodeArgs=(
+        -P "${PRESET}"
+    )
+    [[ ${DENOISE_VS} == true ]] && encodeArgs+=(--denoise)
+
     echo -n >"${grainLogWIP}"
     for vid in "${EFG_DIR}/"*.mkv; do
         echo "file: ${vid}" >>"${grainLogWIP}"
         for ((grain = LOW; grain <= HIGH; grain += STEP)); do
             local file="$(bash_basename "${vid}")"
             local out="${EFG_DIR}/grain-${grain}-${file}"
+
             echo_info "encoding ${file} with grain ${grain}"
-            echo_if_fail encode -P "${PRESET}" -g ${grain} -i "${vid}" "${out}" || return 1
+            echo_if_fail encode "${encodeArgs[@]}" -g ${grain} -i "${vid}" "${out}" || return 1
+
             echo -e "\tgrain: ${grain}, bitrate: $(get_avg_bitrate "${out}")" >>"${grainLogWIP}"
             rm "${out}" || return 1
         done
@@ -272,7 +284,7 @@ FB_FUNC_DESCS['efg']='estimate the film grain of a given file'
 efg() {
     # localize variables used by child functions
     local PRESET LOW STEP HIGH PLOT \
-        EFG_INSTALL_PATH EFG_DIR ENCODE_SEGMENTS \
+        DENOISE_VS EFG_INSTALL_PATH EFG_DIR ENCODE_SEGMENTS \
         GRAIN_LOG
 
     EFG_DIR="${TMP_DIR}/efg"
@@ -287,7 +299,7 @@ efg() {
     fi
     ensure_dir "${EFG_DIR}"
 
-    GRAIN_LOG="${EFG_DIR}/${LOW}-${STEP}-${HIGH}-grains.txt"
+    GRAIN_LOG="${EFG_DIR}/${LOW}-${STEP}-${HIGH}-${DENOISE_VS}-grains.txt"
 
     if [[ ${PLOT} == true && -f ${GRAIN_LOG} ]]; then
         efg_plot

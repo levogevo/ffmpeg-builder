@@ -110,7 +110,8 @@ get_stream_json() {
     _ffprobe_wrapper \
         -v error \
         -select_streams "${stream}" \
-        -show_entries stream \
+        -read_intervals "%+#1" \
+        -show_entries stream:frames \
         -of json \
         "${file}"
 }
@@ -209,4 +210,140 @@ gen_video() {
         -color_range tv \
         "${addFlags[@]}" \
         "${outFile}"
+}
+
+build_svtav1_color_params() {
+    local file="$1"
+    local json
+    json="$(get_stream_json "${file}" | jq -er '.frames[0]')"
+
+    local params=()
+
+    local range space primaries transfer location
+    range="$(jq -r '.color_range' <<<"${json}")"
+    space="$(jq -r '.color_space' <<<"${json}")"
+    primaries="$(jq -r '.color_primaries' <<<"${json}")"
+    transfer="$(jq -r '.color_transfer' <<<"${json}")"
+    location="$(jq -r '.chroma_location' <<<"${json}")"
+
+    # map ffmpeg color values to svtav1
+    local value
+
+    # color_primaries -> --color-primaries
+    case "${primaries}" in
+    bt709) value=1 ;;
+    unknown | unspecified | null) value=2 ;;
+    bt470m) value=4 ;;
+    bt470bg) value=5 ;;
+    smpte170m) value=6 ;;
+    smpte240m) value=7 ;;
+    film) value=8 ;;
+    bt2020) value=9 ;;
+    smpte428 | smpte428_1) value=10 ;;
+    smpte431) value=11 ;;
+    smpte432) value=12 ;;
+    jedec-p22 | ebu3213) value=22 ;;
+    *) echo_fail "unsupported color primaries ${primaries}" && return 1 ;;
+    esac
+    params+=("color-primaries=${value}")
+
+    # color_trc -> --transfer-characteristics
+    case "${transfer}" in
+    bt709) value=1 ;;
+    unknown | unspecified | null) value=2 ;;
+    gamma22 | bt470m) value=4 ;;
+    gamma28 | bt470bg) value=5 ;;
+    smpte170m) value=6 ;;
+    smpte240m) value=7 ;;
+    linear) value=8 ;;
+    log100 | log) value=9 ;;
+    log316 | log_sqrt) value=10 ;;
+    iec61966-2-4 | iec61966_2_4) value=11 ;;
+    bt1361e | bt1361) value=12 ;;
+    iec61966-2-1 | iec61966_2_1) value=13 ;;
+    bt2020-10 | bt2020_10bit) value=14 ;;
+    bt2020-12 | bt2020_12bit) value=15 ;;
+    smpte2084) value=16 ;;
+    smpte428 | smpte428_1) value=17 ;;
+    arib-std-b67) value=18 ;;
+    *) echo_fail "unsupported transfer characteristics ${transfer}" && return 1 ;;
+    esac
+    params+=("transfer-characteristics=${value}")
+
+    # colorspace / matrix_coefficients -> --matrix-coefficients
+    case "${space}" in
+    rgb) value=0 ;;
+    bt709) value=1 ;;
+    unknown | unspecified | null) value=2 ;;
+    fcc) value=4 ;;
+    bt470bg) value=5 ;;
+    smpte170m) value=6 ;;
+    smpte240m) value=7 ;;
+    ycgco | ycocg) value=8 ;;
+    bt2020nc | bt2020_ncl) value=9 ;;
+    bt2020c | bt2020_cl) value=10 ;;
+    smpte2085) value=11 ;;
+    chroma-derived-nc) value=12 ;;
+    chroma-derived-c) value=13 ;;
+    ictcp) value=14 ;;
+    *) echo_fail "unsupported matrix coefficients ${space}" && return 1 ;;
+    esac
+    params+=("matrix-coefficients=${value}")
+
+    # color_range -> --color-range
+    case "${range}" in
+    unknown | unspecified | null) value=0 ;;
+    tv | mpeg | limited) value=0 ;;
+    pc | jpeg | full) value=1 ;;
+    *) echo_fail "unsupported color range ${range}" && return 1 ;;
+    esac
+    params+=("color-range=${value}")
+
+    # chroma_sample_location -> --chroma-sample-position
+    case "${location}" in
+    unknown | unspecified | null) value=0 ;;
+    left) value=1 ;;
+    topleft) value=2 ;;
+    *) echo_fail "unsupported chroma sample location ${location}" && return 1 ;;
+    esac
+    params+=("chroma-sample-position=${value}")
+
+    local masteringDisplay
+    masteringDisplay="$(
+        jq -r '
+        def rat:
+            if type == "string" and contains("/") then
+                split("/") | (.[0] | tonumber) / (.[1] | tonumber)
+            else
+                tonumber
+            end;
+
+        first(
+            .side_data_list[]?
+            | select(.side_data_type == "Mastering display metadata")
+        ) as $m
+        |
+        "G(\($m.green_x | rat),\($m.green_y | rat))" +
+        "B(\($m.blue_x | rat),\($m.blue_y | rat))" +
+        "R(\($m.red_x | rat),\($m.red_y | rat))" +
+        "WP(\($m.white_point_x | rat),\($m.white_point_y | rat))" +
+        "L(\($m.max_luminance | rat),\($m.min_luminance | rat))"
+    ' <<<"${json}"
+    )"
+    [[ -n ${masteringDisplay} ]] && params+=("mastering-display=${masteringDisplay}")
+
+    local cll
+    cll="$(
+        jq -r '
+        first(
+            .side_data_list[]?
+            | select(.side_data_type == "Content light level metadata")
+        )
+        | "\(.max_content),\(.max_average)"
+    ' <<<"${json}"
+    )"
+    [[ -n ${cll} ]] && params+=("content-light=${cll}")
+
+    local IFS=':'
+    echo "${params[*]}"
 }

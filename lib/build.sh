@@ -63,7 +63,10 @@ set_compile_opts() {
         echo_warn "using ${SUDO}to modify PREFIX"
     fi
     test -f "${testfile}" && ${SUDO_MODIFY} rm "${testfile}"
-    ensure_dir "${BINDIR}" || return 1
+    ensure_dir \
+        "${BINDIR}" \
+        "${LIBDIR}" \
+        "${INCDIR}" || return 1
 
     LDFLAGS_ARR=("-L${LIBDIR}")
 
@@ -230,6 +233,7 @@ fi' >"${compilerDir}/which"
 
     # least problematic place to set this
     CMAKE_FLAGS+=("-DCMAKE_EXE_LINKER_FLAGS=${LDFLAGS_ARR[*]}")
+    FFMPEG_EXTRA_FLAGS+=("--extra-ldflags=${LDFLAGS_ARR[*]}")
 
     # static/shared linking
     if [[ ${STATIC} == 'ON' ]]; then
@@ -237,12 +241,6 @@ fi' >"${compilerDir}/which"
         NO_BUILD_TYPE=shared
         SHARED=OFF
         MESON_FLAGS+=('--default-library=static')
-        # darwin does not support -static
-        if is_darwin; then
-            FFMPEG_EXTRA_FLAGS+=("--extra-ldflags=${LDFLAGS_ARR[*]}")
-        else
-            FFMPEG_EXTRA_FLAGS+=("--extra-ldflags=${LDFLAGS_ARR[*]} -static")
-        fi
         FFMPEG_EXTRA_FLAGS+=("--pkg-config-flags=--static")
     else
         BUILD_TYPE=shared
@@ -258,7 +256,6 @@ fi' >"${compilerDir}/which"
                 "-DCMAKE_INSTALL_NAME_DIR=@rpath"
             )
         fi
-        FFMPEG_EXTRA_FLAGS+=("--extra-ldflags=${LDFLAGS_ARR[*]}")
         LDFLAGS_ARR+=("-Wl,-rpath,${LIBDIR}")
         FFMPEG_EXTRA_FLAGS+=('--enable-rpath')
     fi
@@ -290,6 +287,21 @@ fi' >"${compilerDir}/which"
     CFLAGS_ARR+=("-fPIC")
     # add preprocessor flags
     CFLAGS_ARR+=("${CPPFLAGS_ARR[@]}")
+
+    if ! is_darwin; then
+        # add binary watermark
+        local watermark="${TMP_DIR}/watermark"
+        printf '%s\0' "${CFLAGS_ARR[*]}" >"${watermark}.bin"
+        objcopy \
+            -I binary \
+            -O elf64-x86-64 \
+            --rename-section .data=.note.watermark,alloc,load,readonly,data,contents \
+            "${watermark}.bin" \
+            "${watermark}.o"
+        # TODO
+        # LDFLAGS_ARR+=("${watermark}.o")
+        # verify with `readelf -x .note.watermark binary`
+    fi
 
     # set exported env names to stringified arrays
     CPPFLAGS="${CPPFLAGS_ARR[*]}"
@@ -360,11 +372,12 @@ libfribidi        1.0.16       tar.xz    https://github.com/fribidi/fribidi/rele
 libfreetype       2.14.1       tar.xz    https://downloads.sourceforge.net/freetype/freetype-${ver}.${ext} bzip,libpng,zlib,brotli,libharfbuzzNFTP
 libharfbuzz       12.3.0       tar.xz    https://github.com/harfbuzz/harfbuzz/releases/download/${ver}/harfbuzz-${ver}.${ext} libfreetype
 libopenjpeg       2.5.4        tar.gz    https://github.com/uclouvain/openjpeg/archive/refs/tags/v${ver}.${ext} libtiff,lcms2
+vapoursynth       80           tar.gz    https://github.com/vapoursynth/vapoursynth/archive/refs/tags/R${ver}.${ext}
 libsvtav1         4.1.0        tar.gz    https://gitlab.com/AOMediaCodec/SVT-AV1/-/archive/v${ver}/SVT-AV1-v${ver}.${ext}
 libsvtav1_hdr     4.1.0        tar.gz    https://github.com/juliobbv-p/svt-av1-hdr/archive/refs/tags/v${ver}.${ext} dovi_tool,hdr10plus_tool,cpuinfo
 libsvtav1_ess     4.0.1        tar.gz    https://github.com/nekotrix/SVT-AV1-Essential/archive/refs/tags/v${ver}-Essential.${ext} dovi_tool,hdr10plus_tool,cpuinfo
 libsvtav1_psy     3.0.2-B      tar.gz    https://github.com/BlueSwordM/svt-av1-psyex/archive/refs/tags/v${ver}.${ext} dovi_tool,hdr10plus_tool,cpuinfo
-libfontconfig     2.17.1       tar.xz    https://gitlab.freedesktop.org/api/v4/projects/890/packages/generic/fontconfig/${ver}/fontconfig-${ver}.${ext} libharfbuzz,expat,brotli
+libfontconfig     2.18.3       tar.xz    https://gitlab.freedesktop.org/api/v4/projects/890/packages/generic/fontconfig/${ver}/fontconfig-${ver}.${ext} libharfbuzz,expat,brotli
 '
     # dependencies
     BUILDS_CONF+='
@@ -374,6 +387,7 @@ zlib              1.3.1        tar.gz    https://github.com/madler/zlib/archive/
 zstd              1.5.7        tar.gz    https://github.com/facebook/zstd/archive/refs/tags/v${ver}.${ext}
 bzip              master       git       https://github.com/libarchive/bzip2.git
 expat             2.7.3        tar.xz    https://github.com/libexpat/libexpat/releases/download/R_${ver//./_}/expat-${ver}.${ext}
+meson             1.12.0       tar.gz    https://github.com/mesonbuild/meson/archive/refs/tags/${ver}.${ext}
 brotli            1.2.0        tar.gz    https://github.com/google/brotli/archive/refs/tags/v${ver}.${ext}
 cmake3            3.31.8       tar.gz    https://github.com/Kitware/CMake/archive/refs/tags/v${ver}.${ext}
 libogg            1.3.6        tar.xz    https://github.com/xiph/ogg/releases/download/v${ver}/libogg-${ver}.${ext}
@@ -383,7 +397,6 @@ cpuinfo           main         git       https://github.com/pytorch/cpuinfo/
 libjpeg           3.0.3        tar.gz    https://github.com/winlibs/libjpeg/archive/refs/tags/libjpeg-turbo-${ver}.${ext}
 glslang           16.0.0       tar.gz    https://github.com/KhronosGroup/glslang/archive/refs/tags/${ver}.${ext} spirv_tools
 libnuma           2.0.19       tar.gz    https://github.com/numactl/numactl/archive/refs/tags/v${ver}.${ext}
-supmover          2.4.3        tar.gz    https://github.com/MonoS/SupMover/archive/refs/tags/v${ver}.${ext}
 dovi_tool         2.3.1        tar.gz    https://github.com/quietvoid/dovi_tool/archive/refs/tags/${ver}.${ext}
 libcrypto         3.6.1        tar.gz    https://github.com/openssl/openssl/archive/refs/tags/openssl-${ver}.${ext} brotli,zlib,zstd
 libdeflate        1.25         tar.gz    https://github.com/ebiggers/libdeflate/archive/refs/tags/v${ver}.${ext} zlib
@@ -392,12 +405,21 @@ spirv_tools       2025.4       tar.gz    https://github.com/KhronosGroup/SPIRV-T
 spirv_headers     1.4.328.1    tar.gz    https://github.com/KhronosGroup/SPIRV-Headers/archive/refs/tags/vulkan-sdk-${ver}.${ext}
 hdr10plus_tool    1.7.2        tar.gz    https://github.com/quietvoid/hdr10plus_tool/archive/refs/tags/${ver}.${ext}
 libharfbuzzNFTP   12.3.0       tar.xz    https://github.com/harfbuzz/harfbuzz/releases/download/${ver}/harfbuzz-${ver}.${ext}
+xxhash            dev          git       https://github.com/Cyan4973/xxHash.git
+fftw              3.3.11       tar.gz    https://fftw.org/fftw-${ver}.${ext}
 '
     # ffmpeg --enable that are not added to DEFAULT_ENABLE (WIP)
     BUILDS_CONF+='
 libssh            0.11.1       tar.gz    https://github.com/canonical/libssh/archive/refs/tags/libssh-${ver}.${ext} libcrypto
 libplacebo        7.351.0      tar.gz    https://github.com/haasn/libplacebo/archive/refs/tags/v${ver}.${ext} glslang,vulkan_loader,glad
 '
+    # encode deps
+    BUILDS_CONF+='
+supmover          2.4.3        tar.gz    https://github.com/MonoS/SupMover/archive/refs/tags/v${ver}.${ext}
+vs_bestsource     21           tar.gz    https://github.com/vapoursynth/bestsource/archive/refs/tags/R${ver}.${ext} xxhash,libnuma
+vs_mvtools        29           tar.gz    https://github.com/dubhatervapoursynth/vapoursynth-mvtools/archive/refs/tags/v${ver//29/29_2}.${ext} fftw
+'
+
     local supported_builds=()
     unset ver ext url deps extractedDir
     while read -r line; do
@@ -555,6 +577,14 @@ download_release() {
     fi
 }
 
+refresh_download() {
+    if test "${ext}" != "git"; then
+        tar -cf "${wgetOut}" .
+    else
+        cp -a . "${download}"
+    fi
+}
+
 # given a build, topologically sort
 # a build and its dependencies
 # to minimize rebuilds
@@ -690,6 +720,10 @@ build() {
     set_compile_opts || return 1
 
     do_build ffmpeg || return 1
+
+    # vapoursynth plugins requires ffmpeg
+    do_build vs_bestsource || return 1
+    do_build vs_mvtools || return 1
 
     # skip packaging on PGO generate run
     if [[ ${PGO} == 'ON' && ${PGO_RUN} == 'generate' ]]; then
@@ -1001,6 +1035,12 @@ build_supmover() (
     cp supmover "${LOCAL_PREFIX}/bin/supmover" || return 1
 )
 
+build_xxhash() {
+    meta_cmake_build \
+        -S build/cmake || return 1
+    sanitize_sysroot_libs libxxhash || return 1
+}
+
 build_cmake3() (
     # clean build environment
     unset "${BUILD_ENV_NAMES[@]}"
@@ -1068,7 +1108,8 @@ build_xz() {
 }
 
 build_expat() {
-    meta_cmake_build || return 1
+    meta_cmake_build \
+        -DEXPAT_BUILD_DOCS=OFF || return 1
     sanitize_sysroot_libs libexpat || return 1
 }
 
@@ -1115,6 +1156,10 @@ build_libjxl() {
 ### MESON ###
 meta_meson_build() {
     local addFlags=("$@")
+
+    meson subprojects download || return 1
+    refresh_download || return 1
+
     meson setup \
         "${MESON_FLAGS[@]}" \
         "${addFlags[@]}" \
@@ -1196,7 +1241,8 @@ build_bzip() {
 }
 
 build_libfontconfig() {
-    meta_meson_build || return 1
+    meta_meson_build \
+        -D doc=disabled || return 1
     sanitize_sysroot_libs libfontconfig || return 1
 }
 
@@ -1236,8 +1282,70 @@ build_libbluray() {
 }
 
 ### PYTHON ###
+meta_python_build() {
+    local addFlags=("$@")
+    pip3 wheel \
+        --wheel-dir dist \
+        --no-deps \
+        --no-cache-dir \
+        --no-build-isolation \
+        .
+
+    pip3 install \
+        --ignore-installed \
+        --prefix "${PREFIX}" \
+        --no-deps \
+        --no-index \
+        --find-links dist \
+        "${addFlags[@]}"
+}
+
 build_glad() {
     true
+}
+
+build_vapoursynth() {
+    pipx install \
+        --force \
+        . || return 1
+
+    # add plugin build dependencies
+    pipx inject vapoursynth \
+        meson-python \
+        wheel \
+        setuptools || return 1
+
+    local installDir
+    installDir="$(get_pipx_pkg_path vapoursynth)"
+    ensure_dir "${INCDIR}/vapoursynth"
+
+    # ffmpeg expects libvapoursynth-script
+    ln -s "${installDir}/libvsscript.${SHARED_LIB_SUFF}" \
+        libvapoursynth-script."${SHARED_LIB_SUFF}" || return 1
+
+    # install to sysroot for ffmpeg integration
+    ${SUDO_MODIFY} cp \
+        "${installDir}/"*."${SHARED_LIB_SUFF}" \
+        "${LIBDIR}" || return 1
+    ${SUDO_MODIFY} cp \
+        "${installDir}/include/"*.h \
+        "${INCDIR}/vapoursynth/" || return 1
+}
+
+build_vs_bestsource() {
+    LDFLAGS="${LDFLAGS} -Wl,--exclude-libs,ALL" pipx inject \
+        --force \
+        --pip-args="--no-binary :all: --no-build-isolation" \
+        vapoursynth \
+        vapoursynth-bestsource=="${ver}"
+}
+
+build_vs_mvtools() {
+    LDFLAGS="${LDFLAGS} -Wl,--exclude-libs,ALL" pipx inject \
+        --force \
+        --pip-args="--no-binary :all: --no-build-isolation" \
+        vapoursynth \
+        vapoursynth-mvtools=="${ver}"
 }
 
 ### AUTOTOOLS ###
@@ -1334,6 +1442,12 @@ build_libunibreak() {
 build_libass() {
     meta_configure_build || return 1
     sanitize_sysroot_libs libass || return 1
+}
+
+build_fftw() {
+    meta_configure_build \
+        --enable-float || return 1
+    sanitize_sysroot_libs libfftw || return 1
 }
 
 build_libcrypto() {

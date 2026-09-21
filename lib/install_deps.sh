@@ -156,11 +156,14 @@ check_for_req_pkgs() {
     fi
 
     echo_pass "packages from ${pkg_mgr} installed"
+
+    # pipx packages
     has_cmd pipx || echo_if_fail python3 -m pip install --user pipx || return 1
     has_cmd pipx || echo_if_fail python3 -m pipx ensurepath && source ~/.bashrc || return 1
     echo_if_fail pipx install virtualenv || return 1
     echo_if_fail pipx ensurepath || return 1
     has_cmd meson && have_req_meson_version || echo_if_fail pipx install meson || return 1
+    have_cmd cython || echo_if_fail pipx install cython || return 1
     echo_pass "pipx is installed"
 
     # shellcheck disable=SC1091

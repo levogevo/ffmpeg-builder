@@ -6,6 +6,8 @@ gen_profdata() {
     recreate_dir "${PGO_DIR}" || return 1
     cd "${PGO_DIR}" || return 1
     setup_pgo_clips || return 1
+    local profile="${PGO_DIR}/default_%p.profraw"
+
     for vid in *.mkv; do
         local args=()
         # add precalculated grain amount based off of filename
@@ -14,8 +16,13 @@ gen_profdata() {
         line_contains "${vid}" 'fhd' && args+=(-P 2)
 
         echo_info "encoding pgo vid: ${vid}"
-        LLVM_PROFILE_FILE="${PGO_DIR}/default_%p.profraw" \
+        LLVM_PROFILE_FILE="${profile}" \
             echo_if_fail encode -i "${vid}" "${args[@]}" "encoded-${vid}" || return 1
+
+        # run again with vapoursynth denoiser
+        line_contains "${vid}" 'grain' && args+=(-d) &&
+            LLVM_PROFILE_FILE="${profile}" \
+                echo_if_fail encode -i "${vid}" "${args[@]}" "encoded-${vid}" || return 1
     done
 
     # merge profraw into profdata
@@ -38,6 +45,7 @@ gen_profdata() {
 setup_pgo_clips() {
     local clips=(
         "fhd-grainy.mkv 1080p,grain=yes"
+        "uhd-grainy.mkv 2160p,grain=yes"
         "uhd.mkv 2160p"
         "uhd-hdr.mkv 2160p,hdr=yes"
     )

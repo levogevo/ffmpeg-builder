@@ -652,3 +652,12 @@ print_opt_map() {
     done
     echo
 }
+
+get_pipx_pkg_path() {
+    local pkg="$1"
+
+    local python platlib
+    python="$(pipx environment --value PIPX_LOCAL_VENVS)/${pkg}/bin/python"
+    local platlib="$("${python}" -c 'import sysconfig; print(sysconfig.get_path("platlib"))')"
+    echo "${platlib}/${pkg}"
+}

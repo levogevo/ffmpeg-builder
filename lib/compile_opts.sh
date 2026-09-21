@@ -52,6 +52,7 @@ libsnappy
 libvorbis
 libmp3lame
 libfribidi
+vapoursynth
 libfreetype
 libharfbuzz
 libopenjpeg
