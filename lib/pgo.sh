@@ -20,9 +20,11 @@ gen_profdata() {
             echo_if_fail encode -i "${vid}" "${args[@]}" "encoded-${vid}" || return 1
 
         # run again with vapoursynth denoiser
-        line_contains "${vid}" 'grain' && args+=(-d) &&
+        if line_contains "${vid}" 'grain'; then
+            args+=(-d)
             LLVM_PROFILE_FILE="${profile}" \
                 echo_if_fail encode -i "${vid}" "${args[@]}" "encoded-${vid}" || return 1
+        fi
     done
 
     # merge profraw into profdata

@@ -284,9 +284,11 @@ fi' >"${compilerDir}/which"
 
     # can fail static builds with -fpic
     # warning: too many GOT entries for -fpic, please recompile with -fPIC
-    CFLAGS_ARR+=("-fPIC")
+    CFLAGS_ARR+=(-fPIC)
     # add preprocessor flags
     CFLAGS_ARR+=("${CPPFLAGS_ARR[@]}")
+    # record flags in binary
+    CFLAGS_ARR+=(-frecord-gcc-switches)
 
     if ! is_darwin; then
         # add binary watermark
@@ -416,8 +418,8 @@ libplacebo        7.351.0      tar.gz    https://github.com/haasn/libplacebo/arc
     # encode deps
     BUILDS_CONF+='
 supmover          2.4.3        tar.gz    https://github.com/MonoS/SupMover/archive/refs/tags/v${ver}.${ext}
-vs_bestsource     21           tar.gz    https://github.com/vapoursynth/bestsource/archive/refs/tags/R${ver}.${ext} xxhash,libnuma
-vs_mvtools        29           tar.gz    https://github.com/dubhatervapoursynth/vapoursynth-mvtools/archive/refs/tags/v${ver//29/29_2}.${ext} fftw
+vs_bestsource     21           tar.gz    https://github.com/vapoursynth/bestsource/archive/refs/tags/R${ver}.${ext} vapoursynth,xxhash,libnuma
+vs_mvtools        29           tar.gz    https://github.com/dubhatervapoursynth/vapoursynth-mvtools/archive/refs/tags/v${ver//29/29_2}.${ext} vapoursynth,fftw
 '
 
     local supported_builds=()
@@ -1300,6 +1302,23 @@ meta_python_build() {
         "${addFlags[@]}"
 }
 
+meta_pipx_inject() {
+    local environment="$1"
+    shift
+    local dependencies=("$@")
+
+    local modLDFLAGS=''
+    if ! is_darwin; then
+        modLDFLAGS='-Wl,--exclude-libs,ALL'
+    fi
+
+    LDFLAGS="${LDFLAGS} ${modLDFLAGS}" pipx inject \
+        --force \
+        --pip-args="--no-binary :all: --no-build-isolation" \
+        "${environment}" \
+        "${dependencies[@]}"
+}
+
 build_glad() {
     true
 }
@@ -1333,17 +1352,13 @@ build_vapoursynth() {
 }
 
 build_vs_bestsource() {
-    LDFLAGS="${LDFLAGS} -Wl,--exclude-libs,ALL" pipx inject \
-        --force \
-        --pip-args="--no-binary :all: --no-build-isolation" \
+    meta_pipx_inject \
         vapoursynth \
         vapoursynth-bestsource=="${ver}"
 }
 
 build_vs_mvtools() {
-    LDFLAGS="${LDFLAGS} -Wl,--exclude-libs,ALL" pipx inject \
-        --force \
-        --pip-args="--no-binary :all: --no-build-isolation" \
+    meta_pipx_inject \
         vapoursynth \
         vapoursynth-mvtools=="${ver}"
 }
