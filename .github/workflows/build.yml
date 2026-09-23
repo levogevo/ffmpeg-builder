@@ -1,0 +1,102 @@
+name: ffmpeg-builder
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+env:
+  DEBUG: "0"
+  HEADLESS: "1"
+  DOCKER_REGISTRY: ghcr.io
+  DOCKER_REGISTRY_USER: ${{ github.actor }}
+  DOCKER_REGISTRY_PASS: ${{ secrets.GITHUB_TOKEN }}
+
+permissions:
+  packages: write
+  contents: read
+
+jobs:
+  base-image:
+    name: base image ${{ matrix.distro }} (${{ matrix.platform }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      matrix:
+        include:
+          - { platform: linux/amd64, runner: ubuntu-latest }
+          - { platform: linux/arm64, runner: ubuntu-24.04-arm }
+        distro: [ubuntu, fedora, debian, archlinux]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: gitignore/downloads
+          key: downloads
+      - name: build and push base image
+        run: ./scripts/docker_build_image.sh ${{ matrix.distro }}
+        env:
+          PLATFORM: ${{ matrix.platform }}
+
+  base-image-manifest:
+    name: merge multiarch base images
+    needs: base-image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: merge platform legs into multiarch tags
+        run: |
+          for d in ubuntu fedora debian archlinux; do
+            docker buildx imagetools create \
+              -t "$DOCKER_REGISTRY/${{ github.repository_owner }}/ffmpeg_builder_$d" \
+              "$DOCKER_REGISTRY/${{ github.repository_owner }}/ffmpeg_builder_$d-amd64" \
+              "$DOCKER_REGISTRY/${{ github.repository_owner }}/ffmpeg_builder_$d-arm64"
+          done
+
+  darwin:
+    name: darwin (${{ matrix.comp_opts }})
+    runs-on: macos-latest
+    strategy:
+      matrix:
+        comp_opts:
+          - "OPT=0 LTO=OFF STATIC=OFF"
+          - "OPT=2 LTO=OFF"
+    steps:
+      - uses: actions/checkout@v4
+      - name: install dependencies
+        run: ./scripts/install_deps.sh
+      - name: build ffmpeg
+        run: ${{ matrix.comp_opts }} ./scripts/build.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          path: gitignore/package/*.tar.xz
+          if-no-files-found: ignore
+
+  linux:
+    name: linux ${{ matrix.arch }} ${{ matrix.distro }} (${{ matrix.comp_opts }})
+    needs: base-image-manifest
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      matrix:
+        include:
+          - { arch: x86-64-v3, runner: ubuntu-latest }
+          - { arch: armv8-a, runner: ubuntu-24.04-arm }
+        distro: [ubuntu, fedora, debian, archlinux]
+        comp_opts:
+          - "OPT=0 LTO=OFF STATIC=OFF"
+          - "OPT=2 LTO=OFF"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: gitignore/downloads
+          key: downloads
+      - name: build ffmpeg with docker
+        run: ${{ matrix.comp_opts }} ./scripts/build_with_docker.sh ${{ matrix.distro }}
+      - uses: actions/upload-artifact@v4
+        with:
+          path: gitignore/package/*.tar.xz
+          if-no-files-found: ignore

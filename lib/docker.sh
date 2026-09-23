@@ -212,11 +212,23 @@ docker_build_image() {
 
     # if a docker registry is defined, push to it
     if [[ ${DOCKER_REGISTRY} != '' ]]; then
+        # single-platform builds push a platform-qualified tag so amd64/arm64
+        # legs can be merged into a multiarch manifest later; multi-platform
+        # builds (comma-separated PLATFORM) keep the plain tag via buildx
+        local platSuffix=''
+        if ! line_contains "${PLATFORM}" ','; then
+            if line_contains "${PLATFORM}" 'amd64'; then
+                platSuffix='-amd64'
+            elif line_contains "${PLATFORM}" 'arm64'; then
+                platSuffix='-arm64'
+            fi
+        fi
+
         docker_login || return 1
         docker buildx build \
             --push \
             --platform "${PLATFORM}" \
-            -t "${DOCKER_REGISTRY}/${image_tag}" \
+            -t "${DOCKER_REGISTRY}/${image_tag}${platSuffix}" \
             -f "${dockerfile}" \
             "${DOCKER_DIR}" || return 1
     fi
