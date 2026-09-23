@@ -95,10 +95,13 @@ validate_selected_image() {
 }
 
 docker_login() {
+    # registry may include a namespace path (e.g. ghcr.io/<owner>);
+    # docker login must target the host only
+    local loginServer="${DOCKER_REGISTRY%%/*}"
     echo_if_fail docker login \
         -u "${DOCKER_REGISTRY_USER}" \
         -p "${DOCKER_REGISTRY_PASS}" \
-        "${DOCKER_REGISTRY}"
+        "${loginServer}"
 }
 
 FB_FUNC_NAMES+=('docker_build_image')

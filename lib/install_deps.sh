@@ -48,7 +48,7 @@ print_req_pkgs() {
     local brew_pkgs=(
         "${common_pkgs[@]}" pkgconf
         mkvtoolnix pipx coreutils
-        llvm lld
+        llvm lld cargo-c
     )
     local common_linux_pkgs=(
         "${common_pkgs[@]}" clang valgrind

@@ -8,7 +8,7 @@ on:
 env:
   DEBUG: "0"
   HEADLESS: "1"
-  DOCKER_REGISTRY: ghcr.io
+  DOCKER_REGISTRY: ghcr.io/${{ github.repository_owner }}
   DOCKER_REGISTRY_USER: ${{ github.actor }}
   DOCKER_REGISTRY_PASS: ${{ secrets.GITHUB_TOKEN }}
 
@@ -51,9 +51,9 @@ jobs:
         run: |
           for d in ubuntu fedora debian archlinux; do
             docker buildx imagetools create \
-              -t "$DOCKER_REGISTRY/${{ github.repository_owner }}/ffmpeg_builder_$d" \
-              "$DOCKER_REGISTRY/${{ github.repository_owner }}/ffmpeg_builder_$d-amd64" \
-              "$DOCKER_REGISTRY/${{ github.repository_owner }}/ffmpeg_builder_$d-arm64"
+              -t "$DOCKER_REGISTRY/ffmpeg_builder_$d" \
+              "$DOCKER_REGISTRY/ffmpeg_builder_$d-amd64" \
+              "$DOCKER_REGISTRY/ffmpeg_builder_$d-arm64"
           done
 
   darwin:
