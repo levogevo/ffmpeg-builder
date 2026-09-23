@@ -162,6 +162,8 @@ docker_build_image() {
         # rust
         local rustupVersion='1.28.2'
         local rustcVersion='1.90.0'
+        # cargo-c version compatible with the pinned rustc above
+        local cargoCVersion='0.10.19+cargo-0.93.0'
         local rustupTarball="rustup-${rustupVersion}.tar.gz"
         local rustupTarballPath="${DOCKER_DIR}/${rustupTarball}"
         if [[ ! -f ${rustupTarballPath} ]]; then
@@ -173,7 +175,7 @@ docker_build_image() {
         # install cargo-binstall
         echo "RUN curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash"
         # install cargo-c
-        echo "RUN cargo-binstall -y cargo-c"
+        echo "RUN cargo-binstall -y cargo-c@${cargoCVersion}"
 
         # final mods for PS1
         echo

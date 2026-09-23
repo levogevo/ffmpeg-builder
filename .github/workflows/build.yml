@@ -66,10 +66,16 @@ jobs:
           - "OPT=2 LTO=OFF"
     steps:
       - uses: actions/checkout@v4
+      - name: install bash 5
+        run: brew install bash
       - name: install dependencies
-        run: ./scripts/install_deps.sh
+        run: |
+          export PATH="/opt/homebrew/bin:${PATH}"
+          ./scripts/install_deps.sh
       - name: build ffmpeg
-        run: ${{ matrix.comp_opts }} ./scripts/build.sh
+        run: |
+          export PATH="/opt/homebrew/bin:${PATH}"
+          ${{ matrix.comp_opts }} ./scripts/build.sh
       - uses: actions/upload-artifact@v4
         with:
           path: gitignore/package/*.tar.xz
