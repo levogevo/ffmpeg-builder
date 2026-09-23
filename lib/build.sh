@@ -498,7 +498,7 @@ vs_mvtools        29           tar.gz    https://github.com/dubhatervapoursynth/
 
 download_release() {
     local basename="$(bash_basename "${extractedDir}")"
-    local download="${DL_DIR}/${basename}"
+    download="${DL_DIR}/${basename}"
 
     # remove other versions of a download
     for alreadyDownloaded in "${DL_DIR}/${build}-"*; do
@@ -583,7 +583,7 @@ refresh_download() {
     if test "${ext}" != "git"; then
         tar -cf "${wgetOut}" .
     else
-        cp -a . "${download}"
+        rsync -a . "${download}"
     fi
 }
 
