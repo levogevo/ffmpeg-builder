@@ -22,10 +22,13 @@ jobs:
     runs-on: ${{ matrix.runner }}
     strategy:
       matrix:
-        include:
-          - { platform: linux/amd64, runner: ubuntu-latest }
-          - { platform: linux/arm64, runner: ubuntu-24.04-arm }
         distro: [ubuntu, fedora, debian, archlinux]
+        platform: [linux/amd64, linux/arm64]
+        include:
+          - platform: linux/amd64
+            runner: ubuntu-latest
+          - platform: linux/arm64
+            runner: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v4
       - uses: actions/cache@v4
@@ -87,13 +90,16 @@ jobs:
     runs-on: ${{ matrix.runner }}
     strategy:
       matrix:
-        include:
-          - { arch: x86-64-v3, runner: ubuntu-latest }
-          - { arch: armv8-a, runner: ubuntu-24.04-arm }
+        arch: [x86-64-v3, armv8-a]
         distro: [ubuntu, fedora, debian, archlinux]
         comp_opts:
           - "OPT=0 LTO=OFF STATIC=OFF"
           - "OPT=2 LTO=OFF"
+        include:
+          - arch: x86-64-v3
+            runner: ubuntu-latest
+          - arch: armv8-a
+            runner: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v4
       - uses: actions/cache@v4
