@@ -35,6 +35,10 @@ jobs:
         with:
           path: gitignore/downloads
           key: downloads
+      - uses: actions/cache@v4
+        with:
+          path: gitignore/docker
+          key: docker-deps-${{ hashFiles('lib/docker.sh') }}
       - name: build and push base image
         run: ./scripts/docker_build_image.sh ${{ matrix.distro }}
         env:
@@ -52,17 +56,26 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: merge platform legs into multiarch tags
         run: |
+          : > "${RUNNER_TEMP}/merged_distros"
           for d in ubuntu fedora debian archlinux; do
-            docker buildx imagetools create \
-              -t "$DOCKER_REGISTRY/ffmpeg_builder_$d" \
-              "$DOCKER_REGISTRY/ffmpeg_builder_$d-amd64" \
-              "$DOCKER_REGISTRY/ffmpeg_builder_$d-arm64"
+            amd64="$DOCKER_REGISTRY/ffmpeg_builder_${d}-amd64"
+            arm64="$DOCKER_REGISTRY/ffmpeg_builder_${d}-arm64"
+            if docker buildx imagetools inspect "${amd64}" >/dev/null 2>&1 && \
+               docker buildx imagetools inspect "${arm64}" >/dev/null 2>&1; then
+              echo "merging platform legs for ${d}"
+              docker buildx imagetools create \
+                -t "$DOCKER_REGISTRY/ffmpeg_builder_$d" \
+                "${amd64}" "${arm64}"
+              echo "${d}" >> "${RUNNER_TEMP}/merged_distros"
+            else
+              echo "skip: no fresh platform legs for ${d} (cached build?)"
+            fi
           done
       - name: delete single-platform leg packages
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          for d in ubuntu fedora debian archlinux; do
+          for d in $(cat "${RUNNER_TEMP}/merged_distros"); do
             for suf in amd64 arm64; do
               pkg="ffmpeg_builder_${d}-${suf}"
               echo "removing single-platform package ${pkg}"
