@@ -58,6 +58,18 @@ jobs:
               "$DOCKER_REGISTRY/ffmpeg_builder_$d-amd64" \
               "$DOCKER_REGISTRY/ffmpeg_builder_$d-arm64"
           done
+      - name: delete single-platform leg packages
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          for d in ubuntu fedora debian archlinux; do
+            for suf in amd64 arm64; do
+              pkg="ffmpeg_builder_${d}-${suf}"
+              echo "removing single-platform package ${pkg}"
+              gh api -X DELETE "/user/packages/container/${pkg}" || \
+                echo "warn: failed to delete ${pkg}"
+            done
+          done
 
   darwin:
     name: darwin (${{ matrix.comp_opts }})
