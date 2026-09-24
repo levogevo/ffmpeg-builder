@@ -488,6 +488,9 @@ vs_mvtools        29           tar.gz    https://github.com/dubhatervapoursynth/
         extractedDir="${BUILD_DIR}/${build}-v${ver}"
     fi
 
+    local basename="$(bash_basename "${extractedDir}")"
+    download="${DL_DIR}/${basename}"
+
     if [[ -n ${getBuildValue} ]]; then
         declare -n value=${getBuildValue}
         echo "${value}"
@@ -497,9 +500,6 @@ vs_mvtools        29           tar.gz    https://github.com/dubhatervapoursynth/
 }
 
 download_release() {
-    local basename="$(bash_basename "${extractedDir}")"
-    download="${DL_DIR}/${basename}"
-
     # remove other versions of a download
     for alreadyDownloaded in "${DL_DIR}/${build}-"*; do
         if line_contains "${alreadyDownloaded}" "${basename}"; then
@@ -577,14 +577,40 @@ download_release() {
         test -d "${extractedDir}" ||
             cp -r "${download}" "${extractedDir}" || return 1
     fi
+
+    # check if the build has dependencies that need downloading
+    (
+        cd "${extractedDir}" || return 1
+        
+        if test -f meson.build && grep -q subproject meson.build; then
+            echo_if_fail meson subprojects download || return 1
+        else
+            # early return, no changes
+            return 0
+        fi
+
+        if test "${ext}" != "git"; then
+            tar -cf "${wgetOut}" .
+        else
+            rsync -a . "${download}"
+        fi
+    )
 }
 
-refresh_download() {
-    if test "${ext}" != "git"; then
-        tar -cf "${wgetOut}" .
-    else
-        rsync -a . "${download}"
-    fi
+
+FB_FUNC_NAMES+=('download_all_releases')
+# shellcheck disable=SC2034
+FB_FUNC_DESCS['download_all_releases']='download all supported releases'
+# shellcheck disable=SC2034
+FB_FUNC_COMPLETION['download_all_releases']="$(get_build_conf supported)"
+download_all_releases() {
+    local builds
+    builds=($(get_build_conf supported)) || return 1
+
+    for build in "${builds[@]}"; do
+        get_build_conf "${build}" || return 1
+        download_release "${build}" || return 1
+    done
 }
 
 # given a build, topologically sort
@@ -1158,9 +1184,6 @@ build_libjxl() {
 ### MESON ###
 meta_meson_build() {
     local addFlags=("$@")
-
-    meson subprojects download || return 1
-    refresh_download || return 1
 
     meson setup \
         "${MESON_FLAGS[@]}" \
