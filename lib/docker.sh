@@ -162,8 +162,7 @@ docker_build_image() {
         # run as nobody:nogroup for rest of install
         echo 'USER 65534:65534'
         # pipx
-        echo "RUN pipx install virtualenv"
-        echo "RUN pipx install meson"
+        echo "RUN pipx install virtualenv meson cython"
         # rust
         local rustupVersion='1.28.2'
         local rustcVersion='1.90.0'
