@@ -116,9 +116,11 @@ docker_build_image() {
     PLATFORM="${PLATFORM:-$(echo_platform)}"
 
     echo_info "sourcing package manager for ${image}"
-    local dockerDistro="$(get_docker_image_tag "${image}")"
+    local dockerDistro
+    dockerDistro="$(get_docker_image_tag "${image}")"
     # specific file for evaluated package manager info
-    local distroPkgMgr="${DOCKER_DIR}/$(bash_basename "${image}")-pkg_mgr"
+    local distroPkgMgr
+    distroPkgMgr="${DOCKER_DIR}/$(bash_basename "${image}")-pkg_mgr"
     # get package manager info
     docker run \
         "${DOCKER_RUN_FLAGS[@]}" \
@@ -129,13 +131,16 @@ docker_build_image() {
     # shellcheck disable=SC1090
     source "${distroPkgMgr}"
 
-    local dockerfile="${DOCKER_DIR}/Dockerfile_$(bash_basename "${image}")"
+    local dockerfile
+    dockerfile="${DOCKER_DIR}/Dockerfile_$(bash_basename "${image}")"
     local embedPath='/Dockerfile'
+    # shellcheck disable=SC2016
     {
         echo "FROM ${dockerDistro}"
         echo 'SHELL ["/bin/bash", "-c"]'
         echo 'RUN ln -sf /bin/bash /bin/sh'
         echo 'ENV DEBIAN_FRONTEND=noninteractive'
+        # shellcheck disable=SC2154
         echo "RUN ${pkg_mgr_update} && ${pkg_mgr_upgrade} && ${pkg_install} ${req_pkgs[*]}"
 
         # ENV for pipx/rust
@@ -157,8 +162,12 @@ docker_build_image() {
         echo 'RUN echo "nobody:x:65534:65534:nobody:/root:/bin/bash" >> /etc/passwd'
         echo 'RUN sed -i '/nogroup/d' /etc/group || true'
         echo 'RUN echo "nogroup:x:65534:" >> /etc/group'
+        # PS1
+        echo "RUN echo \"PS1='id=\\\$(id -u)@${image}:\w\\$ '\" >> /etc/bash.bashrc"
         # open up permissions before switching user
-        echo 'RUN chmod 777 -R /root/'
+        echo 'ENV HOME="/root"'
+        echo 'RUN chmod 777 -R /root'
+
         # run as nobody:nogroup for rest of install
         echo 'USER 65534:65534'
         # pipx
@@ -181,12 +190,11 @@ docker_build_image() {
         # install cargo-c
         echo "RUN cargo-binstall -y cargo-c@${cargoCVersion}"
 
-        # final mods for PS1
-        echo
-        echo 'USER root'
-        echo "RUN echo \"PS1='id=\\\$(id -u)@${image}:\w\\$ '\" >> /etc/bash.bashrc"
-        echo 'USER 65534:65534'
-        echo
+        # PS1 for specific home path
+        echo 'grep PS1 /etc/bash.bashrc | tail -n 1 >> ~/.bashrc'
+
+        # open up permissions finalizing image
+        echo 'RUN chmod 777 -R ${PIPX_HOME}'
 
         # embed dockerfile into docker image itself
         # shellcheck disable=SC2094
@@ -263,9 +271,10 @@ docker_load_image() {
     check_docker || return 1
     image_tag="$(set_distro_image_tag "${image}")"
     echo_info "loading docker image for ${image_tag}"
-    local archive="${DOCKER_DIR}/$(docker_image_archive_name "${image_tag}")"
-    test -f "$archive" || return 1
-    zstdcat -T0 "$archive" | docker load || return 1
+    local archive
+    archive="${DOCKER_DIR}/$(docker_image_archive_name "${image_tag}")"
+    test -f "${archive}" || return 1
+    zstdcat -T0 "${archive}" | docker load || return 1
     docker system prune -f
 }
 
@@ -286,11 +295,13 @@ docker_run_image() {
         runCmd+=("${cmd[@]}")
     fi
 
-    local image_tag="$(set_distro_image_tag "${image}")"
+    local image_tag
+    image_tag="$(set_distro_image_tag "${image}")"
 
     # if a docker registry is defined, pull from it
     if [[ ${DOCKER_REGISTRY} != '' ]]; then
         echo_if_fail docker_login || return 1
+        echo_info "pulling ${image_tag}"
         echo_if_fail docker pull \
             "${DOCKER_REGISTRY}/${image_tag}" || return 1
         docker tag "${DOCKER_REGISTRY}/${image_tag}" "${image_tag}"

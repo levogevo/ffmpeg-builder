@@ -61,6 +61,7 @@ print_req_pkgs() {
         mawk libc6-dev mediainfo ninja-build
         mkvtoolnix libgtest-dev lld
         libglib2.0-dev python-is-python3
+        python3-dev
     )
     # shellcheck disable=SC2034
     local pacman_pkgs=(
