@@ -449,6 +449,14 @@ vs_mvtools        29           tar.gz    https://github.com/dubhatervapoursynth/
         return 0
     fi
 
+    if [[ ${getBuild} == 'BUILDS_CONF' ]]; then
+        while read -r line; do
+            [[ "${line}" == '' ]] && continue
+            echo ${line}
+        done <<< "$(sort <<< "${BUILDS_CONF}")"
+        return 0
+    fi
+
     # special arg to print BUILDS_CONF but formatted with spaces
     if [[ ${getBuild} == 'formatted' ]]; then
         echo "local BUILDS_CONF='"
