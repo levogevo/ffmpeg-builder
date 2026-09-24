@@ -191,7 +191,7 @@ docker_build_image() {
         echo "RUN cargo-binstall -y cargo-c@${cargoCVersion}"
 
         # PS1 for specific home path
-        echo 'grep PS1 /etc/bash.bashrc | tail -n 1 >> ~/.bashrc'
+        echo 'ECHO grep PS1 /etc/bash.bashrc | tail -n 1 >> ~/.bashrc'
 
         # open up permissions finalizing image
         echo 'RUN chmod 777 -R ${PIPX_HOME}'
