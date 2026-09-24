@@ -87,6 +87,7 @@ jobs:
 
   download-releases:
     name: download all releases
+    needs: base-image-manifest
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -102,7 +103,7 @@ jobs:
           key: ${{ steps.dk.outputs.key }}
           restore-keys: downloads-
       - name: download all releases
-        run: ./scripts/download_all_releases.sh
+        run: ./scripts/docker_run_image.sh ubuntu ./scripts/download_all_releases.sh
 
   # darwin:
   #   name: darwin (${{ matrix.comp_opts }})
