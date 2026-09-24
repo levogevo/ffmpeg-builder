@@ -60,7 +60,7 @@ print_req_pkgs() {
         build-essential libssl-dev gobjc++
         mawk libc6-dev mediainfo ninja-build
         mkvtoolnix libgtest-dev lld
-        libglib2.0-dev
+        libglib2.0-dev python-is-python3
     )
     # shellcheck disable=SC2034
     local pacman_pkgs=(
