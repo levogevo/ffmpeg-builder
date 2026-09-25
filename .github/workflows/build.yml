@@ -164,6 +164,8 @@ jobs:
           restore-keys: downloads-
       - name: build ffmpeg with docker
         run: ${{ matrix.comp_opts }} ./scripts/build_with_docker.sh ${{ matrix.distro }}
+        env:
+          ARCH: ${{ matrix.arch }}
       - uses: actions/upload-artifact@v4
         with:
           path: gitignore/package/*.tar.xz
