@@ -31,11 +31,6 @@ jobs:
             runner: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v4
-      # downloads are fetched by the download-releases job; keep the docker deps cache
-      # - uses: actions/cache@v4
-      #   with:
-      #     path: gitignore/downloads
-      #     key: downloads
       - uses: actions/cache@v4
         with:
           path: gitignore/docker
@@ -89,6 +84,8 @@ jobs:
     name: download all releases
     needs: base-image-manifest
     runs-on: ubuntu-latest
+    outputs:
+      dl_key: ${{ steps.dk.outputs.key }}
     steps:
       - uses: actions/checkout@v4
       - name: compute downloads cache key
@@ -105,30 +102,36 @@ jobs:
       - name: download all releases
         run: ./scripts/docker_run_image.sh ubuntu ./scripts/download_all_releases.sh
 
-  # darwin:
-  #   name: darwin (${{ matrix.comp_opts }})
-  #   runs-on: macos-latest
-  #   strategy:
-  #     matrix:
-  #       comp_opts:
-  #         - "OPT=0 LTO=OFF STATIC=OFF"
-  #         - "OPT=2 LTO=OFF"
-  #   steps:
-  #     - uses: actions/checkout@v4
-  #     - name: install bash 5
-  #       run: brew install bash
-  #     - name: install dependencies
-  #       run: |
-  #         export PATH="/opt/homebrew/bin:${PATH}"
-  #         ./scripts/install_deps.sh
-  #     - name: build ffmpeg
-  #       run: |
-  #         export PATH="/opt/homebrew/bin:${PATH}"
-  #         ${{ matrix.comp_opts }} ./scripts/build.sh
-  #     - uses: actions/upload-artifact@v4
-  #       with:
-  #         path: gitignore/package/*.tar.xz
-  #         if-no-files-found: ignore
+  darwin:
+    name: darwin arm64 (${{ matrix.comp_opts }})
+    needs: download-releases
+    runs-on: macos-latest
+    strategy:
+      matrix:
+        comp_opts:
+          - "OPT=0 LTO=OFF STATIC=OFF"
+          - "OPT=2 LTO=OFF"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache/restore@v4
+        with:
+          path: gitignore/downloads
+          key: ${{ needs.download-releases.outputs.dl_key }}
+          restore-keys: downloads-
+      - name: install bash 5
+        run: brew install bash
+      - name: install dependencies
+        run: |
+          export PATH="/opt/homebrew/bin:${PATH}"
+          ./scripts/install_deps.sh
+      - name: build ffmpeg
+        run: |
+          export PATH="/opt/homebrew/bin:${PATH}"
+          ${{ matrix.comp_opts }} ./scripts/build.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          path: gitignore/package/*.tar.xz
+          if-no-files-found: ignore
 
   linux:
     name: linux ${{ matrix.arch }} ${{ matrix.distro }} (${{ matrix.comp_opts }})
@@ -138,32 +141,26 @@ jobs:
       matrix:
         arch:
           - x86-64-v3
-          # - armv8-a
+          - armv8-a
         distro:
           - ubuntu
-          # - fedora
-          # - debian
-          # - archlinux
+          - fedora
+          - debian
+          - archlinux
         comp_opts:
           - "OPT=0 LTO=OFF STATIC=OFF"
           - "OPT=2 LTO=OFF"
         include:
           - arch: x86-64-v3
             runner: ubuntu-latest
-          # - arch: armv8-a
-          #   runner: ubuntu-24.04-arm
+          - arch: armv8-a
+            runner: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v4
-      - name: compute downloads cache key
-        id: dk
-        run: |
-          hash="$({ ./scripts/entry.sh get_build_conf BUILDS_CONF; } | \
-            python3 -c 'import hashlib,sys;print(hashlib.sha256(sys.stdin.buffer.read()).hexdigest())')"
-          echo "key=downloads-${hash}" >> "${GITHUB_OUTPUT}"
       - uses: actions/cache/restore@v4
         with:
           path: gitignore/downloads
-          key: ${{ steps.dk.outputs.key }}
+          key: ${{ needs.download-releases.outputs.dl_key }}
           restore-keys: downloads-
       - name: build ffmpeg with docker
         run: ${{ matrix.comp_opts }} ./scripts/build_with_docker.sh ${{ matrix.distro }}
