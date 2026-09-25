@@ -78,6 +78,7 @@ print_req_pkgs() {
         llvm-cmake-utils llvm-devel
         llvm-static compiler-rt lld
         mkvtoolnix glib2-static
+        python3-devel
     )
     # shellcheck disable=SC2034
     local pkg_pkgs=(
