@@ -45,10 +45,10 @@ get_docker_image_tag() {
     local image="$1"
     local tag=''
     case "${image}" in
-    ubuntu) tag='ubuntu:24.04@sha256:c35e29c9450151419d9448b0fd75374fec4fff364a27f176fb458d472dfc9e54' ;;
-    debian) tag='debian:13@sha256:0d01188e8dd0ac63bf155900fad49279131a876a1ea7fac917c62e87ccb2732d' ;;
-    fedora) tag='fedora:42@sha256:b3d16134560afa00d7cc2a9e4967eb5b954512805f3fe27d8e70bbed078e22ea' ;;
-    archlinux) tag='ogarcia/archlinux:latest@sha256:1d70273180e43b1f51b41514bdaa73c61f647891a53a9c301100d5c4807bf628' ;;
+    ubuntu) tag='ubuntu:26.04@sha256:da6fc2be547864451aa253836dd926da33623312df4a9a243e35dc877c378a78' ;;
+    debian) tag='debian:13@sha256:9cc080028c43b27d2074d63a5f9caf7166d731494965616c1a6d2827a004585c' ;;
+    fedora) tag='fedora:44@sha256:43b29f65a41eb9c35e1cd5323e3bdf3b655c2357a9f4f1ff2f9c2798e5045d80' ;;
+    archlinux) tag='ogarcia/archlinux:latest@sha256:398ef8fa8f2517008af9bdcab608a58743d4402753409d0ad89737c6a57e81d7' ;;
     esac
     echo "${tag}"
 }

@@ -67,7 +67,7 @@ print_req_pkgs() {
     local pacman_pkgs=(
         "${common_linux_pkgs[@]}" base-devel
         python-pipx ninja lld mkvtoolnix-cli
-        glib2-devel
+        glib2-devel patchelf
     )
     # shellcheck disable=SC2034
     local dnf_pkgs=(
