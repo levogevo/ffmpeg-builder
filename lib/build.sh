@@ -512,6 +512,8 @@ encode            0            git       NULL ffmpeg,vs_bestsource,vs_mvtools,su
 }
 
 download_release() {
+    [[ "${build}" == 'encode' ]] && return 0
+
     # remove other versions of a download
     for alreadyDownloaded in "${DL_DIR}/${build}-"*; do
         if line_contains "${alreadyDownloaded}" "${basename}"; then
