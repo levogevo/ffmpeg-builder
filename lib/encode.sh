@@ -562,9 +562,9 @@ gen_encode_script() {
         ffmpegParams+=(
             -f yuv4mpegpipe
             -i -
+            -map 1:0
             -map 0
             -map -0:v
-            -map 1:0
         )
     else
         ffmpegParams+=(-map 0)

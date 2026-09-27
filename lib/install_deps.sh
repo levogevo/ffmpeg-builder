@@ -48,7 +48,7 @@ print_req_pkgs() {
     local brew_pkgs=(
         "${common_pkgs[@]}" pkgconf
         mkvtoolnix pipx coreutils
-        llvm lld
+        llvm lld cargo-c
     )
     local common_linux_pkgs=(
         "${common_pkgs[@]}" clang valgrind
@@ -60,13 +60,14 @@ print_req_pkgs() {
         build-essential libssl-dev gobjc++
         mawk libc6-dev mediainfo ninja-build
         mkvtoolnix libgtest-dev lld
-        libglib2.0-dev
+        libglib2.0-dev python-is-python3
+        python3-dev
     )
     # shellcheck disable=SC2034
     local pacman_pkgs=(
         "${common_linux_pkgs[@]}" base-devel
         python-pipx ninja lld mkvtoolnix-cli
-        glib2-devel
+        glib2-devel patchelf
     )
     # shellcheck disable=SC2034
     local dnf_pkgs=(
@@ -77,6 +78,7 @@ print_req_pkgs() {
         llvm-cmake-utils llvm-devel
         llvm-static compiler-rt lld
         mkvtoolnix glib2-static
+        python3-devel patchelf
     )
     # shellcheck disable=SC2034
     local pkg_pkgs=(

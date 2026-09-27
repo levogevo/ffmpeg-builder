@@ -159,6 +159,7 @@ fi' >"${compilerDir}/which"
         "--prefix=${PREFIX}"
         "--libdir=${LIBDIR}"
         "--disable-debug"
+        "--enable-pic"
     )
     MESON_FLAGS+=(
         "--prefix" "${PREFIX}"
@@ -418,8 +419,12 @@ libplacebo        7.351.0      tar.gz    https://github.com/haasn/libplacebo/arc
     # encode deps
     BUILDS_CONF+='
 supmover          2.4.3        tar.gz    https://github.com/MonoS/SupMover/archive/refs/tags/v${ver}.${ext}
-vs_bestsource     21           tar.gz    https://github.com/vapoursynth/bestsource/archive/refs/tags/R${ver}.${ext} vapoursynth,xxhash,libnuma
+vs_bestsource     21           tar.gz    https://github.com/vapoursynth/bestsource/archive/refs/tags/R${ver}.${ext} ffmpeg,vapoursynth,xxhash,libnuma
 vs_mvtools        29           tar.gz    https://github.com/dubhatervapoursynth/vapoursynth-mvtools/archive/refs/tags/v${ver//29/29_2}.${ext} vapoursynth,fftw
+'
+    # meta build target
+    BUILDS_CONF+='
+encode            0            git       NULL ffmpeg,vs_bestsource,vs_mvtools,supmover
 '
 
     local supported_builds=()
@@ -446,6 +451,14 @@ vs_mvtools        29           tar.gz    https://github.com/dubhatervapoursynth/
     # special arg to print supported builds only
     if [[ ${getBuild} == 'supported' ]]; then
         echo "${supported_builds[@]}"
+        return 0
+    fi
+
+    if [[ ${getBuild} == 'BUILDS_CONF' ]]; then
+        while read -r line; do
+            [[ ${line} == '' ]] && continue
+            echo ${line}
+        done <<<"$(sort <<<"${BUILDS_CONF}")"
         return 0
     fi
 
@@ -488,6 +501,9 @@ vs_mvtools        29           tar.gz    https://github.com/dubhatervapoursynth/
         extractedDir="${BUILD_DIR}/${build}-v${ver}"
     fi
 
+    local basename="$(bash_basename "${extractedDir}")"
+    download="${DL_DIR}/${basename}"
+
     if [[ -n ${getBuildValue} ]]; then
         declare -n value=${getBuildValue}
         echo "${value}"
@@ -497,8 +513,7 @@ vs_mvtools        29           tar.gz    https://github.com/dubhatervapoursynth/
 }
 
 download_release() {
-    local basename="$(bash_basename "${extractedDir}")"
-    local download="${DL_DIR}/${basename}"
+    [[ "${build}" == 'encode' ]] && return 0
 
     # remove other versions of a download
     for alreadyDownloaded in "${DL_DIR}/${build}-"*; do
@@ -577,14 +592,39 @@ download_release() {
         test -d "${extractedDir}" ||
             cp -r "${download}" "${extractedDir}" || return 1
     fi
+
+    # check if the build has dependencies that need downloading
+    (
+        cd "${extractedDir}" || return 1
+
+        if test -f meson.build && grep -q subproject meson.build; then
+            echo_if_fail meson subprojects download || return 1
+        else
+            # early return, no changes
+            return 0
+        fi
+
+        if test "${ext}" != "git"; then
+            tar -cf "${wgetOut}" .
+        else
+            rsync -a . "${download}"
+        fi
+    )
 }
 
-refresh_download() {
-    if test "${ext}" != "git"; then
-        tar -cf "${wgetOut}" .
-    else
-        cp -a . "${download}"
-    fi
+FB_FUNC_NAMES+=('download_all_releases')
+# shellcheck disable=SC2034
+FB_FUNC_DESCS['download_all_releases']='download all supported releases'
+# shellcheck disable=SC2034
+FB_FUNC_COMPLETION['download_all_releases']="$(get_build_conf supported)"
+download_all_releases() {
+    local builds
+    builds=($(get_build_conf supported)) || return 1
+
+    for build in "${builds[@]}"; do
+        get_build_conf "${build}" || return 1
+        download_release "${build}" || return 1
+    done
 }
 
 # given a build, topologically sort
@@ -632,6 +672,9 @@ do_build() {
         done
         unset BUILD_ORDER
     fi
+
+    # encode meta target has no build
+    [[ ${build} == 'encode' ]] && return 0
 
     get_build_conf "${build}" || return 1
 
@@ -721,11 +764,7 @@ build() {
 
     set_compile_opts || return 1
 
-    do_build ffmpeg || return 1
-
-    # vapoursynth plugins requires ffmpeg
-    do_build vs_bestsource || return 1
-    do_build vs_mvtools || return 1
+    do_build encode || return 1
 
     # skip packaging on PGO generate run
     if [[ ${PGO} == 'ON' && ${PGO_RUN} == 'generate' ]]; then
@@ -1158,9 +1197,6 @@ build_libjxl() {
 ### MESON ###
 meta_meson_build() {
     local addFlags=("$@")
-
-    meson subprojects download || return 1
-    refresh_download || return 1
 
     meson setup \
         "${MESON_FLAGS[@]}" \

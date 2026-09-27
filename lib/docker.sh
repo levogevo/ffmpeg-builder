@@ -45,10 +45,10 @@ get_docker_image_tag() {
     local image="$1"
     local tag=''
     case "${image}" in
-    ubuntu) tag='ubuntu:24.04@sha256:c35e29c9450151419d9448b0fd75374fec4fff364a27f176fb458d472dfc9e54' ;;
-    debian) tag='debian:13@sha256:0d01188e8dd0ac63bf155900fad49279131a876a1ea7fac917c62e87ccb2732d' ;;
-    fedora) tag='fedora:42@sha256:b3d16134560afa00d7cc2a9e4967eb5b954512805f3fe27d8e70bbed078e22ea' ;;
-    archlinux) tag='ogarcia/archlinux:latest@sha256:1d70273180e43b1f51b41514bdaa73c61f647891a53a9c301100d5c4807bf628' ;;
+    ubuntu) tag='ubuntu:26.04@sha256:da6fc2be547864451aa253836dd926da33623312df4a9a243e35dc877c378a78' ;;
+    debian) tag='debian:13@sha256:9cc080028c43b27d2074d63a5f9caf7166d731494965616c1a6d2827a004585c' ;;
+    fedora) tag='fedora:44@sha256:43b29f65a41eb9c35e1cd5323e3bdf3b655c2357a9f4f1ff2f9c2798e5045d80' ;;
+    archlinux) tag='ogarcia/archlinux:latest@sha256:398ef8fa8f2517008af9bdcab608a58743d4402753409d0ad89737c6a57e81d7' ;;
     esac
     echo "${tag}"
 }
@@ -95,10 +95,15 @@ validate_selected_image() {
 }
 
 docker_login() {
-    echo_if_fail docker login \
-        -u "${DOCKER_REGISTRY_USER}" \
-        -p "${DOCKER_REGISTRY_PASS}" \
-        "${DOCKER_REGISTRY}"
+    if [[ -n ${DOCKER_REGISTRY_USER} && -n ${DOCKER_REGISTRY_PASS} ]]; then
+        # registry may include a namespace path (e.g. ghcr.io/<owner>);
+        # docker login must target the host only
+        local loginServer="${DOCKER_REGISTRY%%/*}"
+        echo_if_fail docker login \
+            -u "${DOCKER_REGISTRY_USER}" \
+            -p "${DOCKER_REGISTRY_PASS}" \
+            "${loginServer}"
+    fi
 }
 
 FB_FUNC_NAMES+=('docker_build_image')
@@ -111,9 +116,11 @@ docker_build_image() {
     PLATFORM="${PLATFORM:-$(echo_platform)}"
 
     echo_info "sourcing package manager for ${image}"
-    local dockerDistro="$(get_docker_image_tag "${image}")"
+    local dockerDistro
+    dockerDistro="$(get_docker_image_tag "${image}")"
     # specific file for evaluated package manager info
-    local distroPkgMgr="${DOCKER_DIR}/$(bash_basename "${image}")-pkg_mgr"
+    local distroPkgMgr
+    distroPkgMgr="${DOCKER_DIR}/$(bash_basename "${image}")-pkg_mgr"
     # get package manager info
     docker run \
         "${DOCKER_RUN_FLAGS[@]}" \
@@ -124,13 +131,16 @@ docker_build_image() {
     # shellcheck disable=SC1090
     source "${distroPkgMgr}"
 
-    local dockerfile="${DOCKER_DIR}/Dockerfile_$(bash_basename "${image}")"
+    local dockerfile
+    dockerfile="${DOCKER_DIR}/Dockerfile_$(bash_basename "${image}")"
     local embedPath='/Dockerfile'
+    # shellcheck disable=SC2016
     {
         echo "FROM ${dockerDistro}"
         echo 'SHELL ["/bin/bash", "-c"]'
         echo 'RUN ln -sf /bin/bash /bin/sh'
         echo 'ENV DEBIAN_FRONTEND=noninteractive'
+        # shellcheck disable=SC2154
         echo "RUN ${pkg_mgr_update} && ${pkg_mgr_upgrade} && ${pkg_install} ${req_pkgs[*]}"
 
         # ENV for pipx/rust
@@ -152,16 +162,21 @@ docker_build_image() {
         echo 'RUN echo "nobody:x:65534:65534:nobody:/root:/bin/bash" >> /etc/passwd'
         echo 'RUN sed -i '/nogroup/d' /etc/group || true'
         echo 'RUN echo "nogroup:x:65534:" >> /etc/group'
+        # PS1
+        echo "RUN echo \"PS1='id=\\\$(id -u)@${image}:\w\\$ '\" >> /etc/bash.bashrc"
         # open up permissions before switching user
-        echo 'RUN chmod 777 -R /root/'
+        echo 'ENV HOME="/root"'
+        echo 'RUN chmod 777 -R /root'
+
         # run as nobody:nogroup for rest of install
         echo 'USER 65534:65534'
         # pipx
-        echo "RUN pipx install virtualenv"
-        echo "RUN pipx install meson"
+        echo "RUN pipx install virtualenv meson cython"
         # rust
         local rustupVersion='1.28.2'
         local rustcVersion='1.90.0'
+        # cargo-c version compatible with the pinned rustc above
+        local cargoCVersion='0.10.19+cargo-0.93.0'
         local rustupTarball="rustup-${rustupVersion}.tar.gz"
         local rustupTarballPath="${DOCKER_DIR}/${rustupTarball}"
         if [[ ! -f ${rustupTarballPath} ]]; then
@@ -173,14 +188,13 @@ docker_build_image() {
         # install cargo-binstall
         echo "RUN curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash"
         # install cargo-c
-        echo "RUN cargo-binstall -y cargo-c"
+        echo "RUN cargo-binstall -y cargo-c@${cargoCVersion}"
 
-        # final mods for PS1
-        echo
-        echo 'USER root'
-        echo "RUN echo \"PS1='id=\\\$(id -u)@${image}:\w\\$ '\" >> /etc/bash.bashrc"
-        echo 'USER 65534:65534'
-        echo
+        # PS1 for specific home path
+        echo 'RUN grep PS1 /etc/bash.bashrc | tail -n 1 >> ~/.bashrc'
+
+        # open up permissions finalizing image
+        echo 'RUN chmod 777 -R ${PIPX_HOME}'
 
         # embed dockerfile into docker image itself
         # shellcheck disable=SC2094
@@ -212,11 +226,23 @@ docker_build_image() {
 
     # if a docker registry is defined, push to it
     if [[ ${DOCKER_REGISTRY} != '' ]]; then
+        # single-platform builds push a platform-qualified tag so amd64/arm64
+        # legs can be merged into a multiarch manifest later; multi-platform
+        # builds (comma-separated PLATFORM) keep the plain tag via buildx
+        local platSuffix=''
+        if ! line_contains "${PLATFORM}" ','; then
+            if line_contains "${PLATFORM}" 'amd64'; then
+                platSuffix='-amd64'
+            elif line_contains "${PLATFORM}" 'arm64'; then
+                platSuffix='-arm64'
+            fi
+        fi
+
         docker_login || return 1
         docker buildx build \
             --push \
             --platform "${PLATFORM}" \
-            -t "${DOCKER_REGISTRY}/${image_tag}" \
+            -t "${DOCKER_REGISTRY}/${image_tag}${platSuffix}" \
             -f "${dockerfile}" \
             "${DOCKER_DIR}" || return 1
     fi
@@ -245,9 +271,10 @@ docker_load_image() {
     check_docker || return 1
     image_tag="$(set_distro_image_tag "${image}")"
     echo_info "loading docker image for ${image_tag}"
-    local archive="${DOCKER_DIR}/$(docker_image_archive_name "${image_tag}")"
-    test -f "$archive" || return 1
-    zstdcat -T0 "$archive" | docker load || return 1
+    local archive
+    archive="${DOCKER_DIR}/$(docker_image_archive_name "${image_tag}")"
+    test -f "${archive}" || return 1
+    zstdcat -T0 "${archive}" | docker load || return 1
     docker system prune -f
 }
 
@@ -268,11 +295,13 @@ docker_run_image() {
         runCmd+=("${cmd[@]}")
     fi
 
-    local image_tag="$(set_distro_image_tag "${image}")"
+    local image_tag
+    image_tag="$(set_distro_image_tag "${image}")"
 
     # if a docker registry is defined, pull from it
     if [[ ${DOCKER_REGISTRY} != '' ]]; then
         echo_if_fail docker_login || return 1
+        echo_info "pulling ${image_tag}"
         echo_if_fail docker pull \
             "${DOCKER_REGISTRY}/${image_tag}" || return 1
         docker tag "${DOCKER_REGISTRY}/${image_tag}" "${image_tag}"
