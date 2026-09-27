@@ -159,6 +159,7 @@ fi' >"${compilerDir}/which"
         "--prefix=${PREFIX}"
         "--libdir=${LIBDIR}"
         "--disable-debug"
+        "--enable-pic"
     )
     MESON_FLAGS+=(
         "--prefix" "${PREFIX}"
