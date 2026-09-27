@@ -289,7 +289,11 @@ fi' >"${compilerDir}/which"
     # add preprocessor flags
     CFLAGS_ARR+=("${CPPFLAGS_ARR[@]}")
     # record flags in binary
-    CFLAGS_ARR+=(-frecord-gcc-switches)
+    if [[ ${CC} == 'clang' ]]; then
+        CFLAGS_ARR+=(-frecord-command-line)
+    else
+        CFLAGS_ARR+=(-frecord-gcc-switches)
+    fi
 
     if ! is_darwin; then
         # add binary watermark
@@ -513,7 +517,7 @@ encode            0            git       NULL ffmpeg,vs_bestsource,vs_mvtools,su
 }
 
 download_release() {
-    [[ "${build}" == 'encode' ]] && return 0
+    [[ ${build} == 'encode' ]] && return 0
 
     # remove other versions of a download
     for alreadyDownloaded in "${DL_DIR}/${build}-"*; do

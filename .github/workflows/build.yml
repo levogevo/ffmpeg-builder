@@ -45,7 +45,7 @@ jobs:
     needs: base-image
     runs-on: ubuntu-26.04
     steps:
-      - uses: docker/login-action@v3
+      - uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -111,6 +111,7 @@ jobs:
         comp_opts:
           - "OPT=0 LTO=OFF STATIC=OFF"
           - "OPT=2 LTO=OFF"
+          - "PGO=ON PACKAGE=ON"
     steps:
       - uses: actions/checkout@v7
       - uses: actions/cache/restore@v6
@@ -128,7 +129,7 @@ jobs:
         run: |
           export PATH="/opt/homebrew/bin:${PATH}"
           ${{ matrix.comp_opts }} ./scripts/build.sh
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           path: gitignore/package/*.tar.xz
           if-no-files-found: ignore
@@ -150,6 +151,7 @@ jobs:
         comp_opts:
           - "OPT=0 LTO=OFF STATIC=OFF"
           - "OPT=2 LTO=OFF"
+          - "PGO=ON PACKAGE=ON"
         include:
           - arch: x86-64-v3
             runner: ubuntu-26.04
@@ -166,7 +168,7 @@ jobs:
         run: ${{ matrix.comp_opts }} ./scripts/build_with_docker.sh ${{ matrix.distro }}
         env:
           ARCH: ${{ matrix.arch }}
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           path: gitignore/package/*.tar.xz
           if-no-files-found: ignore
