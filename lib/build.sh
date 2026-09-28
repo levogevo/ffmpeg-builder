@@ -393,6 +393,7 @@ glad              2.0.8        tar.gz    https://github.com/Dav1dde/glad/archive
 zlib              1.3.1        tar.gz    https://github.com/madler/zlib/archive/refs/tags/v${ver}.${ext}
 zstd              1.5.7        tar.gz    https://github.com/facebook/zstd/archive/refs/tags/v${ver}.${ext}
 bzip              master       git       https://github.com/libarchive/bzip2.git
+mold              2.42.1       tar.gz    https://github.com/rui314/mold/archive/refs/tags/v${ver}.${ext}
 expat             2.7.3        tar.xz    https://github.com/libexpat/libexpat/releases/download/R_${ver//./_}/expat-${ver}.${ext}
 meson             1.12.0       tar.gz    https://github.com/mesonbuild/meson/archive/refs/tags/${ver}.${ext}
 brotli            1.2.0        tar.gz    https://github.com/google/brotli/archive/refs/tags/v${ver}.${ext}
@@ -913,6 +914,31 @@ build_librav1e() {
 }
 
 ### CMAKE ###
+meta_cmake_devtool_build() (
+    local addFlags=("$@")
+
+    # clean build environment
+    unset "${BUILD_ENV_NAMES[@]}"
+
+    # intentional subshell variable override
+    # shellcheck disable=SC2030
+    CMAKE_FLAGS=(
+        "-DCMAKE_INSTALL_PREFIX=${LOCAL_PREFIX}"
+        "-DCMAKE_INSTALL_LIBDIR=lib"
+        "-DCMAKE_BUILD_TYPE=Release"
+        "-DCMAKE_C_COMPILER_LAUNCHER=ccache"
+        "-DCMAKE_CXX_COMPILER_LAUNCHER=ccache"
+        "-DCMAKE_VERBOSE_MAKEFILE=ON"
+        "-G" "Ninja"
+        "-DENABLE_STATIC=ON"
+        "-DENABLE_SHARED=OFF"
+        "-DBUILD_SHARED_LIBS=OFF"
+    )
+
+    meta_cmake_build \
+        "${addFlags[@]}" || return 1
+)
+
 meta_cmake_build() {
     local addFlags=("$@")
     # configure
@@ -1087,9 +1113,6 @@ build_xxhash() {
 }
 
 build_cmake3() (
-    # clean build environment
-    unset "${BUILD_ENV_NAMES[@]}"
-
     # don't need to rebuild if already using cmake3
     if using_cmake3; then
         return 0
@@ -1100,27 +1123,26 @@ build_cmake3() (
         return 0
     fi
 
+    local flags=()
     if is_android; then
-        CMAKE_FLAGS+=(
+        flags+=(
             "-DCMAKE_USE_SYSTEM_LIBUV=ON"
             "-DCMAKE_USE_SYSTEM_LIBARCHIVE=ON"
         )
     fi
 
-    CMAKE_FLAGS+=(
-        "-DCMAKE_INSTALL_PREFIX=${LOCAL_PREFIX}"
-        "-DCMAKE_INSTALL_LIBDIR=lib"
-        "-DCMAKE_BUILD_TYPE=Release"
-        "-DCMAKE_C_COMPILER_LAUNCHER=ccache"
-        "-DCMAKE_CXX_COMPILER_LAUNCHER=ccache"
-        "-DCMAKE_VERBOSE_MAKEFILE=ON"
-        "-G" "Ninja"
-        "-DENABLE_STATIC=ON"
-        "-DENABLE_SHARED=OFF"
-        "-DBUILD_SHARED_LIBS=OFF"
-    )
-    meta_cmake_build || return 1
+    meta_cmake_devtool_build \
+        "${flags[@]}" || return 1
 )
+
+build_mold() {
+    # don't need to rebuild if already built
+    if PATH="${LOCAL_PREFIX}/bin:${PATH}" has_cmd mold; then
+        return 0
+    fi
+
+    meta_cmake_devtool_build || return 1
+}
 
 build_libx265() {
     local modPath
@@ -1429,9 +1451,10 @@ meta_configure_build() {
         "${configureFlags[@]}" \
         "${addFlags[@]}" || return 1
     # build
-    # attempt to build twice since build can fail due to OOM
-    ccache make -j"${JOBS}" ||
-        ccache make -j"${JOBS}" || return 1
+    for target in ${MAKE_TARGETS}; do
+        ccache make -j"${JOBS}" "${target}"
+    done
+    ccache make -j"${JOBS}" || return 1
     # install
     local destdir="${PWD}/fb-local-install"
     make -j"${JOBS}" DESTDIR="${destdir}" install || return 1
@@ -1592,6 +1615,15 @@ build_ffmpeg() {
         done
     else
         ffmpegFlags+=("${FFMPEG_EXTRA_FLAGS[@]}")
+    fi
+
+    # ffmpeg build takes the most ram and can fail
+    # on low ram systems. serialize the make targets to
+    # avoid OOM/termination
+    local MAKE_TARGETS ram
+    ram="$(print_total_ram)"
+    if [[ ${ram} -le 8 ]]; then
+        MAKE_TARGETS='ffprobe_g ffmpeg_g'
     fi
 
     meta_configure_build \

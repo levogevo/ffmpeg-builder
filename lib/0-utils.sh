@@ -661,3 +661,17 @@ get_pipx_pkg_path() {
     local platlib="$("${python}" -c 'import sysconfig; print(sysconfig.get_path("platlib"))')"
     echo "${platlib}/${pkg}"
 }
+
+print_total_ram() {
+    local total totalGB
+    if is_darwin; then
+        total="$(sysctl -n hw.memsize)"
+    elif is_linux; then
+        ((total = $(getconf _PHYS_PAGES) * $(getconf PAGESIZE)))
+    else
+        return 1
+    fi
+
+    ((totalGB = total / 2 ** 30))
+    echo "${totalGB}"
+}
