@@ -1623,6 +1623,7 @@ build_ffmpeg() {
     local MAKE_TARGETS ram
     ram="$(print_total_ram)"
     if [[ ${ram} -le 8 ]]; then
+        local JOBS=$((JOBS / 2))
         MAKE_TARGETS='ffprobe_g ffmpeg_g'
     fi
 
