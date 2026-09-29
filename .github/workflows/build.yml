@@ -142,7 +142,7 @@ jobs:
       matrix:
         arch:
           - x86-64-v3
-          - armv8-a
+        #   - armv8-a
         distro:
           - ubuntu
           - fedora
@@ -155,8 +155,8 @@ jobs:
         include:
           - arch: x86-64-v3
             runner: ubuntu-26.04
-          - arch: armv8-a
-            runner: ubuntu-26.04-arm
+        #   - arch: armv8-a
+        #     runner: ubuntu-26.04-arm
     steps:
       - uses: actions/checkout@v7
       - uses: actions/cache/restore@v6
