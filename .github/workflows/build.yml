@@ -102,37 +102,37 @@ jobs:
       - name: download all releases
         run: ./scripts/docker_run_image.sh ubuntu ./scripts/download_all_releases.sh
 
-#   darwin:
-#     name: darwin arm64 (${{ matrix.comp_opts }})
-#     needs: download-releases
-#     runs-on: macos-latest
-#     strategy:
-#       matrix:
-#         comp_opts:
-#           - "OPT=0 LTO=OFF STATIC=OFF"
-#           - "OPT=2 LTO=OFF"
-#           - "PGO=ON PACKAGE=ON"
-#     steps:
-#       - uses: actions/checkout@v7
-#       - uses: actions/cache/restore@v6
-#         with:
-#           path: gitignore/downloads
-#           key: ${{ needs.download-releases.outputs.dl_key }}
-#           restore-keys: downloads-
-#       - name: install bash 5
-#         run: brew install bash
-#       - name: install dependencies
-#         run: |
-#           export PATH="/opt/homebrew/bin:${PATH}"
-#           ./scripts/install_deps.sh
-#       - name: build ffmpeg
-#         run: |
-#           export PATH="/opt/homebrew/bin:${PATH}"
-#           ${{ matrix.comp_opts }} ./scripts/build.sh
-#       - uses: actions/upload-artifact@v7
-#         with:
-#           path: gitignore/package/*.tar.xz
-#           if-no-files-found: ignore
+  darwin:
+    name: darwin arm64 (${{ matrix.comp_opts }})
+    needs: download-releases
+    runs-on: macos-latest
+    strategy:
+      matrix:
+        comp_opts:
+          - "OPT=0 LTO=OFF STATIC=OFF"
+          - "OPT=2 LTO=OFF"
+          - "PGO=ON PACKAGE=ON"
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/cache/restore@v6
+        with:
+          path: gitignore/downloads
+          key: ${{ needs.download-releases.outputs.dl_key }}
+          restore-keys: downloads-
+      - name: install bash 5
+        run: brew install bash
+      - name: install dependencies
+        run: |
+          export PATH="/opt/homebrew/bin:${PATH}"
+          ./scripts/install_deps.sh
+      - name: build ffmpeg
+        run: |
+          export PATH="/opt/homebrew/bin:${PATH}"
+          ${{ matrix.comp_opts }} ./scripts/build.sh
+      - uses: actions/upload-artifact@v7
+        with:
+          path: gitignore/package/*.tar.xz
+          if-no-files-found: ignore
 
   linux:
     name: linux ${{ matrix.arch }} ${{ matrix.distro }} (${{ matrix.comp_opts }})
@@ -142,7 +142,7 @@ jobs:
       matrix:
         arch:
           - x86-64-v3
-        #   - armv8-a
+          - armv8-a
         distro:
           - ubuntu
           - fedora
@@ -150,13 +150,17 @@ jobs:
           - archlinux
         comp_opts:
           - "PGO=ON PACKAGE=ON"
-        #   - "OPT=0 LTO=OFF STATIC=OFF"
-        #   - "OPT=2 LTO=OFF"
+          - "OPT=0 LTO=OFF STATIC=OFF"
+          - "OPT=2 LTO=OFF"
+        # TODO FIXME when a solution for weak arm runners is crafted
+        exclude:
+            - arch: armv8-a
+              comp_opts: "PGO=ON PACKAGE=ON"
         include:
           - arch: x86-64-v3
             runner: ubuntu-26.04
-        #   - arch: armv8-a
-        #     runner: ubuntu-26.04-arm
+          - arch: armv8-a
+            runner: ubuntu-26.04-arm
     steps:
       - uses: actions/checkout@v7
       - uses: actions/cache/restore@v6

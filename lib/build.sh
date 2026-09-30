@@ -9,7 +9,10 @@ set_compile_opts() {
         CXX
         CXXFLAGS
         CPPFLAGS
+        LD
         LDFLAGS
+        AR
+        RANLIB
         RUSTFLAGS
         PKG_CONFIG_PATH
     )
@@ -86,73 +89,70 @@ set_compile_opts() {
         )
     fi
 
-    # use clang
-    CC=clang
-    CXX=clang++
+    if is_darwin; then
+        PATH="$(brew --prefix llvm)/bin:${PATH}"
+        export PATH
+    fi
+
+    # use clang/lld/llvm
+    CC="$(command -v clang)"
+    CXX="$(command -v clang++)"
+    USE_LD=lld
+    LD="$(command -v ${USE_LD})"
+    AR="$(command -v llvm-ar)"
+    RANLIB="$(command -v llvm-ranlib)"
     CMAKE_FLAGS+=(
         "-DCMAKE_C_COMPILER=${CC}"
         "-DCMAKE_CXX_COMPILER=${CXX}"
+        "-DCMAKE_LINKER=${LD}"
+        "-DCMAKE_AR=${AR}"
+        "-DCMAKE_RANLIB=${RANLIB}"
     )
+    # android does not like LINKER_TYPE despite only using lld
+    if ! is_android; then
+        CMAKE_FLAGS+=("-DCMAKE_LINKER_TYPE=${USE_LD^^}")
+    fi
+    LDFLAGS_ARR+=("-fuse-ld=${USE_LD}")
     FFMPEG_EXTRA_FLAGS+=(
         "--cc=${CC}"
         "--cxx=${CXX}"
+        "--ranlib=${RANLIB}"
     )
 
     # hack PATH to inject use of lld as linker
     # PATH cc/c++ may be hardcoded as gcc
     # which breaks when trying to use clang/lld
-    # not supported on darwin
-    if ! is_darwin; then
-        USE_LD=lld
-        LDFLAGS_ARR+=("-fuse-ld=${USE_LD}")
-        # android does not like LINKER_TYPE despite only using lld
-        if ! is_android; then
-            CMAKE_FLAGS+=("-DCMAKE_LINKER_TYPE=${USE_LD^^}")
-        fi
-        CMAKE_FLAGS+=("-DCMAKE_LINKER=${USE_LD}")
-        local compilerDir="${LOCAL_PREFIX}/compiler-tools"
-        recreate_dir "${compilerDir}" || return 1
-        # real:gnu:clang:generic
-        local compilerMap="\
+    local compilerDir="${LOCAL_PREFIX}/compiler-tools"
+    recreate_dir "${compilerDir}" || return 1
+    # real:gnu:clang:generic
+    local compilerMap="\
 ${CC}:gcc:clang:cc
 ${CXX}:g++:clang++:c++
 ld.lld:ld:lld:ld"
-        local realT gnuT clangT genericT
-        while read -r line; do
-            IFS=: read -r realT gnuT clangT genericT <<<"${line}"
-            # full path to the real tool
-            realT="$(command -v "${realT}")"
+    local realT gnuT clangT genericT
 
-            # add fuse-ld for the compiler
-            local addFlag='-v'
-            if line_contains "${realT}" clang; then addFlag+=" -fuse-ld=${USE_LD}"; fi
+    while read -r line; do
+        IFS=: read -r realT gnuT clangT genericT <<<"${line}"
+        # full path to the real tool
+        realT="$(command -v "${realT}")"
 
-            # create generic tool version
-            echo "#!/usr/bin/env bash
+        # add fuse-ld for the compiler
+        local addFlag='-v'
+        if line_contains "${realT}" clang; then addFlag+=" -fuse-ld=${USE_LD}"; fi
+
+        # create generic tool version
+        echo "#!/usr/bin/env bash
 echo \$@ > ${compilerDir}/${genericT}.last-command
 exec \"${realT}\" ${addFlag} \"\$@\"" >"${compilerDir}/${genericT}"
-            chmod +x "${compilerDir}/${genericT}"
-            echo_if_fail "${compilerDir}/${genericT}" --version || return 1
+        chmod +x "${compilerDir}/${genericT}"
+        echo_if_fail "${compilerDir}/${genericT}" --version || return 1
 
-            # copy generic to gnu/clang variants
-            # cp "${compilerDir}/${genericT}" "${compilerDir}/${gnuT}" 2>/dev/null
-            # cp "${compilerDir}/${genericT}" "${compilerDir}/${clangT}" 2>/dev/null
-        done <<<"${compilerMap}"
+        # copy generic to gnu/clang variants
+        # cp "${compilerDir}/${genericT}" "${compilerDir}/${gnuT}" 2>/dev/null
+        # cp "${compilerDir}/${genericT}" "${compilerDir}/${clangT}" 2>/dev/null
+    done <<<"${compilerMap}"
 
-        # also add fake which command in case one does not exist
-        # shellcheck disable=SC2016
-        echo '#!/usr/bin/env bash
-which=""
-test -f /bin/which && which=/bin/which
-test -f /usr/bin/which && which=/usr/bin/which
-if [[ ${which} == "" ]]; then
-    command -v "$@"
-else
-    ${which} "$@"
-fi' >"${compilerDir}/which"
-        chmod +x "${compilerDir}/which"
-        export PATH="${compilerDir}:${PATH}"
-    fi
+    export PATH="${compilerDir}:${PATH}"
 
     # set prefix flags and basic flags
     CONFIGURE_FLAGS+=(
@@ -295,35 +295,20 @@ fi' >"${compilerDir}/which"
         CFLAGS_ARR+=(-frecord-gcc-switches)
     fi
 
-    if ! is_darwin; then
-        # add binary watermark
-        local watermark="${TMP_DIR}/watermark"
-        printf '%s\0' "${CFLAGS_ARR[*]}" >"${watermark}.bin"
-        objcopy \
-            -I binary \
-            -O elf64-x86-64 \
-            --rename-section .data=.note.watermark,alloc,load,readonly,data,contents \
-            "${watermark}.bin" \
-            "${watermark}.o"
-        # TODO
-        # LDFLAGS_ARR+=("${watermark}.o")
-        # verify with `readelf -x .note.watermark binary`
-    fi
-
     # set exported env names to stringified arrays
     CPPFLAGS="${CPPFLAGS_ARR[*]}"
     CFLAGS="${CFLAGS_ARR[*]}"
-    CXXFLAGS="${CFLAGS}"
+    CXXFLAGS="${CFLAGS} -include exception"
     LDFLAGS="${LDFLAGS_ARR[*]}"
     RUSTFLAGS="${RUSTFLAGS_ARR[*]}"
 
     CMAKE_FLAGS+=(
         "-DCMAKE_CFLAGS=${CFLAGS}"
-        "-DCMAKE_CXX_FLAGS=${CFLAGS}"
+        "-DCMAKE_CXX_FLAGS=${CXXFLAGS}"
     )
     MESON_FLAGS+=(
         "-Dc_args=${CFLAGS}"
-        "-Dcpp_args=${CFLAGS}"
+        "-Dcpp_args=${CXXFLAGS}"
         "-Dc_link_args=${LDFLAGS}"
         "-Dcpp_link_args=${LDFLAGS}"
     )
@@ -331,7 +316,7 @@ fi' >"${compilerDir}/which"
     # extra ffmpeg flags
     FFMPEG_EXTRA_FLAGS+=(
         "--extra-cflags=${CFLAGS}"
-        "--extra-cxxflags=${CFLAGS}"
+        "--extra-cxxflags=${CXXFLAGS}"
         '--pkg-config=pkg-config'
     )
 

@@ -53,6 +53,7 @@ print_req_pkgs() {
     local common_linux_pkgs=(
         "${common_pkgs[@]}" clang valgrind
         curl bc lshw xxd pkgconf sudo llvm
+        which
     )
     # shellcheck disable=SC2034
     local apt_get_pkgs=(

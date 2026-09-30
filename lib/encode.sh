@@ -678,7 +678,7 @@ gen_encode_script() {
             vspipe
             --container y4m
             --arg 'input=${INPUT}'
-            --arg grain=$((GRAIN * 20))
+            --arg grain=$((GRAIN * 10))
             "${SCRIPT_DIR}/vapoursynth-denoise.py"
             -
         )
