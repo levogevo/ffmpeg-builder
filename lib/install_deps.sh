@@ -5,9 +5,9 @@ determine_pkg_mgr() {
     # pkg-mgr update-cmd upgrade-cmd install-cmd check-cmd
     # shellcheck disable=SC2016
     local PKG_MGR_MAP='
-pkg:pkg update:pkg upgrade:pkg install -y:dpkg -l ${pkg}
+pkg:pkg update:pkg upgrade:pkg install -y:dpkg --listfiles ${pkg}
 brew:brew update:brew upgrade:brew install:brew list --formula ${pkg}
-apt-get:${SUDO}apt-get update:${SUDO}apt-get upgrade -y:${SUDO}apt-get install -y:dpkg -l ${pkg}
+apt-get:${SUDO}apt-get update:${SUDO}apt-get upgrade -y:${SUDO}apt-get install -y:dpkg --listfiles ${pkg}
 pacman:${SUDO}pacman -Syy:${SUDO}pacman -Syu --noconfirm:${SUDO}pacman -S --noconfirm --needed:pacman -Qi ${pkg}
 dnf:${SUDO}dnf check-update || true:${SUDO}dnf upgrade --refresh -y:${SUDO}dnf install -y:dnf list -q --installed ${pkg}
 '
@@ -53,7 +53,6 @@ print_req_pkgs() {
     local common_linux_pkgs=(
         "${common_pkgs[@]}" clang valgrind
         curl bc lshw xxd pkgconf sudo llvm
-        which
     )
     # shellcheck disable=SC2034
     local apt_get_pkgs=(
@@ -68,7 +67,7 @@ print_req_pkgs() {
     local pacman_pkgs=(
         "${common_linux_pkgs[@]}" base-devel
         python-pipx ninja lld mkvtoolnix-cli
-        glib2-devel patchelf
+        glib2-devel patchelf which
     )
     # shellcheck disable=SC2034
     local dnf_pkgs=(
@@ -80,6 +79,7 @@ print_req_pkgs() {
         llvm-static compiler-rt lld
         mkvtoolnix glib2-static
         python3-devel patchelf
+        which
     )
     # shellcheck disable=SC2034
     local pkg_pkgs=(

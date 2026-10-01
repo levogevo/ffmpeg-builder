@@ -24,6 +24,7 @@ set_compile_opts() {
         CFLAGS_ARR
         CPPFLAGS_ARR
         LDFLAGS_ARR
+        LD_DRIVER
         USE_LD
         USE_LD_FLAG
         RUSTFLAGS_ARR
@@ -96,6 +97,9 @@ set_compile_opts() {
     if is_darwin; then
         PATH="$(brew --prefix llvm)/bin:${PATH}"
         export PATH
+        LD_DRIVER=ld64
+    else
+        LD_DRIVER=ld
     fi
 
     # use clang/lld/llvm
@@ -104,7 +108,7 @@ set_compile_opts() {
 
     CC="$(command -v clang)"
     CXX="$(command -v clang++)"
-    LD="$(command -v ${USE_LD})"
+    LD="$(command -v ${LD_DRIVER}.${USE_LD})"
     AR="$(command -v llvm-ar)"
     NM="$(command -v llvm-nm)"
     STRIP="$(command -v llvm-strip)"
@@ -1310,7 +1314,9 @@ build_bzip() {
 
 build_libfontconfig() {
     meta_meson_build \
-        -D doc=disabled || return 1
+        -D doc=disabled \
+        -D cache-build=disabled \
+        -D tests-external-fonts=disabled || return 1
     sanitize_sysroot_libs libfontconfig || return 1
 }
 
@@ -1531,7 +1537,8 @@ build_libass() {
 build_fftw() {
     meta_configure_build \
         --enable-float \
-        --disable-fortran || return 1
+        --disable-fortran \
+        --disable-doc || return 1
     sanitize_sysroot_libs libfftw || return 1
 }
 
