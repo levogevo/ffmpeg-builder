@@ -12,7 +12,10 @@ set_compile_opts() {
         LD
         LDFLAGS
         AR
+        NM
+        STRIP
         RANLIB
+        OBJDUMP
         RUSTFLAGS
         PKG_CONFIG_PATH
     )
@@ -22,6 +25,7 @@ set_compile_opts() {
         CPPFLAGS_ARR
         LDFLAGS_ARR
         USE_LD
+        USE_LD_FLAG
         RUSTFLAGS_ARR
         CONFIGURE_FLAGS
         MESON_FLAGS
@@ -95,29 +99,17 @@ set_compile_opts() {
     fi
 
     # use clang/lld/llvm
+    USE_LD=lld
+    USE_LD_FLAG="-fuse-ld=${USE_LD}"
+
     CC="$(command -v clang)"
     CXX="$(command -v clang++)"
-    USE_LD=lld
     LD="$(command -v ${USE_LD})"
     AR="$(command -v llvm-ar)"
+    NM="$(command -v llvm-nm)"
+    STRIP="$(command -v llvm-strip)"
     RANLIB="$(command -v llvm-ranlib)"
-    CMAKE_FLAGS+=(
-        "-DCMAKE_C_COMPILER=${CC}"
-        "-DCMAKE_CXX_COMPILER=${CXX}"
-        "-DCMAKE_LINKER=${LD}"
-        "-DCMAKE_AR=${AR}"
-        "-DCMAKE_RANLIB=${RANLIB}"
-    )
-    # android does not like LINKER_TYPE despite only using lld
-    if ! is_android; then
-        CMAKE_FLAGS+=("-DCMAKE_LINKER_TYPE=${USE_LD^^}")
-    fi
-    LDFLAGS_ARR+=("-fuse-ld=${USE_LD}")
-    FFMPEG_EXTRA_FLAGS+=(
-        "--cc=${CC}"
-        "--cxx=${CXX}"
-        "--ranlib=${RANLIB}"
-    )
+    OBJDUMP="$(command -v llvm-objdump)"
 
     # hack PATH to inject use of lld as linker
     # PATH cc/c++ may be hardcoded as gcc
@@ -138,7 +130,7 @@ ld.lld:ld:lld:ld"
 
         # add fuse-ld for the compiler
         local addFlag='-v'
-        if line_contains "${realT}" clang; then addFlag+=" -fuse-ld=${USE_LD}"; fi
+        if line_contains "${realT}" clang; then addFlag+=" ${USE_LD_FLAG}"; fi
 
         # create generic tool version
         echo "#!/usr/bin/env bash
@@ -148,11 +140,34 @@ exec \"${realT}\" ${addFlag} \"\$@\"" >"${compilerDir}/${genericT}"
         echo_if_fail "${compilerDir}/${genericT}" --version || return 1
 
         # copy generic to gnu/clang variants
-        # cp "${compilerDir}/${genericT}" "${compilerDir}/${gnuT}" 2>/dev/null
-        # cp "${compilerDir}/${genericT}" "${compilerDir}/${clangT}" 2>/dev/null
+        cp "${compilerDir}/${genericT}" "${compilerDir}/${gnuT}" 2>/dev/null
+        cp "${compilerDir}/${genericT}" "${compilerDir}/${clangT}" 2>/dev/null
     done <<<"${compilerMap}"
 
-    export PATH="${compilerDir}:${PATH}"
+    # TODO remove?
+    # export PATH="${compilerDir}:${PATH}"
+    # update CC/CXX to point to our new hacked compiler files
+    # CC="$(command -v clang)"
+    # CXX="$(command -v clang++)"
+
+    # continue configuring for llvm
+    CMAKE_FLAGS+=(
+        "-DCMAKE_C_COMPILER=${CC}"
+        "-DCMAKE_CXX_COMPILER=${CXX}"
+        "-DCMAKE_LINKER=${LD}"
+        "-DCMAKE_AR=${AR}"
+        "-DCMAKE_RANLIB=${RANLIB}"
+    )
+    # android does not like LINKER_TYPE despite only using lld
+    if ! is_android; then
+        CMAKE_FLAGS+=("-DCMAKE_LINKER_TYPE=${USE_LD^^}")
+    fi
+    LDFLAGS_ARR+=("${USE_LD_FLAG}")
+    FFMPEG_EXTRA_FLAGS+=(
+        "--cc=${CC}"
+        "--cxx=${CXX}"
+        "--ranlib=${RANLIB}"
+    )
 
     # set prefix flags and basic flags
     CONFIGURE_FLAGS+=(
@@ -162,10 +177,10 @@ exec \"${realT}\" ${addFlag} \"\$@\"" >"${compilerDir}/${genericT}"
         "--enable-pic"
     )
     MESON_FLAGS+=(
-        "--prefix" "${PREFIX}"
-        "--libdir" "lib"
-        "--bindir" "bin"
-        "--buildtype" "release"
+        "--prefix=${PREFIX}"
+        "--libdir=lib"
+        "--bindir=bin"
+        "--buildtype=release"
     )
     CMAKE_FLAGS+=(
         "-DCMAKE_PREFIX_PATH=${PREFIX}"
@@ -289,16 +304,12 @@ exec \"${realT}\" ${addFlag} \"\$@\"" >"${compilerDir}/${genericT}"
     # add preprocessor flags
     CFLAGS_ARR+=("${CPPFLAGS_ARR[@]}")
     # record flags in binary
-    if [[ ${CC} == 'clang' ]]; then
-        CFLAGS_ARR+=(-frecord-command-line)
-    else
-        CFLAGS_ARR+=(-frecord-gcc-switches)
-    fi
+    CFLAGS_ARR+=(-frecord-command-line)
 
     # set exported env names to stringified arrays
     CPPFLAGS="${CPPFLAGS_ARR[*]}"
     CFLAGS="${CFLAGS_ARR[*]}"
-    CXXFLAGS="${CFLAGS} -include exception"
+    CXXFLAGS="${CFLAGS}"
     LDFLAGS="${LDFLAGS_ARR[*]}"
     RUSTFLAGS="${RUSTFLAGS_ARR[*]}"
 
@@ -504,6 +515,8 @@ encode            0            git       NULL ffmpeg,vs_bestsource,vs_mvtools,su
 
 download_release() {
     [[ ${build} == 'encode' ]] && return 0
+
+    local basename="$(bash_basename "${extractedDir}")"
 
     # remove other versions of a download
     for alreadyDownloaded in "${DL_DIR}/${build}-"*; do
@@ -1248,6 +1261,12 @@ build_libplacebo() {
 }
 
 build_libvmaf() {
+    # TODO: https://github.com/Netflix/vmaf/pull/1617
+    replace_file_string \
+        'libvmaf/src/svm.cpp' \
+        'swap(' \
+        'svm_swap(' || return 1
+
     cd libvmaf || return 1
     virtualenv .venv
     (
@@ -1371,7 +1390,8 @@ build_glad() {
 }
 
 build_vapoursynth() {
-    pipx install \
+    CXXFLAGS="${CXXFLAGS} -include exception" \
+        pipx install \
         --force \
         . || return 1
 
@@ -1453,7 +1473,7 @@ meta_configure_build() {
 build_libvpx() {
     # remove preprocessor flags to not break the build
     # when including old pre-built headers
-    CFLAGS="${CFLAGS//${CPPFLAGS}/}" meta_configure_build \
+    STRIP=true CFLAGS="${CFLAGS//${CPPFLAGS}/}" meta_configure_build \
         --disable-examples \
         --disable-tools \
         --disable-docs \
@@ -1483,7 +1503,8 @@ build_libx264() {
 }
 
 build_libmp3lame() {
-    meta_configure_build \
+    CC="${CC} ${USE_LD_FLAG}" \
+        meta_configure_build \
         --enable-nasm \
         --disable-frontend || return 1
     sanitize_sysroot_libs libmp3lame || return 1
@@ -1509,7 +1530,8 @@ build_libass() {
 
 build_fftw() {
     meta_configure_build \
-        --enable-float || return 1
+        --enable-float \
+        --disable-fortran || return 1
     sanitize_sysroot_libs libfftw || return 1
 }
 

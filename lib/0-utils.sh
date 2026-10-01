@@ -675,3 +675,14 @@ print_total_ram() {
     ((totalGB = total / 2 ** 30))
     echo "${totalGB}"
 }
+
+replace_file_string() {
+    local file="$1"
+    local search="$2"
+    local replace="$3"
+
+    local fileContents
+    fileContents="$(<"${file}")"
+    fileContents="${fileContents//"${search}"/"${replace}"}"
+    printf '%s\n' "${fileContents}" >"${file}"
+}
