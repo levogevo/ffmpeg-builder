@@ -133,6 +133,7 @@ jobs:
         with:
           path: gitignore/package/*.tar.xz
           if-no-files-found: ignore
+          archive: false
 
   linux:
     name: linux ${{ matrix.arch }} ${{ matrix.distro }} (${{ matrix.comp_opts }})
@@ -176,3 +177,4 @@ jobs:
         with:
           path: gitignore/package/*.tar.xz
           if-no-files-found: ignore
+          archive: false
