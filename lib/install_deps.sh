@@ -93,7 +93,7 @@ print_req_pkgs() {
         libandroid-posix-semaphore-static
         libandroid-shmem
         libandroid-shmem-static
-        cargo-c
+        cargo-c patchelf
     )
     # shellcheck disable=SC2034
     local msys_ucrt_pkgs=(

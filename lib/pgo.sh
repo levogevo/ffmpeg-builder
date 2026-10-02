@@ -27,21 +27,12 @@ gen_profdata() {
         fi
     done
 
+    ensure_llvm
     # merge profraw into profdata
-    local mergeCmd=()
-    # darwin needs special invoke
-    if is_darwin; then
-        mergeCmd+=(xcrun)
-    fi
-
-    mergeCmd+=(
-        llvm-profdata
-        merge
-        "--output=${PGO_PROFDATA}"
-    )
-    "${mergeCmd[@]}" default*.profraw || return 1
-
-    return 0
+    llvm-profdata \
+        merge \
+        "--output=${PGO_PROFDATA}" \
+        default*.profraw
 }
 
 setup_pgo_clips() {

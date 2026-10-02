@@ -94,9 +94,8 @@ set_compile_opts() {
         )
     fi
 
+    ensure_llvm
     if is_darwin; then
-        PATH="$(brew --prefix llvm)/bin:${PATH}"
-        export PATH
         LD_DRIVER=ld64
     else
         LD_DRIVER=ld
@@ -1374,7 +1373,7 @@ meta_python_build() {
         "${addFlags[@]}"
 }
 
-meta_pipx_inject() {
+meta_pipx_inject_build() {
     local environment="$1"
     shift
     local dependencies=("$@")
@@ -1384,9 +1383,11 @@ meta_pipx_inject() {
         modLDFLAGS='-Wl,--exclude-libs,ALL'
     fi
 
-    LDFLAGS="${LDFLAGS} ${modLDFLAGS}" pipx inject \
+    CXXFLAGS="${CXXFLAGS} -include exception" \
+        LDFLAGS="${LDFLAGS} ${modLDFLAGS}" \
+        pipx inject \
         --force \
-        --pip-args="--no-binary :all: --no-build-isolation" \
+        --pip-args="--no-binary :all: --no-cache-dir --no-build-isolation" \
         "${environment}" \
         "${dependencies[@]}"
 }
@@ -1411,27 +1412,19 @@ build_vapoursynth() {
     installDir="$(get_pipx_pkg_path vapoursynth)"
     ensure_dir "${INCDIR}/vapoursynth"
 
-    # ffmpeg expects libvapoursynth-script
-    ln -s "${installDir}/libvsscript.${SHARED_LIB_SUFF}" \
-        libvapoursynth-script."${SHARED_LIB_SUFF}" || return 1
-
-    # install to sysroot for ffmpeg integration
-    ${SUDO_MODIFY} cp \
-        "${installDir}/"*."${SHARED_LIB_SUFF}" \
-        "${LIBDIR}" || return 1
     ${SUDO_MODIFY} cp \
         "${installDir}/include/"*.h \
         "${INCDIR}/vapoursynth/" || return 1
 }
 
 build_vs_bestsource() {
-    meta_pipx_inject \
+    meta_pipx_inject_build \
         vapoursynth \
         vapoursynth-bestsource=="${ver}"
 }
 
 build_vs_mvtools() {
-    meta_pipx_inject \
+    meta_pipx_inject_build \
         vapoursynth \
         vapoursynth-mvtools=="${ver}"
 }

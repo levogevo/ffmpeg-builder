@@ -470,6 +470,21 @@ ensure_dir() {
     done
 }
 
+ensure_in_PATH() {
+    local path="$1"
+    if ! line_contains "${PATH}" "${path}:"; then
+        export PATH="${path}:${PATH}"
+    fi
+}
+
+ensure_llvm() {
+    is_darwin || return 0
+
+    local path
+    path="$(brew --prefix llvm)/bin" || return 1
+    ensure_in_PATH "${path}"
+}
+
 get_date() {
     printf '%(%Y-%m-%d)T\n' -1
 }
