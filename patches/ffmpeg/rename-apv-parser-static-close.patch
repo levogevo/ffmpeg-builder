@@ -1,0 +1,57 @@
+Rename apv_parser.c's static `close()` so it can no longer hijack libc
+`close()` in full-LTO builds on macOS/arm64.
+
+On Darwin clang gives every *external* C symbol an ELF-style asm label, so
+`close()` declared in <unistd.h> reaches the IR as `@"\01_close"`, while a
+`static` function keeps the plain IR name `@close`. LLVM's LTO resolver keeps
+those two apart, but after resolution both map onto the same flat Mach-O
+symbol name `_close` in the single merged codegen unit, so libavformat's
+`file_close()` (libavformat/file.c) calls this AVBSF callback with the raw
+file descriptor instead of libc:
+
+    00000001007694e4 <_file_close>:
+      ldr x8, [x0, #0x10]     ; h->priv_data
+      ldr w0, [x8, #0x8]      ; c->fd
+      bl  0x101c386c8 <_close> ; not libc close()
+
+    0000000101c386c8 <_close>:
+      ldr x19, [x0]           ; p = s->priv_data   <-- x0 == fd (3)
+
+so every avformat_close_input()/avio_close() of a "file:" URL dereferences the
+fd and dies with EXC_BAD_ACCESS, i.e. ffprobe/ffmpeg segfault as soon as they
+close an input file.
+
+This is the same defect reported in
+https://trac.ffmpeg.org/ticket/11479 ("Segfault with LTO - MacOS M4"), which
+was bisected to e504247db6edb1cb47a9c562277f6e671f4bde1d. That commit added
+the identical `static void close()` to libavcodec/ffv1_parser.c, and upstream
+later renamed that one to `ffv1_close`; the APV parser has since reintroduced
+the exact same pattern, so rename it here too.
+
+Only the -flto (full LTO) code path is affected. -flto=thin and non-LTO builds
+code-generate each translation unit separately and stay correct, as do
+non-Darwin targets, where no `\01` asm label is involved.
+
+Upstream: https://trac.ffmpeg.org/ticket/11479
+Context:  https://ffmpeg.org/doxygen/8.0/file_002c_002avformat_002file_002ec-source.html
+
+diff --git a/libavcodec/apv_parser.c b/libavcodec/apv_parser.c
+index 3417bd751fdb..f81b3b8a8977 100644
+--- a/libavcodec/apv_parser.c
++++ b/libavcodec/apv_parser.c
+@@ -194,7 +194,7 @@ static av_cold int init(AVCodecParserContext *s)
+     return 0;
+ }
+ 
+-static av_cold void close(AVCodecParserContext *s)
++static av_cold void apv_close(AVCodecParserContext *s)
+ {
+     APVParseContext *p = s->priv_data;
+     ParseContext *pc = &p->pc;
+@@ -209,5 +209,5 @@ static av_cold void close(AVCodecParserContext *s)
+     .priv_data_size = sizeof(APVParseContext),
+     .init           = init,
+     .parse          = parse,
+-    .close          = close,
++    .close          = apv_close,
+ };

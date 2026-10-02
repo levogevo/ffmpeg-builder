@@ -169,6 +169,7 @@ exec \"${realT}\" ${addFlag} \"\$@\"" >"${compilerDir}/${genericT}"
     FFMPEG_EXTRA_FLAGS+=(
         "--cc=${CC}"
         "--cxx=${CXX}"
+        "--ar=${AR}"
         "--ranlib=${RANLIB}"
     )
 
@@ -353,7 +354,7 @@ get_build_conf() {
 
     # name version file-extension url dep1,dep2
     local BUILDS_CONF='
-ffmpeg            8.1.2        tar.gz    https://github.com/FFmpeg/FFmpeg/archive/refs/tags/n${ver}.${ext}
+ffmpeg            8.1.3        tar.gz    https://github.com/FFmpeg/FFmpeg/archive/refs/tags/n${ver}.${ext}
 '
     # ffmpeg --enable packages
     BUILDS_CONF+='
@@ -1605,24 +1606,8 @@ build_ffmpeg() {
         "--disable-autodetect"
         "--extra-version=${ver}"
         "--enable-runtime-cpudetect"
+        "${FFMPEG_EXTRA_FLAGS[@]}"
     )
-
-    # lto is broken on darwin for ffmpeg only
-    # https://trac.ffmpeg.org/ticket/11479
-    local ltoBackup="${LTO}"
-    if is_darwin; then
-        LTO=OFF
-        for flag in "${FFMPEG_EXTRA_FLAGS[@]}"; do
-            if line_contains "${flag}" "${LTO_FLAG}"; then
-                # get rid of potential space on either side
-                flag="${flag//${LTO_FLAG} /}"
-                flag="${flag// ${LTO_FLAG}/}"
-            fi
-            ffmpegFlags+=("${flag}")
-        done
-    else
-        ffmpegFlags+=("${FFMPEG_EXTRA_FLAGS[@]}")
-    fi
 
     # ffmpeg build takes the most ram and can fail
     # on low ram systems. serialize the make targets to
@@ -1636,7 +1621,6 @@ build_ffmpeg() {
 
     meta_configure_build \
         "${ffmpegFlags[@]}" || return 1
-    LTO="${ltoBackup}"
     ${SUDO_MODIFY} cp ff*_g "${BINDIR}"
     sanitize_sysroot_libs \
         libavcodec libavdevice libavfilter libswscale \
