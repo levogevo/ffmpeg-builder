@@ -40,18 +40,14 @@ RECALC_BLKSIZE = 4
 RECALC_SEARCH = 4
 RECALC_THSAD = grain
 
-# The source is a grainy 4K film scan. Grain is temporally random, so it is
-# cheap to average away with motion compensation and very expensive for the
-# encoder, while SVT-AV1 re-synthesises it for almost nothing at playback time
-# (film-grain=50 / adaptive-film-grain=1 in the encode parameters). Spending
-# the bit budget on picture detail instead of noise is a large net win.
+# Grain is temporally random, so it is cheap to average away with motion compensation
+# and very expensive for the encoder, while SVT-AV1 re-synthesises it for almost
+# nothing at playback time. Spending the bit budget on picture detail instead
+# of noise is a large net win.
 #
-# Grain also inflates the per-block SAD that the temporal filter thresholds on,
-# which is why the original script was barely denoising anything: at 4K with
-# grain this strong almost every block failed the test and kept its own pixels.
-# A single 3x3 box blur on the *analysis source only* brings the SAD back into
-# range so the temporal filter actually engages. The pixels that get averaged
-# are still the untouched source, so nothing is softened by the blur itself.
+# Grain also inflates the per-block SAD that the temporal filter thresholds on.
+# The pixels that get averaged are still the untouched source, so nothing is
+# softened by the blur itself.
 ANALYSIS_BLUR = 1
 
 # Number of frames each pixel is averaged over. Grain averages down as 1/sqrt(n),

@@ -423,9 +423,10 @@ libplacebo        7.351.0      tar.gz    https://github.com/haasn/libplacebo/arc
 '
     # encode deps
     BUILDS_CONF+='
-supmover          2.4.3        tar.gz    https://github.com/MonoS/SupMover/archive/refs/tags/v${ver}.${ext}
+supmover          2.5.2        tar.gz    https://github.com/MonoS/SupMover/archive/refs/tags/v${ver}.${ext}
 vs_bestsource     21           tar.gz    https://github.com/vapoursynth/bestsource/archive/refs/tags/R${ver}.${ext} ffmpeg,vapoursynth,xxhash,libnuma
 vs_mvtools        29           tar.gz    https://github.com/dubhatervapoursynth/vapoursynth-mvtools/archive/refs/tags/v${ver//29/29_2}.${ext} vapoursynth,fftw
+vs_mvutensils     9            tar.gz    https://github.com/myrsloik/mvutensils/archive/refs/tags/v${ver}.${ext} vapoursynth,fftw
 '
     # meta build target
     BUILDS_CONF+='
@@ -1428,6 +1429,12 @@ build_vs_mvtools() {
     meta_pipx_inject_build \
         vapoursynth \
         vapoursynth-mvtools=="${ver}"
+}
+
+build_vs_mvutensils() {
+    meta_pipx_inject_build \
+        vapoursynth \
+        vapoursynth-mvutensils=="${ver}"
 }
 
 ### AUTOTOOLS ###
