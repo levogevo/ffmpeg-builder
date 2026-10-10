@@ -1,0 +1,297 @@
+Rename libvmaf's static feature-extractor `close()` callbacks so they can no
+longer hijack libc `close()` in full-LTO builds on macOS/arm64.
+
+On Darwin clang gives every *external* C symbol an ELF-style asm label, so
+`close()` declared in <unistd.h> reaches the IR as `@"\01_close"`, while a
+`static` function keeps the plain IR name `@close`. LLVM's LTO resolver keeps
+those two apart, but after resolution both map onto the same flat Mach-O
+symbol name `_close` in the single merged codegen unit. libvmaf's feature
+extractors each define a `static int close(VmafFeatureExtractor *)`, so once
+libvmaf is linked into ffmpeg/ffprobe the linker can bind libavformat's
+`file_close()` call to one of those callbacks with completely different calling
+conventions:
+
+    close + 28:  ldr x20, [x0, #0x30]     ; x0 is a raw fd, not a fex
+    close + 32:  ldr x0, [x20, #0x8]
+    EXC_BAD_ACCESS at 0x33 (== fd 3 + 0x30)
+
+which crashes ffprobe/ffmpeg with SIGSEGV every time an input file is closed.
+
+Give every static `close` callback in libvmaf/src/feature its own unique name
+(<file>_close) and update the corresponding VmafFeatureExtractor initializer.
+(cambi.c already used close_cambi.)
+
+This is the same class of defect as FFmpeg trac ticket #11479.
+
+diff -ruN a/libvmaf/src/feature/ciede.c b/libvmaf/src/feature/ciede.c
+--- a/libvmaf/src/feature/ciede.c	2023-12-07 13:27:32
++++ b/libvmaf/src/feature/ciede.c	2026-10-10 15:18:50
+@@ -372,7 +372,7 @@
+                                          index);
+ }
+ 
+-static int close(VmafFeatureExtractor *fex)
++static int ciede_close(VmafFeatureExtractor *fex)
+ {
+     CiedeState *s = fex->priv;
+     if (s->ref.data[0] && s->dist.data[0]) {
+@@ -391,7 +391,7 @@
+     .name = "ciede",
+     .init = init,
+     .extract = extract,
+-    .close = close,
++    .close = ciede_close,
+     .priv_size = sizeof(CiedeState),
+     .provided_features = provided_features,
+ };
+diff -ruN a/libvmaf/src/feature/float_adm.c b/libvmaf/src/feature/float_adm.c
+--- a/libvmaf/src/feature/float_adm.c	2023-12-07 13:27:32
++++ b/libvmaf/src/feature/float_adm.c	2026-10-10 15:18:50
+@@ -206,7 +206,7 @@
+     return err;
+ }
+ 
+-static int close(VmafFeatureExtractor *fex)
++static int float_adm_close(VmafFeatureExtractor *fex)
+ {
+     AdmState *s = fex->priv;
+     if (s->ref) aligned_free(s->ref);
+@@ -229,7 +229,7 @@
+     .init = init,
+     .extract = extract,
+     .options = options,
+-    .close = close,
++    .close = float_adm_close,
+     .priv_size = sizeof(AdmState),
+     .provided_features = provided_features,
+ };
+diff -ruN a/libvmaf/src/feature/float_ansnr.c b/libvmaf/src/feature/float_ansnr.c
+--- a/libvmaf/src/feature/float_ansnr.c	2023-12-07 13:27:32
++++ b/libvmaf/src/feature/float_ansnr.c	2026-10-10 15:18:50
+@@ -99,7 +99,7 @@
+     return 0;
+ }
+ 
+-static int close(VmafFeatureExtractor *fex)
++static int float_ansnr_close(VmafFeatureExtractor *fex)
+ {
+     AnsnrState *s = fex->priv;
+     if (s->ref) aligned_free(s->ref);
+@@ -116,7 +116,7 @@
+         .name = "float_ansnr",
+         .init = init,
+         .extract = extract,
+-        .close = close,
++        .close = float_ansnr_close,
+         .priv_size = sizeof(AnsnrState),
+         .provided_features = provided_features,
+ };
+diff -ruN a/libvmaf/src/feature/float_moment.c b/libvmaf/src/feature/float_moment.c
+--- a/libvmaf/src/feature/float_moment.c	2023-12-07 13:27:32
++++ b/libvmaf/src/feature/float_moment.c	2026-10-10 15:18:50
+@@ -102,7 +102,7 @@
+     return 0;
+ }
+ 
+-static int close(VmafFeatureExtractor *fex)
++static int float_moment_close(VmafFeatureExtractor *fex)
+ {
+     MomentState *s = fex->priv;
+     if (s->ref) aligned_free(s->ref);
+@@ -119,7 +119,7 @@
+     .name = "float_moment",
+     .init = init,
+     .extract = extract,
+-    .close = close,
++    .close = float_moment_close,
+     .priv_size = sizeof(MomentState),
+     .provided_features = provided_features,
+ };
+diff -ruN a/libvmaf/src/feature/float_motion.c b/libvmaf/src/feature/float_motion.c
+--- a/libvmaf/src/feature/float_motion.c	2023-12-07 13:27:32
++++ b/libvmaf/src/feature/float_motion.c	2026-10-10 15:18:50
+@@ -195,7 +195,7 @@
+     return 0;
+ }
+ 
+-static int close(VmafFeatureExtractor *fex)
++static int float_motion_close(VmafFeatureExtractor *fex)
+ {
+     MotionState *s = fex->priv;
+ 
+@@ -220,7 +220,7 @@
+     .extract = extract,
+     .options = options,
+     .flush = flush,
+-    .close = close,
++    .close = float_motion_close,
+     .priv_size = sizeof(MotionState),
+     .provided_features = provided_features,
+     .flags = VMAF_FEATURE_EXTRACTOR_TEMPORAL,
+diff -ruN a/libvmaf/src/feature/float_ms_ssim.c b/libvmaf/src/feature/float_ms_ssim.c
+--- a/libvmaf/src/feature/float_ms_ssim.c	2023-12-07 13:27:32
++++ b/libvmaf/src/feature/float_ms_ssim.c	2026-10-10 15:18:50
+@@ -161,7 +161,7 @@
+     return err;
+ }
+ 
+-static int close(VmafFeatureExtractor *fex)
++static int float_ms_ssim_close(VmafFeatureExtractor *fex)
+ {
+     MsSsimState *s = fex->priv;
+     if (s->ref) aligned_free(s->ref);
+@@ -179,7 +179,7 @@
+     .init = init,
+     .extract = extract,
+     .options = options,
+-    .close = close,
++    .close = float_ms_ssim_close,
+     .priv_size = sizeof(MsSsimState),
+     .provided_features = provided_features,
+ };
+diff -ruN a/libvmaf/src/feature/float_psnr.c b/libvmaf/src/feature/float_psnr.c
+--- a/libvmaf/src/feature/float_psnr.c	2023-12-07 13:27:32
++++ b/libvmaf/src/feature/float_psnr.c	2026-10-10 15:18:50
+@@ -96,7 +96,7 @@
+     return 0;
+ }
+ 
+-static int close(VmafFeatureExtractor *fex)
++static int float_psnr_close(VmafFeatureExtractor *fex)
+ {
+     PsnrState *s = fex->priv;
+     if (s->ref) aligned_free(s->ref);
+@@ -113,7 +113,7 @@
+     .name = "float_psnr",
+     .init = init,
+     .extract = extract,
+-    .close = close,
++    .close = float_psnr_close,
+     .priv_size = sizeof(PsnrState),
+     .provided_features = provided_features,
+ };
+diff -ruN a/libvmaf/src/feature/float_ssim.c b/libvmaf/src/feature/float_ssim.c
+--- a/libvmaf/src/feature/float_ssim.c	2023-12-07 13:27:32
++++ b/libvmaf/src/feature/float_ssim.c	2026-10-10 15:18:50
+@@ -135,7 +135,7 @@
+     return err;
+ }
+ 
+-static int close(VmafFeatureExtractor *fex)
++static int float_ssim_close(VmafFeatureExtractor *fex)
+ {
+     SsimState *s = fex->priv;
+     if (s->ref) aligned_free(s->ref);
+@@ -153,7 +153,7 @@
+     .init = init,
+     .extract = extract,
+     .options = options,
+-    .close = close,
++    .close = float_ssim_close,
+     .priv_size = sizeof(SsimState),
+     .provided_features = provided_features,
+ };
+diff -ruN a/libvmaf/src/feature/float_vif.c b/libvmaf/src/feature/float_vif.c
+--- a/libvmaf/src/feature/float_vif.c	2023-12-07 13:27:32
++++ b/libvmaf/src/feature/float_vif.c	2026-10-10 15:18:50
+@@ -179,7 +179,7 @@
+     return err;
+ }
+ 
+-static int close(VmafFeatureExtractor *fex)
++static int float_vif_close(VmafFeatureExtractor *fex)
+ {
+     VifState *s = fex->priv;
+     if (s->ref) aligned_free(s->ref);
+@@ -202,7 +202,7 @@
+     .init = init,
+     .extract = extract,
+     .options = options,
+-    .close = close,
++    .close = float_vif_close,
+     .priv_size = sizeof(VifState),
+     .provided_features = provided_features,
+ };
+diff -ruN a/libvmaf/src/feature/integer_adm.c b/libvmaf/src/feature/integer_adm.c
+--- a/libvmaf/src/feature/integer_adm.c	2023-12-07 13:27:32
++++ b/libvmaf/src/feature/integer_adm.c	2026-10-10 15:18:50
+@@ -2742,7 +2742,7 @@
+     return err;
+ }
+ 
+-static int close(VmafFeatureExtractor *fex)
++static int integer_adm_close(VmafFeatureExtractor *fex)
+ {
+     AdmState *s = fex->priv;
+ 
+@@ -2770,7 +2770,7 @@
+     .init = init,
+     .extract = extract,
+     .options = options,
+-    .close = close,
++    .close = integer_adm_close,
+     .priv_size = sizeof(AdmState),
+     .provided_features = provided_features,
+ };
+diff -ruN a/libvmaf/src/feature/integer_motion.c b/libvmaf/src/feature/integer_motion.c
+--- a/libvmaf/src/feature/integer_motion.c	2023-12-07 13:27:32
++++ b/libvmaf/src/feature/integer_motion.c	2026-10-10 15:18:50
+@@ -409,7 +409,7 @@
+     return err;
+ }
+ 
+-static int close(VmafFeatureExtractor *fex)
++static int integer_motion_close(VmafFeatureExtractor *fex)
+ {
+     MotionState *s = fex->priv;
+ 
+@@ -432,7 +432,7 @@
+     .init = init,
+     .extract = extract,
+     .flush = flush,
+-    .close = close,
++    .close = integer_motion_close,
+     .options = options,
+     .priv_size = sizeof(MotionState),
+     .provided_features = provided_features,
+diff -ruN a/libvmaf/src/feature/integer_ssim.c b/libvmaf/src/feature/integer_ssim.c
+--- a/libvmaf/src/feature/integer_ssim.c	2023-12-07 13:27:32
++++ b/libvmaf/src/feature/integer_ssim.c	2026-10-10 15:18:50
+@@ -220,7 +220,7 @@
+     return 0;
+ }
+ 
+-static int close(VmafFeatureExtractor *fex)
++static int integer_ssim_close(VmafFeatureExtractor *fex)
+ {
+     return 0;
+ }
+@@ -234,6 +234,6 @@
+     .name = "ssim",
+     .init = init,
+     .extract = extract,
+-    .close = close,
++    .close = integer_ssim_close,
+     .provided_features = provided_features,
+ };
+diff -ruN a/libvmaf/src/feature/integer_vif.c b/libvmaf/src/feature/integer_vif.c
+--- a/libvmaf/src/feature/integer_vif.c	2023-12-07 13:27:32
++++ b/libvmaf/src/feature/integer_vif.c	2026-10-10 15:18:50
+@@ -814,7 +814,7 @@
+     return write_scores(feature_collector, index, vif_score, s);
+ }
+ 
+-static int close(VmafFeatureExtractor *fex)
++static int integer_vif_close(VmafFeatureExtractor *fex)
+ {
+     VifState *s = fex->priv;
+     if (s->public.buf.data) aligned_free(s->public.buf.data);
+@@ -837,7 +837,7 @@
+     .init = init,
+     .extract = extract,
+     .options = options,
+-    .close = close,
++    .close = integer_vif_close,
+     .priv_size = sizeof(VifState),
+     .provided_features = provided_features,
+ };

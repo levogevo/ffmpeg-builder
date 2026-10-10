@@ -111,8 +111,7 @@ jobs:
         comp_opts:
           - "OPT=0 LTO=OFF STATIC=OFF"
           - "OPT=2 LTO=OFF"
-          # TODO figure out why LTO still results in segfault for darwin
-          - "LTO=OFF PGO=ON PACKAGE=ON"
+          - "PGO=ON PACKAGE=ON"
     steps:
       - uses: actions/checkout@v7
       - uses: actions/cache/restore@v6
