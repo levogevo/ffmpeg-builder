@@ -379,8 +379,8 @@ libfribidi        1.0.16       tar.xz    https://github.com/fribidi/fribidi/rele
 libfreetype       2.14.1       tar.xz    https://downloads.sourceforge.net/freetype/freetype-${ver}.${ext} bzip,libpng,zlib,brotli,libharfbuzzNFTP
 libharfbuzz       12.3.0       tar.xz    https://github.com/harfbuzz/harfbuzz/releases/download/${ver}/harfbuzz-${ver}.${ext} libfreetype
 libopenjpeg       2.5.4        tar.gz    https://github.com/uclouvain/openjpeg/archive/refs/tags/v${ver}.${ext} libtiff,lcms2
-vapoursynth       80           tar.gz    https://github.com/AOMediaCodec/SVT-AV1/archive/refs/tags/v${ver}.${ext}
-libsvtav1         4.3.0        tar.gz    https://gitlab.com/AOMediaCodec/SVT-AV1/-/archive/v${ver}/SVT-AV1-v${ver}.${ext}
+vapoursynth       80           tar.gz    https://github.com/vapoursynth/vapoursynth/archive/refs/tags/R${ver}.${ext}
+libsvtav1         4.3.0        tar.gz    https://github.com/AOMediaCodec/SVT-AV1/archive/refs/tags/v${ver}.${ext}
 libsvtav1_hdr     4.3.0        tar.gz    https://github.com/juliobbv-p/svt-av1-hdr/archive/refs/tags/v${ver}.${ext} dovi_tool,hdr10plus_tool,cpuinfo
 libsvtav1_ess     4.0.1        tar.gz    https://github.com/nekotrix/SVT-AV1-Essential/archive/refs/tags/v${ver}-Essential.${ext} dovi_tool,hdr10plus_tool,cpuinfo
 libsvtav1_psy     3.0.2-B      tar.gz    https://github.com/BlueSwordM/svt-av1-psyex/archive/refs/tags/v${ver}.${ext} dovi_tool,hdr10plus_tool,cpuinfo
