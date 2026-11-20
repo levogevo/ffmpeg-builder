@@ -354,7 +354,7 @@ get_build_conf() {
 
     # name version file-extension url dep1,dep2
     local BUILDS_CONF='
-ffmpeg            8.1.3        tar.gz    https://github.com/FFmpeg/FFmpeg/archive/refs/tags/n${ver}.${ext}
+ffmpeg            9.1          tar.gz    https://github.com/FFmpeg/FFmpeg/archive/refs/tags/n${ver}.${ext}
 '
     # ffmpeg --enable packages
     BUILDS_CONF+='
@@ -430,7 +430,7 @@ vs_mvutensils     9            tar.gz    https://github.com/myrsloik/mvutensils/
 '
     # meta build target
     BUILDS_CONF+='
-encode            0            git       NULL ffmpeg,vs_bestsource,vs_mvtools,supmover
+encode            0            git       NULL ffmpeg,libsvtav1_hdr,libopus,vs_bestsource,vs_mvtools,supmover
 '
 
     local supported_builds=()
@@ -987,7 +987,7 @@ build_libsvtav1_psy() {
 
 build_libsvtav1() {
     local enable512='OFF'
-    [[ "${HOSTTYPE}" == 'x86_64' ]] && enable512='ON'
+    [[ ${HOSTTYPE} == 'x86_64' ]] && enable512='ON'
 
     meta_cmake_build \
         -DSVT_AV1_LTO=OFF \

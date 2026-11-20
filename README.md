@@ -43,6 +43,7 @@ libsnappy
 libvorbis
 libmp3lame
 libfribidi
+vapoursynth
 libfreetype
 libharfbuzz
 libopenjpeg
@@ -82,21 +83,25 @@ The encoding scripts are designed to be installed to system paths for re-use via
 
 ## Encoding with svtav1 and opus
 ```bash
-encode -i input [options] output
-	[-P NUM] set preset (default: 3)
-	[-C NUM] set CRF (default: 25)
-	[-g NUM] set film grain for encode
-	[-p] print the command instead of executing it (default: false)
-	[-c] use cropdetect (default: false)
-	[-d] enable dolby vision (default: false)
-	[-v] print relevant version info
-	[-s] use same container as input, default is convert to mkv
+encode -i input [options] [output]
 
-	[output] if unset, defaults to ${PWD}/av1-input-file-name.mkv
+OPTIONS:
+  -i, --input         		input file
+  -P, --preset        		set preset (default: 3)
+  -C, --crf           		set CRF (default: 25)
+  -g, --grain         		set film grain (default: disabled)
+  -d, --denoise       		denoise with vapoursynth (default: disabled)
+  -p, --print         		print the script instead of executing it
+  -c, --crop          		use crop detect to auto-crop
+  -z, --dv            		enable dolby vision
+  -v, --version       		print version info
+  -s, --same-container		use same container as input (default: mkv)
+  -u, --update        		update script (git pull ffmpeg-builder)
+  -I, --install       		system install at /usr/local/bin/encode
+  -U, --uninstall     		uninstall from /usr/local/bin/encode
 
-	[-u] update script (git pull ffmpeg-builder)
-	[-I] system install at /usr/local/bin/encode
-	[-U] uninstall from /usr/local/bin/encode
+
+  [output] output filename (default: ${PWD}/av1-input-file-name.mkv)
 ```
 - Uses svtav1 for the video encoder.
 - Uses libopus for the audio encoder.
@@ -122,14 +127,18 @@ Example usage:
 ## Estimate film-grain
 ```bash
 efg -i input [options]
-	[-P NUM] set preset (default: 10)
-	[-l NUM] low value (default: 0)
-	[-s NUM] step value (default: 1)
-	[-h NUM] high value (default: 30)
-	[-p] plot bitrates using gnuplot
 
-	[-I] system install at /usr/local/bin/efg
-	[-U] uninstall from /usr/local/bin/efg
+OPTIONS:
+  -i, --input    		input file
+  -P, --preset   		set preset (default: 10)
+  -l, --low      		set low end value for grain range (default: 0)
+  -s, --step     		set step value for grain range (default: 1)
+  -h, --high     		set high end value for grain range (default: 30)
+  -d, --denoise  		denoise with vapoursynth (default: disabled)
+  -n, --segments 		number of segments to analyze from input (default: 5)
+  -p, --plot     		plot bitrates using gnuplot
+  -I, --install  		system install at /usr/local/bin/efg
+  -U, --uninstall		uninstall from /usr/local/bin/efg
 ```
 - Provides a way to estimate the ideal film-grain amount by encoding from low-high given values and the step amount.
 - Observing the point of diminishing returns, one can make an informed decision for a given film-grain value to choose.
